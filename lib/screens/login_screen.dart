@@ -10,6 +10,9 @@ import '../theme/app_theme.dart';
 import '../services/secure_credential_service.dart';
 import 'home_screen.dart';
 
+const int _kMaxBiometricAttempts = 3;
+const Duration _kLockoutDuration = Duration(minutes: 5);
+
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -35,6 +38,9 @@ class _LoginScreenState extends State<LoginScreen>
   List<SavedAccount> _savedAccounts = [];
   List<BiometricType> _availableBiometrics = [];
 
+  final Map<String, int> _failedAttempts = {};
+  final Map<String, DateTime> _lockoutUntil = {};
+
   late final AnimationController _anim;
   late final Animation<double> _fade;
 
@@ -51,8 +57,10 @@ class _LoginScreenState extends State<LoginScreen>
   }
 
   Future<void> _init() async {
-    await _loadSavedAccounts();
-    await _detectBiometrics();
+    try {
+      await _loadSavedAccounts();
+      await _detectBiometrics();
+    } catch (_) {}
   }
 
   @override
@@ -65,135 +73,266 @@ class _LoginScreenState extends State<LoginScreen>
     super.dispose();
   }
 
-  // ── Biometric detection ───────────────────────────────────────────────────
+  // ──────────────────────────────────────────────────────────────────────────
+  // BIOMETRIE ERKENNEN – ABSOLUT CRASHSICHER
+  // ──────────────────────────────────────────────────────────────────────────
 
   Future<void> _detectBiometrics() async {
     try {
       final canCheck = await _localAuth.canCheckBiometrics;
-      final isSupported = await _localAuth.isDeviceSupported();
-      if (canCheck || isSupported) {
-        final biometrics = await _localAuth.getAvailableBiometrics();
-        if (mounted) setState(() => _availableBiometrics = biometrics);
+      if (!canCheck) {
+        if (mounted) setState(() => _availableBiometrics = []);
+        return;
       }
+
+      final biometrics = await _localAuth.getAvailableBiometrics();
+      if (mounted) setState(() => _availableBiometrics = biometrics);
     } catch (_) {
-      // Silently ignore — biometric features simply won't show
+      if (mounted) setState(() => _availableBiometrics = []);
     }
   }
 
-  /// Returns the best matching icon for what the device actually supports.
-  ///
-  /// IMPORTANT: CupertinoIcons does NOT contain any face-id icon (confirmed
-  /// missing from the package — see flutter/flutter#167394). All biometric
-  /// icons intentionally use verified Material Icons to prevent build errors.
-  IconData get _biometricIcon {
-    if (_availableBiometrics.contains(BiometricType.face)) {
-      return Icons.face_unlock_outlined;    // ✅ verified Material icon
-    } else if (_availableBiometrics.contains(BiometricType.fingerprint)) {
-      return Icons.fingerprint;             // ✅ verified Material icon
-    } else if (_availableBiometrics.contains(BiometricType.iris)) {
-      return Icons.remove_red_eye_outlined; // ✅ verified Material icon
-    } else if (_availableBiometrics.contains(BiometricType.strong) ||
-        _availableBiometrics.contains(BiometricType.weak)) {
-      return Icons.lock_outline;            // ✅ verified Material icon
+  bool get _hasFaceId =>
+      _availableBiometrics.contains(BiometricType.face);
+  bool get _hasFingerprint =>
+      _availableBiometrics.contains(BiometricType.fingerprint);
+  bool get _hasAnyBiometric => _hasFaceId || _hasFingerprint;
+
+  IconData get _bestBiometricIcon {
+    if (_hasFaceId) return Icons.face;
+    if (_hasFingerprint) return Icons.fingerprint;
+    return Icons.lock_outline;
+  }
+
+  String get _bestBiometricLabel {
+    if (_hasFaceId) return 'Face ID';
+    if (_hasFingerprint) return 'Fingerabdruck';
+    return 'Biometrie';
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // LOCKOUT
+  // ──────────────────────────────────────────────────────────────────────────
+
+  bool _isLockedOut(String username) {
+    final until = _lockoutUntil[username];
+    if (until == null) return false;
+    if (DateTime.now().isAfter(until)) {
+      _lockoutUntil.remove(username);
+      _failedAttempts.remove(username);
+      return false;
     }
-    return Icons.smartphone_outlined;      // ✅ verified Material icon fallback
+    return true;
   }
 
-  String get _biometricLabel {
-    if (_availableBiometrics.contains(BiometricType.face)) return 'Face ID';
-    if (_availableBiometrics.contains(BiometricType.fingerprint)) {
-      return 'Fingerabdruck';
+  String _lockoutMessage(String username) {
+    final until = _lockoutUntil[username];
+    if (until == null) return '';
+    final remaining = until.difference(DateTime.now());
+    final mins = remaining.inMinutes;
+    final secs = remaining.inSeconds % 60;
+    return 'Zu viele Fehlversuche. Bitte in ${mins}m ${secs}s erneut versuchen.';
+  }
+
+  void _recordFailedAttempt(String username) {
+    final count = (_failedAttempts[username] ?? 0) + 1;
+    _failedAttempts[username] = count;
+    if (count >= _kMaxBiometricAttempts) {
+      _lockoutUntil[username] = DateTime.now().add(_kLockoutDuration);
+      _failedAttempts.remove(username);
     }
-    if (_availableBiometrics.contains(BiometricType.iris)) return 'Iris-Scan';
-    return 'Geräte-PIN';
   }
 
-  // ── Saved accounts ────────────────────────────────────────────────────────
-
-  Future<void> _loadSavedAccounts() async {
-    final accounts = await _credService.loadAccounts();
-    if (mounted) setState(() => _savedAccounts = accounts);
+  void _clearFailedAttempts(String username) {
+    _failedAttempts.remove(username);
+    _lockoutUntil.remove(username);
   }
 
-  /// Triggers the native OS authentication prompt.
-  ///
-  /// iOS:     Face ID → Touch ID → Device Passcode
-  /// Android: Fingerprint → Face → Iris → PIN → Pattern → Password
-  ///
-  /// [biometricOnly: false] ensures the OS always shows a fallback to
-  /// device PIN/password when biometrics fail or aren't enrolled.
+  // ──────────────────────────────────────────────────────────────────────────
+  // BIOMETRISCHER LOGIN – ABSOLUT CRASHSICHER
+  // ──────────────────────────────────────────────────────────────────────────
+
   Future<void> _biometricLogin(SavedAccount account) async {
     if (_loading) return;
+    if (!mounted) return;
+
+    // Lockout‑Prüfung
+    if (_isLockedOut(account.username)) {
+      _setError(_lockoutMessage(account.username));
+      return;
+    }
+
     setState(() {
       _loading = true;
       _error = null;
     });
 
     try {
-      final isDeviceSupported = await _localAuth.isDeviceSupported();
-      if (!isDeviceSupported) {
-        _setError('Dieses Gerät unterstützt keine Gerätesicherheit.');
+      // 1. Prüfen, ob Biometrie überhaupt möglich ist
+      bool canCheck = false;
+      try {
+        canCheck = await _localAuth.canCheckBiometrics;
+      } catch (_) {
+        canCheck = false;
+      }
+
+      if (!canCheck) {
+        _setError('Biometrie nicht verfügbar. Bitte manuell anmelden.');
         return;
       }
 
-      final authenticated = await _localAuth.authenticate(
-        localizedReason: 'Als ${account.username} anmelden',
-        options: const AuthenticationOptions(
-          biometricOnly: false,       // allows PIN/password fallback
-          stickyAuth: true,           // keeps prompt alive when app backgrounds
-          useErrorDialogs: true,      // OS shows its own error dialogs
-          sensitiveTransaction: false,
-        ),
-      );
+      // 2. Geräte‑Unterstützung (fängt JEDEN Fehler ab)
+      bool isSupported = false;
+      try {
+        isSupported = await _localAuth.isDeviceSupported();
+      } catch (_) {
+        isSupported = false;
+      }
+
+      if (!isSupported) {
+        _setError('Gerätesicherheit nicht unterstützt.');
+        return;
+      }
+
+      bool authenticated = false;
+
+      // 3. Biometrie‑Kette: Face ID → Fingerprint (biometricOnly = true)
+      if (_hasAnyBiometric) {
+        try {
+          authenticated = await _localAuth.authenticate(
+            localizedReason: _biometricReason(account.username),
+            options: const AuthenticationOptions(
+              biometricOnly: true,
+              stickyAuth: true,
+              useErrorDialogs: false,   // ❗️ KEINE SYSTEM-DIALOGE (verhindert Crash)
+              sensitiveTransaction: true,
+            ),
+          );
+        } catch (e) {
+          // Benutzer hat abgebrochen oder Sensorfehler → nicht zur PIN springen
+          if (!_isSensorError(e.toString())) {
+            if (mounted) setState(() => _loading = false);
+            return;
+          }
+        }
+      }
+
+      // 4. Fallback: Geräte‑PIN (nur wenn Biometrie fehlschlug / nicht verfügbar)
+      if (!authenticated) {
+        _recordFailedAttempt(account.username);
+
+        if (_isLockedOut(account.username)) {
+          _setError(_lockoutMessage(account.username));
+          return;
+        }
+
+        try {
+          authenticated = await _localAuth.authenticate(
+            localizedReason: 'Bitte Geräte‑PIN eingeben',
+            options: const AuthenticationOptions(
+              biometricOnly: false,
+              stickyAuth: true,
+              useErrorDialogs: false,
+              sensitiveTransaction: true,
+            ),
+          );
+        } catch (e) {
+          if (mounted) _setError(_friendlyBiometricError(e.toString()));
+          return;
+        }
+      }
 
       if (!authenticated) {
         if (mounted) setState(() => _loading = false);
         return;
       }
 
-      final password = await _credService.getPassword(account.username);
+      // 5. Passwort aus Secure Storage holen
+      String? password;
+      try {
+        password = await _credService.getPassword(account.username);
+      } catch (_) {
+        password = null;
+      }
+
       if (password == null) {
-        _setError(
-          'Kein gespeichertes Passwort. Bitte einmal manuell anmelden.',
-        );
+        _setError('Kein gespeichertes Passwort. Bitte einmal manuell anmelden.');
         return;
       }
 
-      final ok = await _service.login(account.username, password);
+      // 6. Server‑Login
+      bool ok = false;
+      try {
+        ok = await _service.login(account.username, password);
+      } catch (_) {
+        ok = false;
+      }
+
       if (!mounted) return;
 
       if (ok) {
+        _clearFailedAttempts(account.username);
         _afterSuccessfulLogin(account.username);
       } else {
-        _setError('Anmeldung fehlgeschlagen — Passwort geändert?');
+        await _credService.removeAccount(account.username);
+        await _loadSavedAccounts();
+        _setError('Passwort ungültig. Bitte manuell anmelden.');
       }
-    } on Exception catch (e) {
+    } catch (e) {
+      // Fängt wirklich ALLES ab – kein Crash mehr
       if (!mounted) return;
-      _setError(_friendlyBiometricError(e.toString()));
+      _setError('Authentifizierung fehlgeschlagen: ${e.toString().split('\n').first}');
+    } finally {
+      if (mounted) setState(() => _loading = false);
     }
   }
 
-  /// Maps raw exception messages to user-friendly German strings.
+  bool _isSensorError(String msg) {
+    return msg.contains('NotEnrolled') ||
+        msg.contains('NotAvailable') ||
+        msg.contains('PasscodeNotSet') ||
+        msg.contains('PermanentlyLockedOut') ||
+        msg.contains('LockedOut');
+  }
+
+  String _biometricReason(String username) {
+    if (_hasFaceId) return 'Face ID: Als $username anmelden';
+    if (_hasFingerprint) return 'Fingerabdruck: Als $username anmelden';
+    return 'Biometrie: Als $username anmelden';
+  }
+
   String _friendlyBiometricError(String msg) {
-    if (msg.contains('NotEnrolled')) {
-      return 'Keine Biometrie eingerichtet. Bitte manuell anmelden.';
-    } else if (msg.contains('NotAvailable')) {
-      return 'Biometrie nicht verfügbar. Bitte manuell anmelden.';
-    } else if (msg.contains('PermanentlyLockedOut') ||
-        msg.contains('LockedOut')) {
-      return 'Biometrie gesperrt. Bitte Geräte-PIN nutzen oder manuell anmelden.';
-    } else if (msg.contains('PasscodeNotSet')) {
-      return 'Kein Geräte-PIN eingerichtet. Bitte in den Einstellungen aktivieren.';
-    }
+    if (msg.contains('NotEnrolled')) return 'Keine Biometrie eingerichtet.';
+    if (msg.contains('NotAvailable')) return 'Biometrie nicht verfügbar.';
+    if (msg.contains('LockedOut')) return 'Biometrie gesperrt. Bitte PIN nutzen.';
+    if (msg.contains('PasscodeNotSet')) return 'Kein Geräte‑PIN.';
     return 'Authentifizierung fehlgeschlagen.';
   }
 
+  // ──────────────────────────────────────────────────────────────────────────
+  // KONTO ENTFERNEN
+  // ──────────────────────────────────────────────────────────────────────────
+
   Future<void> _removeAccount(SavedAccount account) async {
-    await _credService.removeAccount(account.username);
-    await _loadSavedAccounts();
+    try {
+      await _credService.removeAccount(account.username);
+      _clearFailedAttempts(account.username);
+      await _loadSavedAccounts();
+    } catch (_) {}
   }
 
-  // ── Normal login ──────────────────────────────────────────────────────────
+  Future<void> _loadSavedAccounts() async {
+    try {
+      final accounts = await _credService.loadAccounts();
+      if (mounted) setState(() => _savedAccounts = accounts);
+    } catch (_) {
+      if (mounted) setState(() => _savedAccounts = []);
+    }
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // MANUELLER LOGIN
+  // ──────────────────────────────────────────────────────────────────────────
 
   Future<void> _login() async {
     final username = _userCtrl.text.trim();
@@ -201,12 +340,12 @@ class _LoginScreenState extends State<LoginScreen>
 
     if (username.isEmpty) {
       _focusUser.requestFocus();
-      _setError('Bitte Benutzername eingeben.');
+      _setError('Benutzername fehlt.');
       return;
     }
     if (password.isEmpty) {
       _focusPass.requestFocus();
-      _setError('Bitte Passwort eingeben.');
+      _setError('Passwort fehlt.');
       return;
     }
 
@@ -228,22 +367,21 @@ class _LoginScreenState extends State<LoginScreen>
         }
         _afterSuccessfulLogin(username);
       } else {
-        _setError('Benutzername oder Passwort falsch.');
+        _setError('Falscher Benutzername oder Passwort.');
       }
-    } on WebUntisException catch (e) {
-      if (mounted) _setError(e.message);
     } catch (e) {
-      if (mounted) _setError('$e');
+      if (mounted) _setError(e.toString().replaceAll('Exception:', '').trim());
+    } finally {
+      if (mounted) setState(() => _loading = false);
     }
   }
 
-  /// Shared post-login logic: fetch profile image & navigate.
   void _afterSuccessfulLogin(String username) {
     _service.fetchProfileImage().then((img) {
       if (img != null) {
         _credService.updateProfileImage(username, base64Encode(img));
       }
-    });
+    }).catchError((_) {});
     _navigateHome();
   }
 
@@ -267,7 +405,12 @@ class _LoginScreenState extends State<LoginScreen>
     );
   }
 
-  // ── Build ─────────────────────────────────────────────────────────────────
+  Color _withAlpha(Color color, double alpha) =>
+      color.withOpacity(alpha.clamp(0.0, 1.0));
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // UI
+  // ──────────────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
@@ -282,27 +425,7 @@ class _LoginScreenState extends State<LoginScreen>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 SizedBox(height: MediaQuery.of(context).size.height * 0.10),
-
-                // ── Logo ──────────────────────────────────────────────────
-                Center(
-                  child: Container(
-                    width: 72,
-                    height: 72,
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [AppTheme.accent, AppTheme.accentSoft],
-                      ),
-                      borderRadius: BorderRadius.circular(18),
-                    ),
-                    child: const Icon(
-                      CupertinoIcons.book_fill,
-                      color: Colors.white,
-                      size: 32,
-                    ),
-                  ),
-                ),
+                _buildLogo(),
                 const SizedBox(height: 20),
                 const Center(
                   child: Text(
@@ -326,10 +449,9 @@ class _LoginScreenState extends State<LoginScreen>
                     ),
                   ),
                 ),
-
                 SizedBox(height: MediaQuery.of(context).size.height * 0.06),
 
-                // ── Saved account tiles ───────────────────────────────────
+                // Gespeicherte Konten
                 if (_savedAccounts.isNotEmpty) ...[
                   Padding(
                     padding: const EdgeInsets.only(bottom: 10),
@@ -339,49 +461,31 @@ class _LoginScreenState extends State<LoginScreen>
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
                         color: AppTheme.textTertiary,
-                        letterSpacing: 0.5,
                       ),
                     ),
                   ),
                   for (final account in _savedAccounts)
                     _SavedAccountTile(
                       account: account,
-                      biometricIcon: _biometricIcon,
-                      biometricLabel: _biometricLabel,
+                      biometricIcon: _bestBiometricIcon,
+                      biometricLabel: _bestBiometricLabel,
+                      hasFaceId: _hasFaceId,
+                      hasFingerprint: _hasFingerprint,
                       loading: _loading,
+                      failedAttempts: _failedAttempts[account.username] ?? 0,
+                      maxAttempts: _kMaxBiometricAttempts,
+                      isLockedOut: _isLockedOut(account.username),
                       onTap: () => _biometricLogin(account),
                       onRemove: () => _removeAccount(account),
+                      withAlpha: _withAlpha,
                     ),
                   const SizedBox(height: 20),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Divider(
-                          color: AppTheme.textTertiary.withValues(alpha: 0.2),
-                        ),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        child: Text(
-                          'oder',
-                          style: TextStyle(
-                            color: AppTheme.textTertiary,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ),
-                      Expanded(
-                        child: Divider(
-                          color: AppTheme.textTertiary.withValues(alpha: 0.2),
-                        ),
-                      ),
-                    ],
-                  ),
+                  _buildDividerWithText('oder manuell anmelden'),
                   const SizedBox(height: 20),
                 ] else
                   SizedBox(height: MediaQuery.of(context).size.height * 0.02),
 
-                // ── Input fields ──────────────────────────────────────────
+                // Eingabefelder
                 _buildField(
                   controller: _userCtrl,
                   placeholder: 'Username',
@@ -403,7 +507,6 @@ class _LoginScreenState extends State<LoginScreen>
                   onSubmit: (_) => _login(),
                   autocorrect: false,
                   autocapitalize: TextCapitalization.none,
-                  enableSuggestions: false,
                   suffix: GestureDetector(
                     onTap: () => setState(() => _obscure = !_obscure),
                     child: Icon(
@@ -415,17 +518,18 @@ class _LoginScreenState extends State<LoginScreen>
                     ),
                   ),
                 ),
-
                 const SizedBox(height: 14),
 
-                // ── Save login checkbox ───────────────────────────────────
+                // Checkbox
                 _SaveLoginCheckbox(
                   value: _saveLogin,
-                  biometricLabel: _biometricLabel,
+                  hasFaceId: _hasFaceId,
+                  hasFingerprint: _hasFingerprint,
                   onChanged: (v) => setState(() => _saveLogin = v),
+                  withAlpha: _withAlpha,
                 ),
 
-                // ── Error banner (animated) ───────────────────────────────
+                // Fehleranzeige
                 AnimatedSize(
                   duration: const Duration(milliseconds: 200),
                   curve: Curves.easeOut,
@@ -434,11 +538,9 @@ class _LoginScreenState extends State<LoginScreen>
                     padding: const EdgeInsets.only(top: 16),
                     child: Container(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 10,
-                      ),
+                          horizontal: 14, vertical: 10),
                       decoration: BoxDecoration(
-                        color: AppTheme.danger.withValues(alpha: 0.1),
+                        color: _withAlpha(AppTheme.danger, 0.1),
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: Row(
@@ -464,28 +566,59 @@ class _LoginScreenState extends State<LoginScreen>
                   )
                       : const SizedBox.shrink(),
                 ),
-
                 const SizedBox(height: 24),
 
+                // Login‑Button
                 SizedBox(
                   width: double.infinity,
                   height: 52,
                   child: ElevatedButton(
                     onPressed: _loading ? null : _login,
                     child: _loading
-                        ? const CupertinoActivityIndicator(
-                      color: Colors.white,
-                    )
+                        ? const CupertinoActivityIndicator(color: Colors.white)
                         : const Text('Anmelden'),
                   ),
                 ),
-
                 const SizedBox(height: 32),
               ],
             ),
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildLogo() {
+    return Center(
+      child: Container(
+        width: 72,
+        height: 72,
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [AppTheme.accent, AppTheme.accentSoft],
+          ),
+          borderRadius: BorderRadius.circular(18),
+        ),
+        child: const Icon(CupertinoIcons.book_fill, color: Colors.white, size: 32),
+      ),
+    );
+  }
+
+  Widget _buildDividerWithText(String text) {
+    return Row(
+      children: [
+        Expanded(child: Divider(color: _withAlpha(AppTheme.textTertiary, 0.2))),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Text(
+            text,
+            style: TextStyle(color: AppTheme.textTertiary, fontSize: 12),
+          ),
+        ),
+        Expanded(child: Divider(color: _withAlpha(AppTheme.textTertiary, 0.2))),
+      ],
     );
   }
 
@@ -499,7 +632,6 @@ class _LoginScreenState extends State<LoginScreen>
     ValueChanged<String>? onSubmit,
     Widget? suffix,
     bool autocorrect = true,
-    bool enableSuggestions = true,
     TextCapitalization autocapitalize = TextCapitalization.sentences,
   }) {
     return Container(
@@ -512,7 +644,6 @@ class _LoginScreenState extends State<LoginScreen>
         focusNode: focusNode,
         obscureText: obscure,
         autocorrect: autocorrect,
-        enableSuggestions: enableSuggestions,
         textCapitalization: autocapitalize,
         textInputAction: textAction,
         onSubmitted: onSubmit,
@@ -520,34 +651,35 @@ class _LoginScreenState extends State<LoginScreen>
         decoration: InputDecoration(
           prefixIcon: Icon(icon, color: AppTheme.textTertiary, size: 18),
           suffixIcon: suffix != null
-              ? Padding(
-            padding: const EdgeInsets.only(right: 12),
-            child: suffix,
-          )
+              ? Padding(padding: const EdgeInsets.only(right: 12), child: suffix)
               : null,
+          suffixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
           hintText: placeholder,
           border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 16,
-            vertical: 16,
-          ),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         ),
       ),
     );
   }
 }
 
-// ── Sub-widgets ────────────────────────────────────────────────────────────
+// ────────────────────────────────────────────────────────────────────────────
+// SUB‑WIDGETS
+// ────────────────────────────────────────────────────────────────────────────
 
 class _SaveLoginCheckbox extends StatelessWidget {
   final bool value;
-  final String biometricLabel;
+  final bool hasFaceId;
+  final bool hasFingerprint;
   final ValueChanged<bool> onChanged;
+  final Color Function(Color, double) withAlpha;
 
   const _SaveLoginCheckbox({
     required this.value,
-    required this.biometricLabel,
+    required this.hasFaceId,
+    required this.hasFingerprint,
     required this.onChanged,
+    required this.withAlpha,
   });
 
   @override
@@ -555,40 +687,70 @@ class _SaveLoginCheckbox extends StatelessWidget {
     return GestureDetector(
       onTap: () => onChanged(!value),
       behavior: HitTestBehavior.opaque,
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 180),
-            width: 20,
-            height: 20,
-            decoration: BoxDecoration(
-              color: value ? AppTheme.accent : Colors.transparent,
-              border: Border.all(
-                color: value ? AppTheme.accent : AppTheme.textTertiary,
-                width: 1.5,
+          Row(
+            children: [
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                width: 20,
+                height: 20,
+                decoration: BoxDecoration(
+                  color: value ? AppTheme.accent : Colors.transparent,
+                  border: Border.all(
+                    color: value ? AppTheme.accent : AppTheme.textTertiary,
+                    width: 1.5,
+                  ),
+                  borderRadius: BorderRadius.circular(5),
+                ),
+                child: value
+                    ? const Icon(CupertinoIcons.checkmark, color: Colors.white, size: 13)
+                    : null,
               ),
-              borderRadius: BorderRadius.circular(5),
-            ),
-            child: value
-                ? const Icon(
-              CupertinoIcons.checkmark,
-              color: Colors.white,
-              size: 13,
-            )
-                : null,
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              'Login speichern – $biometricLabel aktivieren',
-              style: TextStyle(
-                color: AppTheme.textSecondary,
-                fontSize: 13,
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Login speichern & Biometrie aktivieren',
+                  style: TextStyle(color: AppTheme.textSecondary, fontSize: 13),
+                ),
               ),
-            ),
+            ],
           ),
         ],
       ),
+    );
+  }
+}
+
+class _ChainStep extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool dim;
+  final Color Function(Color, double) withAlpha;
+
+  const _ChainStep({
+    required this.icon,
+    required this.label,
+    this.dim = false,
+    required this.withAlpha,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 12, color: dim ? AppTheme.textTertiary : AppTheme.accent),
+        const SizedBox(width: 3),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 11,
+            color: dim ? AppTheme.textTertiary : AppTheme.textSecondary,
+          ),
+        ),
+      ],
     );
   }
 }
@@ -597,17 +759,29 @@ class _SavedAccountTile extends StatelessWidget {
   final SavedAccount account;
   final IconData biometricIcon;
   final String biometricLabel;
+  final bool hasFaceId;
+  final bool hasFingerprint;
   final bool loading;
+  final int failedAttempts;
+  final int maxAttempts;
+  final bool isLockedOut;
   final VoidCallback onTap;
   final VoidCallback onRemove;
+  final Color Function(Color, double) withAlpha;
 
   const _SavedAccountTile({
     required this.account,
     required this.biometricIcon,
     required this.biometricLabel,
+    required this.hasFaceId,
+    required this.hasFingerprint,
     required this.loading,
+    required this.failedAttempts,
+    required this.maxAttempts,
+    required this.isLockedOut,
     required this.onTap,
     required this.onRemove,
+    required this.withAlpha,
   });
 
   @override
@@ -616,107 +790,244 @@ class _SavedAccountTile extends StatelessWidget {
     if (account.profileImageBase64 != null) {
       try {
         imageBytes = base64Decode(account.profileImageBase64!);
-      } catch (_) {
-        // Corrupted base64 — fall back to initials avatar silently
-      }
+      } catch (_) {}
     }
+
+    final bool disabled = loading || isLockedOut;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
-      child: Material(
-        color: AppTheme.surface,
-        borderRadius: BorderRadius.circular(14),
-        child: InkWell(
-          onTap: loading ? null : onTap,
+      child: AnimatedOpacity(
+        opacity: isLockedOut ? 0.5 : 1.0,
+        duration: const Duration(milliseconds: 200),
+        child: Material(
+          color: AppTheme.surface,
           borderRadius: BorderRadius.circular(14),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 14,
-              vertical: 12,
-            ),
-            child: Row(
-              children: [
-                // Avatar
-                Container(
-                  width: 46,
-                  height: 46,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: imageBytes == null
-                        ? const LinearGradient(
-                      colors: [AppTheme.accent, AppTheme.accentSoft],
-                    )
-                        : null,
-                    image: imageBytes != null
-                        ? DecorationImage(
-                      image: MemoryImage(imageBytes),
-                      fit: BoxFit.cover,
-                    )
-                        : null,
-                  ),
-                  child: imageBytes == null
-                      ? Center(
-                    child: Text(
-                      account.username.isNotEmpty
-                          ? account.username[0].toUpperCase()
-                          : '?',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 18,
-                      ),
-                    ),
-                  )
-                      : null,
-                ),
-                const SizedBox(width: 14),
-
-                // Username + subtitle
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+          child: InkWell(
+            onTap: disabled ? null : onTap,
+            borderRadius: BorderRadius.circular(14),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
                     children: [
-                      Text(
-                        account.username,
-                        style: const TextStyle(
-                          color: AppTheme.textPrimary,
-                          fontWeight: FontWeight.w600,
-                          fontSize: 15,
+                      _Avatar(imageBytes: imageBytes, username: account.username),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              account.username,
+                              style: const TextStyle(
+                                color: AppTheme.textPrimary,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 15,
+                              ),
+                            ),
+                            const SizedBox(height: 3),
+                            _AuthChainRow(
+                              hasFaceId: hasFaceId,
+                              hasFingerprint: hasFingerprint,
+                              withAlpha: withAlpha,
+                            ),
+                          ],
                         ),
                       ),
-                      const SizedBox(height: 2),
-                      Text(
-                        'Mit $biometricLabel anmelden',
-                        style: TextStyle(
-                          color: AppTheme.textTertiary,
-                          fontSize: 12,
-                        ),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            isLockedOut ? Icons.lock_outline : biometricIcon,
+                            color: isLockedOut ? AppTheme.danger : AppTheme.accent,
+                            size: 24,
+                          ),
+                          const SizedBox(width: 10),
+                          GestureDetector(
+                            onTap: onRemove,
+                            child: Icon(
+                              CupertinoIcons.xmark_circle_fill,
+                              color: withAlpha(AppTheme.textTertiary, 0.4),
+                              size: 26,
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
-                ),
-
-                // Dynamic biometric icon + remove button
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(biometricIcon, color: AppTheme.accent, size: 24),
-                    const SizedBox(width: 10),
-                    GestureDetector(
-                      onTap: onRemove,
-                      child: Icon(
-                        CupertinoIcons.xmark_circle_fill,
-                        color: AppTheme.textTertiary.withValues(alpha: 0.4),
-                        size: 20,
-                      ),
+                  if (failedAttempts > 0 && !isLockedOut) ...[
+                    const SizedBox(height: 8),
+                    _AttemptsIndicator(
+                      failed: failedAttempts,
+                      max: maxAttempts,
+                      withAlpha: withAlpha,
                     ),
                   ],
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
       ),
+    );
+  }
+}
+
+class _Avatar extends StatelessWidget {
+  final Uint8List? imageBytes;
+  final String username;
+
+  const _Avatar({required this.imageBytes, required this.username});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 46,
+      height: 46,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: imageBytes == null
+            ? const LinearGradient(colors: [AppTheme.accent, AppTheme.accentSoft])
+            : null,
+        image: imageBytes != null
+            ? DecorationImage(image: MemoryImage(imageBytes!), fit: BoxFit.cover)
+            : null,
+      ),
+      child: imageBytes == null
+          ? Center(
+        child: Text(
+          username.isNotEmpty ? username[0].toUpperCase() : '?',
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w700,
+            fontSize: 18,
+          ),
+        ),
+      )
+          : null,
+    );
+  }
+}
+
+class _AuthChainRow extends StatelessWidget {
+  final bool hasFaceId;
+  final bool hasFingerprint;
+  final Color Function(Color, double) withAlpha;
+
+  const _AuthChainRow({
+    required this.hasFaceId,
+    required this.hasFingerprint,
+    required this.withAlpha,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+    );
+  }
+}
+
+class _Step extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool active;
+  final Color Function(Color, double) withAlpha;
+
+  const _Step({
+    required this.icon,
+    required this.label,
+    this.active = true,
+    required this.withAlpha,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          icon,
+          size: 11,
+          color: active ? AppTheme.accent : withAlpha(AppTheme.textTertiary, 0.45),
+        ),
+        const SizedBox(width: 2),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 10,
+            color: active ? AppTheme.textSecondary : withAlpha(AppTheme.textTertiary, 0.45),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _Arrow extends StatelessWidget {
+  final Color Function(Color, double) withAlpha;
+
+  const _Arrow({required this.withAlpha});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 3),
+      child: Text(
+        '→',
+        style: TextStyle(
+          fontSize: 10,
+          color: withAlpha(AppTheme.textTertiary, 0.35),
+        ),
+      ),
+    );
+  }
+}
+
+class _AttemptsIndicator extends StatelessWidget {
+  final int failed;
+  final int max;
+  final Color Function(Color, double) withAlpha;
+
+  const _AttemptsIndicator({
+    required this.failed,
+    required this.max,
+    required this.withAlpha,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final remaining = max - failed;
+    return Row(
+      children: [
+        const Icon(
+          CupertinoIcons.exclamationmark_triangle_fill,
+          size: 11,
+          color: AppTheme.danger,
+        ),
+        const SizedBox(width: 4),
+        Text(
+          '$remaining Versuch${remaining == 1 ? '' : 'e'} verbleibend',
+          style: const TextStyle(fontSize: 11, color: AppTheme.danger),
+        ),
+        const SizedBox(width: 6),
+        Row(
+          children: List.generate(
+            max,
+                (i) => Container(
+              width: 6,
+              height: 6,
+              margin: const EdgeInsets.only(right: 3),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: i < failed ? AppTheme.danger : withAlpha(AppTheme.textTertiary, 0.25),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
