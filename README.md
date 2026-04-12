@@ -1,38 +1,339 @@
-# ClassByte
+<p align="center">
+  <img src="https://img.shields.io/badge/Flutter-3.11+-02569B?style=for-the-badge&logo=flutter&logoColor=white" />
+  <img src="https://img.shields.io/badge/Dart-3.11+-0175C2?style=for-the-badge&logo=dart&logoColor=white" />
+  <img src="https://img.shields.io/badge/Firebase-12.9-FFCA28?style=for-the-badge&logo=firebase&logoColor=black" />
+  <img src="https://img.shields.io/badge/Platform-iOS%20%7C%20Android-lightgrey?style=for-the-badge" />
+  <img src="https://img.shields.io/badge/License-Private-red?style=for-the-badge" />
+</p>
 
-A premium school cafeteria app built with Flutter. Displays the current meal plan with a calendar view, dietary filters, and push notifications. Designed with native iOS aesthetics using Cupertino widgets.
+<br>
 
-## Features
+<h1 align="center">
+  <br>
+  POCKYH
+  <br>
+</h1>
 
-- **Weekly overview** with today's meals highlighted at the top
-- **Calendar view** with daily meal details
-- **Dietary filters** for vegetarian and vegan dishes
-- **Pull-to-refresh** for live updates
-- **Offline mode** with local caching
-- **Daily reminder** via local notifications
-- **Multilingual** support (German, English, Italian)
-- **Native iOS design** using Cupertino components
-- **Nutrition details** including calories, fat, and protein per dish
-- **Dark mode** with system, light, and dark theme options
+<h4 align="center">Die All-in-One Schul-App fuer die LBS Brixen &mdash; Stundenplan, Noten, Mensa & mehr.</h4>
 
-## Data Strategy
+<p align="center">
+  <a href="#-features">Features</a> &bull;
+  <a href="#-tech-stack">Tech Stack</a> &bull;
+  <a href="#-architektur">Architektur</a> &bull;
+  <a href="#-installation">Installation</a> &bull;
+  <a href="#-projektstruktur">Projektstruktur</a> &bull;
+  <a href="#-konfiguration">Konfiguration</a> &bull;
+  <a href="#-api-referenz">API-Referenz</a> &bull;
+  <a href="#-mitwirken">Mitwirken</a>
+</p>
 
-The app uses a multi-layer data strategy for maximum reliability:
+<br>
 
-1. **Cache (fast)** - Previously saved server data loaded from disk
-2. **Server (6s timeout)** - Live data fetched from the configured API endpoint
+---
 
-If the server is unreachable, cached data is displayed with an offline notice. If no cache exists, an error message is shown.
+<br>
+
+## Was ist POCKYH?
+
+**POCKYH** verbindet den WebUntis-Stundenplan, das Notensystem und den Mensa-Speiseplan der LBS Brixen in einer einzigen, nativ wirkenden App. Kein Browser-Gefummel mehr, kein Wechsel zwischen drei verschiedenen Seiten &mdash; alles an einem Ort, blitzschnell und offline-faehig.
+
+<br>
+
+## &#x2728; Features
+
+### &#x1F4C5; Stundenplan
+- **Wochenansicht** mit Tagesauswahl (Mo&ndash;Fr)
+- **Farbcodierung** nach Fach (Deutsch, Mathe, IT, Englisch, Sport, ...)
+- **Pruefungs- und Entfall-Badges** auf einen Blick
+- **Stundenraster** mit automatischer Pausenerkennung (10:20, 14:55)
+- **"Jetzt" / "Als Naechstes"-Karte** auf dem Dashboard
+
+### &#x1F4CA; Noten
+- Alle Fachnoten mit **Durchschnittsberechnung**
+- **Notenverteilung** (positiv/negativ) pro Fach
+- Pruefungstyp und Datum fuer jede einzelne Note
+- Schuljahr-basierte Abfrage (aktuell 2025/2026)
+
+### &#x1F372; Mensa
+- Taeglicher **Speiseplan mit Bildern**
+- **Naehrwerte**, Allergene und Preise
+- Vegetarisch/Vegan-Filter
+- **Dreisprachig:** Deutsch, Italiano, English
+- **Offline-Cache** &mdash; Speiseplan bleibt auch ohne Netz verfuegbar
+
+### &#x1F464; Profil & Einstellungen
+- WebUntis-**Profilbild** (automatisch gecacht, fehlerresistent)
+- Kompakte Stundenplan-Ansicht
+- Entfallene Stunden ein-/ausblenden
+- Auto-Aktualisierung beim Oeffnen
+- Sprachauswahl fuer Mensa-Menue
+
+### &#x26A1; Allgemein
+- **Session-Persistenz** &mdash; einmal einloggen, dauerhaft angemeldet
+- **Pull-to-Refresh** ueberall
+- **iOS-natives Dark-Mode Design** mit Cupertino-Widgets
+- **Firebase-Integration** fuer zukuenftige Cloud-Features
+
+<br>
+
+## &#x1F527; Tech Stack
+
+| Kategorie | Technologie |
+|---|---|
+| **Framework** | Flutter 3.11+ / Dart |
+| **Backend-APIs** | WebUntis JSON-RPC + REST API |
+| **Mensa-API** | `mensa.plattnericus.dev` |
+| **Auth** | WebUntis Session-Cookies + Bearer Token |
+| **Persistenz** | SharedPreferences (Session), Disk-Cache (Mensa) |
+| **Cloud** | Firebase Core 12.9 |
+| **HTTP** | `package:http` |
+| **Design** | Cupertino-Widgets, SF Pro Text, iOS Dark Theme |
+| **Sprachen** | Deutsch (primaer), Italienisch, Englisch |
+| **Min. Plattform** | iOS 15.0+, Android SDK 21+ |
+
+<br>
+
+## &#x1F3D7; Architektur
 
 ```
-Boot sequence:
-[App Start] --> Load from cache --> Update UI
-         |----> Fetch from server (max 6s) --> Save to cache --> Update UI
+                    +---------------------+
+                    |      main.dart      |
+                    |   Firebase Init     |
+                    |   Session Restore   |
+                    +---------+-----------+
+                              |
+               +--------------+--------------+
+               |                             |
+      +--------v--------+          +--------v---------+
+      |   LoginScreen    |          |    HomeScreen     |
+      |   (WebUntis)     |          |    (4 Tabs)       |
+      +-----------------+          +--------+----------+
+                                            |
+                 +-----------+--------------+------------+
+                 |           |              |            |
+            Dashboard   Timetable       Grades       Mensa
+                 |           |              |            |
+                 +-----+-----+------+------+       +----+------+
+                       |            |              |           |
+                WebUntisService     |         DishService      |
+                       |            |              |           |
+                  WebUntis API      |         Mensa API    Disk Cache
+                                    |
+                             SharedPreferences
 ```
 
-## JSON Format
+### Zwei-Service-Architektur
 
-The app expects JSON in the following format at the configured URL:
+| Service | Verantwortung | API |
+|---|---|---|
+| **`WebUntisService`** | Auth, Stundenplan, Noten, Profilbild | `lbs-brixen.webuntis.com` |
+| **`DishService`** | Speiseplan, Caching, Offline-Modus | `mensa.plattnericus.dev` |
+
+### Daten-Strategie
+
+```
+Boot-Sequenz:
+[App Start] --> Session aus SharedPreferences laden
+          |--> Profilbild im Hintergrund vorladen
+          |--> Stundenplan/Noten vom Server holen
+
+Mensa-Sequenz:
+[Mensa oeffnen] --> Cache aus RAM laden --> UI sofort anzeigen
+              |--> Server-Fetch (max 6s) --> Cache aktualisieren --> UI updaten
+              |--> Server-Fehler? --> Disk-Cache als Fallback
+```
+
+### State Management
+
+Bewusst simpel: `StatefulWidget` + `setState`. Kein Provider, kein Riverpod, kein Bloc &mdash; die App-Komplexitaet rechtfertigt den Overhead nicht. Service-Instanzen werden per Constructor Injection durchgereicht.
+
+<br>
+
+## &#x1F680; Installation
+
+### Voraussetzungen
+
+- Flutter SDK >= 3.11.4
+- Xcode 15+ (fuer iOS)
+- Android Studio / Android SDK (fuer Android)
+- CocoaPods (fuer iOS)
+
+### Setup
+
+```bash
+# 1. Repository klonen
+git clone https://github.com/your-username/POKYH.git
+cd POKYH
+
+# 2. Dependencies installieren
+flutter pub get
+
+# 3. iOS Pods installieren
+cd ios && pod install && cd ..
+
+# 4. App starten (Simulator)
+flutter run
+
+# 4b. Oder spezifisches Geraet
+flutter run -d "iPhone 17"
+```
+
+### Firebase
+
+Die Firebase-Konfiguration ist bereits eingerichtet:
+
+| Plattform | Konfigurationsdatei |
+|---|---|
+| iOS | `ios/Runner/GoogleService-Info.plist` |
+| Android | `android/app/google-services.json` |
+| macOS | `macos/Runner/GoogleService-Info.plist` |
+| Flutter | `lib/firebase_options.dart` |
+
+Firebase-Projekt: **`pokyh-a92a5`**
+
+### Build
+
+```bash
+# iOS Release
+flutter build ios
+
+# Android APK
+flutter build apk
+
+# Android App Bundle (Play Store)
+flutter build appbundle
+```
+
+<br>
+
+## &#x1F4C1; Projektstruktur
+
+```
+lib/
+ |-- main.dart                        # App-Einstieg, Splash, Firebase Init
+ |-- firebase_options.dart            # Firebase-Konfiguration (generiert)
+ |
+ |-- config/
+ |   +-- app_config.dart              # API-URLs
+ |
+ |-- l10n/
+ |   +-- app_localizations.dart       # Uebersetzungen (DE/EN/IT)
+ |
+ |-- models/
+ |   +-- dish.dart                    # Gericht-Datenmodell (mehrsprachig)
+ |
+ |-- screens/
+ |   |-- login_screen.dart            # WebUntis-Login
+ |   |-- home_screen.dart             # Tab-Navigation + Dashboard
+ |   |-- timetable_screen.dart        # Wochenansicht Stundenplan
+ |   |-- grades_screen.dart           # Notenuebersicht
+ |   |-- mensa_screen.dart            # Speiseplan
+ |   |-- profile_screen.dart          # Profil & Einstellungen
+ |   |-- detail_screen.dart           # Gericht-Detailansicht
+ |   |-- calendar_screen.dart         # Monatskalender (Mensa)
+ |   +-- settings_screen.dart         # Erweiterte Einstellungen
+ |
+ |-- services/
+ |   |-- webuntis_service.dart        # WebUntis API-Client + Datenmodelle
+ |   +-- dish_service.dart            # Mensa API + RAM/Disk-Caching
+ |
+ |-- theme/
+ |   +-- app_theme.dart               # Dark Theme, Farben, Fach-Farben
+ |
+ +-- widgets/
+     |-- dish_card.dart               # Gericht-Karte mit Hero-Animation
+     |-- error_view.dart              # Fehleranzeige mit Retry
+     |-- loading_indicator.dart       # Ladeindikator
+     +-- tag_chip.dart                # Filter-Chips (Vegetarisch, Vegan)
+```
+
+<br>
+
+## &#x2699; Konfiguration
+
+### WebUntis
+
+| Parameter | Wert |
+|---|---|
+| Schule | `lbs-brixen` |
+| Base-URL | `https://lbs-brixen.webuntis.com/WebUntis` |
+| Auth-Methode | JSON-RPC `authenticate` |
+| Timeout | 15 Sekunden |
+| Token | Bearer Token fuer REST-Endpunkte |
+
+### Mensa-API
+
+| Parameter | Wert |
+|---|---|
+| Endpoint | `https://mensa.plattnericus.dev/mensa.json` |
+| Timeout | 6 Sekunden |
+| Cache | Disk (JSON-Datei) + RAM |
+
+Aendern in `lib/config/app_config.dart`:
+```dart
+class AppConfig {
+  static const String apiUrl = 'https://mensa.plattnericus.dev/mensa.json';
+}
+```
+
+### Design-System
+
+#### Farben
+
+| Farbe | Hex | Verwendung |
+|---|---|---|
+| Background | `#000000` | App-Hintergrund |
+| Surface | `#1C1C1E` | Karten, Eingabefelder |
+| Accent | `#0A84FF` | Buttons, Links, aktive Tabs |
+| Success | `#30D158` | Positive Noten, freier Tag |
+| Warning | `#FFD60A` | Pruefungs-Badge |
+| Danger | `#FF453A` | Entfall-Badge, Logout, Fehler |
+
+#### Fach-Farben
+
+| Fach | Farbe | Hex |
+|---|---|---|
+| D (Deutsch) | Steel Blue | `#6B8CAE` |
+| M (Mathe) | Sage Green | `#7BA seventeen` |
+| IT | Terracotta | `#C47A5A` |
+| Bew.Sport | Lavender | `#9B8EC4` |
+| ENGL | Turquoise | `#5BA nineteen` |
+| R (Religion) | Amber | `#C4A fourteen` |
+
+<br>
+
+## &#x1F310; API-Referenz
+
+### WebUntis JSON-RPC
+
+```http
+POST /jsonrpc.do?school=lbs-brixen
+Content-Type: application/json
+Cookie: JSESSIONID=...; schoolname="_bGJzLWJyaXhlbg=="
+
+{
+  "jsonrpc": "2.0",
+  "id": "1",
+  "method": "authenticate",
+  "params": {
+    "user": "username",
+    "password": "password",
+    "client": "pockyh"
+  }
+}
+```
+
+### WebUntis REST-Endpunkte
+
+| Endpunkt | Methode | Auth | Beschreibung |
+|---|---|---|---|
+| `/api/token/new` | GET | Cookie | Bearer Token holen |
+| `/api/public/timetable/weekly/data` | GET | Cookie | Wochenstundenplan |
+| `/api/classreg/grade/grading/list` | GET | Bearer + Cookie | Faecherliste mit Noten |
+| `/api/classreg/grade/grading/lesson` | GET | Bearer + Cookie | Noten pro Fach |
+| `/api/portrait/students/{id}` | GET | Cookie | Profilbild (JPEG) |
+
+### Mensa JSON-Format
 
 ```json
 {
@@ -42,120 +343,112 @@ The app expects JSON in the following format at the configured URL:
     "dishes": [
       {
         "id": "m1",
-        "name": "Penne with Tomato Sauce",
-        "category": "Main Course",
-        "date": "2026-04-10"
+        "name": { "de": "Penne mit Tomatensauce", "it": "Penne al pomodoro" },
+        "category": "Hauptgericht",
+        "date": "2026-04-10",
+        "calories": 450,
+        "price": 5.50,
+        "isVegetarian": true
       }
     ]
   }
 }
 ```
 
-All fields except `name` are optional. Missing fields are filled with safe defaults. The app will never crash due to missing or malformed data in the JSON.
+Alle Felder ausser `name` sind optional. Fehlende Felder werden mit sicheren Defaults gefuellt.
 
-### Fields per Dish
+<br>
 
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| `id` | String | Hash of name | Unique identifier |
-| `name` | String/Map | **Required** | Dish name (string or `{"de":"...","en":"..."}`) |
-| `description` | String/Map | `""` | Description (string or localized map) |
-| `imageUrl` | String | `""` | Image URL |
-| `category` | String | `""` | Category |
-| `tags` | List | Auto from category | Filter tags |
-| `date` | String | Today | Date (YYYY-MM-DD) |
-| `prepTime` | int | `0` | Preparation time in minutes |
-| `calories` | int | `0` | Calories (kcal) |
-| `protein` | double | `0` | Protein in grams |
-| `fat` | double | `0` | Fat in grams |
-| `price` | double | `0` | Price in EUR |
-| `allergens` | List | `[]` | Allergens |
-| `isVegetarian` | bool | Auto from category | Vegetarian flag |
-| `isVegan` | bool | Auto from category | Vegan flag |
-| `rating` | double | `0` | Rating (0-5) |
+## &#x1F4E6; Datenmodelle
 
-When nutrition data (calories, protein, fat) is not provided, the detail view displays "n/a" instead of hiding the field.
-
-## Hosting the Menu
-
-The JSON file can be hosted on any static file server. Example with GitHub Pages:
-
-1. Create a repository with a `mensa.json` file
-2. Enable GitHub Pages (Settings > Pages > Source: main branch)
-3. Set the URL in `lib/config/app_config.dart`:
-   ```dart
-   static const String apiUrl = 'https://<username>.github.io/<repo>/mensa.json';
-   ```
-4. Update the JSON file and the app will show the new data
-
-The app caches data locally so it works offline as well.
-
-## Project Structure
-
-```
-lib/
-  config/
-    app_config.dart          # API URL configuration
-  l10n/
-    app_localizations.dart   # Translations (DE, EN, IT)
-  models/
-    dish.dart                # Data model with null-safe JSON parsing
-  screens/
-    home_screen.dart         # Weekly overview
-    calendar_screen.dart     # Calendar view
-    detail_screen.dart       # Dish detail with nutrition info
-    settings_screen.dart     # Settings + AppSettings model
-  services/
-    dish_service.dart        # Data loading (server/cache)
-    notification_service.dart # Local notifications
-  widgets/
-    dish_card.dart           # Dish card widget
-    error_view.dart          # Error display
-    loading_indicator.dart   # Loading spinner
-    tag_chip.dart            # Filter chip
-  main.dart                  # App entry point
-```
-
-## Getting Started
-
-```bash
-flutter pub get
-flutter run
-```
-
-### iOS
-
-```bash
-flutter run -d <iPhone-Simulator-ID>
-# or open in Xcode:
-open ios/Runner.xcworkspace
-```
-
-## Configuration
-
-Change the API URL in `lib/config/app_config.dart`:
+### TimetableEntry
 
 ```dart
-class AppConfig {
-  static const String apiUrl = 'https://mensa.plattnericus.dev/mensa.json';
+TimetableEntry {
+  int id, lessonId, date, startTime, endTime;
+  String subjectName, subjectLong, teacherName, roomName;
+  String cellState, lessonText;
+  bool isCancelled, isExam;
 }
 ```
 
-## App Icon
+### SubjectGrades
 
-`assets/app_icon.svg` is the single source of truth for the app icon.
-
-For iOS, Apple still requires PNGs inside `ios/Runner/Assets.xcassets/AppIcon.appiconset/`. The project is configured to generate those sizes from the SVG via [flutter_launcher_icons](https://pub.dev/packages/flutter_launcher_icons) without adding a permanent script to the repo.
-
-If the icon needs to be regenerated after changing the SVG:
-
-```bash
-flutter pub get
-flutter pub run flutter_launcher_icons
+```dart
+SubjectGrades {
+  int lessonId;
+  String subjectName, teacherName;
+  List<GradeEntry> grades;
+  double? average;              // Automatisch berechnet
+  int positiveCount;            // Noten >= 6
+  int negativeCount;            // Noten < 6
+}
 ```
 
-## Requirements
+### GradeEntry
 
-- Flutter SDK >= 3.11.4
-- iOS 13.0+
-- Xcode 15+ (for iOS builds)
+```dart
+GradeEntry {
+  int id, date, markValue;
+  double markDisplayValue;
+  String text, markName, examType;
+}
+```
+
+### Dish
+
+```dart
+Dish {
+  String id, imageUrl, category;
+  Map<String, String> nameMap, descriptionMap;  // Mehrsprachig
+  List<String> tags, allergens;
+  int prepTime, calories;
+  double protein, fat, price, rating;
+  bool isVegetarian, isVegan;
+  DateTime? date;
+}
+```
+
+<br>
+
+## &#x1F4F1; Bundle IDs
+
+| Plattform | Bundle ID |
+|---|---|
+| iOS | `dev.plattnericus.project` |
+| Android | `dev.plattnericus.project` |
+| macOS | `dev.plattnericus.project` |
+
+<br>
+
+## &#x1F91D; Mitwirken
+
+1. **Fork** das Repository
+2. Erstelle einen Feature-Branch: `git checkout -b feature/mein-feature`
+3. Committe deine Aenderungen: `git commit -m 'Add: Mein Feature'`
+4. Push den Branch: `git push origin feature/mein-feature`
+5. Oeffne einen **Pull Request**
+
+### Commit-Konventionen
+
+| Prefix | Bedeutung |
+|---|---|
+| `Add:` | Neues Feature |
+| `Fix:` | Bugfix |
+| `Update:` | Verbesserung bestehender Features |
+| `Refactor:` | Code-Restrukturierung |
+| `Docs:` | Dokumentation |
+
+<br>
+
+## Lizenz
+
+Dieses Projekt ist privat und nicht zur oeffentlichen Nutzung bestimmt.
+
+<br>
+
+---
+
+<p align="center">
+  <sub>Gebaut mit Flutter & viel Koffein fuer die LBS Brixen &#x2615;</sub>
+</p>
