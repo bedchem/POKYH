@@ -21,7 +21,7 @@ class PockyhApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'POCKYH',
+      title: 'POKYH',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.dark(),
       home: const SplashScreen(),
