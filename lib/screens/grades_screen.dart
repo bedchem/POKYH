@@ -444,7 +444,8 @@ class _SubjectCardState extends State<_SubjectCard>
   Color _gradeColor(double v) {
     if (v >= 9) return AppTheme.success;
     if (v >= 7) return const Color(0xFF86EFAC);
-    if (v >= 6) return AppTheme.warning;
+    if (v > 6.5) return const Color(0xFF86EFAC); // hellgrün ab 6.51
+    if (v >= 6) return AppTheme.warning;          // gelb nur noch genau 6
     if (v >= 4) return AppTheme.orange;
     return AppTheme.danger;
   }
@@ -670,7 +671,8 @@ class _SubjectDetailSheetState extends State<_SubjectDetailSheet> {
   Color _gradeColor(double v) {
     if (v >= 9) return AppTheme.success;
     if (v >= 7) return const Color(0xFF86EFAC);
-    if (v >= 6) return AppTheme.warning;
+    if (v > 6.5) return const Color(0xFF86EFAC); // hellgrün ab 6.51
+    if (v >= 6) return AppTheme.warning;          // gelb nur noch genau 6
     if (v >= 4) return AppTheme.orange;
     return AppTheme.danger;
   }
