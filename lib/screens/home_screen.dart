@@ -39,8 +39,8 @@ class _HomeScreenState extends State<HomeScreen> {
     Navigator.pushReplacement(
       context,
       PageRouteBuilder(
-        pageBuilder: (_, __, ___) => const LoginScreen(),
-        transitionsBuilder: (_, a, __, child) =>
+        pageBuilder: (_, _, _) => const LoginScreen(),
+        transitionsBuilder: (_, a, _, child) =>
             FadeTransition(opacity: a, child: child),
         transitionDuration: const Duration(milliseconds: 300),
       ),
@@ -167,7 +167,7 @@ class _SmallProfileAvatarState extends State<_SmallProfileAvatar> {
       child: bytes != null
           ? Image.memory(bytes,
           fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => _fallback())
+          errorBuilder: (_, _, _) => _fallback())
           : _fallback(),
     );
   }

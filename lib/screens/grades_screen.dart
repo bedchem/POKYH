@@ -31,11 +31,12 @@ class _GradesScreenState extends State<GradesScreen> {
     });
     try {
       final grades = await widget.service.getAllGrades();
-      if (mounted)
+      if (mounted) {
         setState(() {
           _subjects = grades;
           _loading = false;
         });
+      }
     } on WebUntisException catch (e) {
       if (!mounted) return;
       if (e.isAuthError) {
@@ -50,11 +51,12 @@ class _GradesScreenState extends State<GradesScreen> {
         _loading = false;
       });
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _error = '$e';
           _loading = false;
         });
+      }
     }
   }
 
@@ -935,7 +937,7 @@ class _SubjectDetailSheetState extends State<_SubjectDetailSheet> {
                         child: _MiniStatCard(
                           label: 'Durchschnitt',
                           value: origAvg != null
-                              ? origAvg!
+                              ? origAvg
                                     .toStringAsFixed(3)
                                     .replaceAll(RegExp(r'0+\$'), '')
                                     .replaceAll(RegExp(r'\.\$'), '')
@@ -1531,10 +1533,11 @@ class _TrendPainter extends CustomPainter {
       for (int i = 0; i < activeGrades.length; i++) {
         final x = _xOf(i, n, size.width);
         final y = _yOf(activeGrades[i].markDisplayValue, size.height);
-        if (i == 0)
+        if (i == 0) {
           path.moveTo(x, y);
-        else
+        } else {
           path.lineTo(x, y);
+        }
       }
       canvas.drawPath(path, linePaint);
     }

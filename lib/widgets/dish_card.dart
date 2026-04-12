@@ -60,7 +60,7 @@ class _DishCardState extends State<DishCard> {
                             if (progress == null) return child;
                             return _buildPlaceholder(context);
                           },
-                          errorBuilder: (_, __, ___) => _buildPlaceholder(context),
+                          errorBuilder: (_, _, _) => _buildPlaceholder(context),
                         )
                       : _buildPlaceholder(context),
                 ),

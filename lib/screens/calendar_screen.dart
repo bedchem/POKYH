@@ -478,7 +478,7 @@ class _CalendarScreenState extends State<CalendarScreen>
                                     ),
                                   );
                                 },
-                                errorBuilder: (_, __, ___) => Container(
+                                errorBuilder: (_, _, _) => Container(
                                   color:
                                       CupertinoColors.systemGrey5.resolveFrom(context),
                                   child: const Icon(CupertinoIcons.photo, size: 32),

@@ -307,7 +307,7 @@ class _DishCard extends StatelessWidget {
                     child: Image.network(
                       dish.imageUrl,
                       fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Container(
+                      errorBuilder: (_, _, _) => Container(
                         color: AppTheme.card,
                         child: const Center(
                           child: Icon(CupertinoIcons.photo, color: AppTheme.textTertiary, size: 32),
@@ -477,7 +477,7 @@ class _DishDetailSheet extends StatelessWidget {
                         child: Image.network(
                           dish.imageUrl,
                           fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => Container(
+                          errorBuilder: (_, _, _) => Container(
                             color: AppTheme.card,
                             child: const Center(
                               child: Icon(CupertinoIcons.photo,

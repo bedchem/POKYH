@@ -78,7 +78,7 @@ class _DetailScreenState extends State<DetailScreen>
                                 if (progress == null) return child;
                                 return _buildImagePlaceholder(context);
                               },
-                              errorBuilder: (_, __, ___) =>
+                              errorBuilder: (_, _, _) =>
                                   _buildImagePlaceholder(context),
                             )
                           : _buildImagePlaceholder(context),

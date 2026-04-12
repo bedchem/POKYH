@@ -382,7 +382,7 @@ class _ProfileAvatarState extends State<_ProfileAvatar> {
           ? Image.memory(
               bytes,
               fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => _fallbackIcon(),
+              errorBuilder: (_, _, _) => _fallbackIcon(),
             )
           : _fallbackIcon(),
     );

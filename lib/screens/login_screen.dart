@@ -502,7 +502,7 @@ class _LoginScreenState extends State<LoginScreen>
                 const SizedBox(height: 6),
                 Center(
                   child: Text(
-                    'LBS Brixen · WebUntis',
+                    'Einmal drin, nie mehr ohne.',
                     style: TextStyle(
                       fontSize: 14,
                       color: AppTheme.textSecondary,

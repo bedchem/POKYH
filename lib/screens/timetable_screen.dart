@@ -82,11 +82,12 @@ class _TimetableScreenState extends State<TimetableScreen> {
       final entries = await widget.service.getWeekTimetable(
         weekStart: _weekStart,
       );
-      if (mounted)
+      if (mounted) {
         setState(() {
           _entries = entries;
           _loading = false;
         });
+      }
     } on WebUntisException catch (e) {
       if (!mounted) return;
       if (e.isAuthError) {
@@ -101,11 +102,12 @@ class _TimetableScreenState extends State<TimetableScreen> {
         _loading = false;
       });
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _error = '$e';
           _loading = false;
         });
+      }
     }
   }
 
@@ -484,7 +486,9 @@ class _TimetableScreenState extends State<TimetableScreen> {
   Widget _buildWeekGrid() {
     final allTimes = <int>{};
     for (int d = 0; d < 5; d++) {
-      for (final e in _forDay(d)) allTimes.add(e.startTime);
+      for (final e in _forDay(d)) {
+        allTimes.add(e.startTime);
+      }
     }
     final sortedTimes = allTimes.toList()..sort();
     if (sortedTimes.isEmpty) return const SizedBox();
@@ -720,8 +724,9 @@ class _TimetableScreenState extends State<TimetableScreen> {
             slots: groupSlots,
             height: groupHeight,
             onTap: (slot) {
-              if (slot.display != null)
+              if (slot.display != null) {
                 _showDetail(slot.display!, slot.replacement);
+              }
             },
           ),
         );
@@ -889,7 +894,7 @@ class _SlotContent extends StatelessWidget {
       statusIconColor = AppTheme.warning;
     } else if (hasReplacement) {
       statusIcon = CupertinoIcons.arrow_right_arrow_left;
-      statusIconColor = AppTheme.colorForSubject(replacement!.subjectName);
+      statusIconColor = AppTheme.colorForSubject(replacement.subjectName);
     } else if (entry.lessonText.isNotEmpty) {
       statusIcon = CupertinoIcons.doc_plaintext;
       statusIconColor = AppTheme.tint;
