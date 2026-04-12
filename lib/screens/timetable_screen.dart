@@ -22,6 +22,23 @@ class _SlotInfo {
   bool get isEmpty => kind == _SlotKind.empty || display == null;
 }
 
+// ── Week cache entry ──────────────────────────────────────────────────────────
+
+enum _LoadState { idle, loading, done, error }
+
+class _WeekData {
+  _LoadState state;
+  List<TimetableEntry> entries;
+  String? error;
+  _WeekData({
+    this.state = _LoadState.idle,
+    this.entries = const [],
+    this.error,
+  });
+}
+
+// ── Root screen ───────────────────────────────────────────────────────────────
+
 class TimetableScreen extends StatefulWidget {
   final WebUntisService service;
   const TimetableScreen({super.key, required this.service});
@@ -31,10 +48,18 @@ class TimetableScreen extends StatefulWidget {
 }
 
 class _TimetableScreenState extends State<TimetableScreen> {
-  List<TimetableEntry> _entries = [];
-  bool _loading = true;
-  String? _error;
-  late DateTime _weekStart;
+  // PageView uses a virtual index; _kBase is page 0 in week-offset space.
+  static const int _kBase = 500;
+
+  late final PageController _pageController;
+
+  // offset → _WeekData cache
+  final Map<int, _WeekData> _cache = {};
+
+  // The current week offset (0 = this week)
+  int _currentOffset = 0;
+
+  // Which day tab is selected (-1 = none)
   int _selectedDay = -1;
 
   static const _dayLabels = ['Mo', 'Di', 'Mi', 'Do', 'Fr'];
@@ -64,30 +89,73 @@ class _TimetableScreenState extends State<TimetableScreen> {
   static const double _breakGap = 8.0;
   static const double _lunchGap = 14.0;
 
+  // ── Lifecycle ──────────────────────────────────────────────────────────────
+
   @override
   void initState() {
     super.initState();
     final now = DateTime.now();
-    _weekStart = now.subtract(Duration(days: now.weekday - 1));
     _selectedDay = (now.weekday <= 5) ? now.weekday - 1 : -1;
-    _load();
+
+    _pageController = PageController(initialPage: _kBase);
+
+    // Pre-load current + neighbours
+    _ensureLoaded(_currentOffset - 1);
+    _ensureLoaded(_currentOffset);
+    _ensureLoaded(_currentOffset + 1);
   }
 
-  Future<void> _load() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  // ── Week helpers ───────────────────────────────────────────────────────────
+
+  DateTime _mondayForOffset(int offset) {
+    final now = DateTime.now();
+    // Strip time → pure date, avoids day-bleeding around midnight
+    final today = DateTime(now.year, now.month, now.day);
+    final thisMonday = today.subtract(Duration(days: today.weekday - 1));
+    return thisMonday.add(Duration(days: offset * 7));
+  }
+
+  bool _isThisWeek(int offset) => offset == 0;
+
+  bool _isToday(int offset, int dayIndex) {
+    final date = _mondayForOffset(offset).add(Duration(days: dayIndex));
+    final now = DateTime.now();
+    return date.year == now.year &&
+        date.month == now.month &&
+        date.day == now.day;
+  }
+
+  int _weekNumber(DateTime date) {
+    final startOfYear = DateTime(date.year, 1, 1);
+    final diff = date.difference(startOfYear).inDays;
+    return ((diff + startOfYear.weekday) / 7).ceil();
+  }
+
+  // ── Cache / loading ────────────────────────────────────────────────────────
+
+  void _ensureLoaded(int offset) {
+    final existing = _cache[offset];
+    if (existing != null && existing.state != _LoadState.idle) return;
+    _cache[offset] = _WeekData(state: _LoadState.loading);
+    _fetchOffset(offset);
+  }
+
+  Future<void> _fetchOffset(int offset) async {
+    final weekStart = _mondayForOffset(offset);
     try {
       final entries = await widget.service.getWeekTimetable(
-        weekStart: _weekStart,
+        weekStart: weekStart,
       );
-      if (mounted) {
-        setState(() {
-          _entries = entries;
-          _loading = false;
-        });
-      }
+      if (!mounted) return;
+      setState(() {
+        _cache[offset] = _WeekData(state: _LoadState.done, entries: entries);
+      });
     } on WebUntisException catch (e) {
       if (!mounted) return;
       if (e.isAuthError) {
@@ -98,78 +166,80 @@ class _TimetableScreenState extends State<TimetableScreen> {
         return;
       }
       setState(() {
-        _error = e.message;
-        _loading = false;
+        _cache[offset] = _WeekData(state: _LoadState.error, error: e.message);
       });
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          _error = '$e';
-          _loading = false;
-        });
-      }
+      if (!mounted) return;
+      setState(() {
+        _cache[offset] = _WeekData(state: _LoadState.error, error: '$e');
+      });
     }
   }
 
-  void _prevWeek() {
-    setState(() => _weekStart = _weekStart.subtract(const Duration(days: 7)));
-    _load();
+  void _retryOffset(int offset) {
+    setState(() {
+      _cache[offset] = _WeekData(state: _LoadState.loading);
+    });
+    _fetchOffset(offset);
   }
 
-  void _nextWeek() {
-    setState(() => _weekStart = _weekStart.add(const Duration(days: 7)));
-    _load();
+  // ── Page change ────────────────────────────────────────────────────────────
+
+  void _onPageChanged(int page) {
+    final offset = page - _kBase;
+    final now = DateTime.now();
+    setState(() {
+      _currentOffset = offset;
+      // Highlight today only on the current week — nowhere else
+      _selectedDay = (offset == 0 && now.weekday <= 5) ? now.weekday - 1 : -1;
+    });
+    // Pre-load neighbours
+    _ensureLoaded(offset - 1);
+    _ensureLoaded(offset);
+    _ensureLoaded(offset + 1);
+    // Evict far-away pages to save memory (keep ±3)
+    _cache.removeWhere((k, _) => (k - offset).abs() > 3);
   }
 
   void _goToToday() {
     final now = DateTime.now();
-    setState(() {
-      _weekStart = now.subtract(Duration(days: now.weekday - 1));
-      _selectedDay = (now.weekday <= 5) ? now.weekday - 1 : -1;
-    });
-    _load();
+    setState(() => _selectedDay = (now.weekday <= 5) ? now.weekday - 1 : -1);
+    final targetPage = _kBase; // offset 0 = this week
+    _pageController.animateToPage(
+      targetPage,
+      duration: const Duration(milliseconds: 400),
+      curve: Curves.easeInOutCubic,
+    );
   }
 
-  List<TimetableEntry> _forDay(int dayIndex) {
-    final date = _weekStart.add(Duration(days: dayIndex));
+  // ── Entry helpers ──────────────────────────────────────────────────────────
+
+  List<TimetableEntry> _forDay(int offset, int dayIndex) {
+    final date = _mondayForOffset(offset).add(Duration(days: dayIndex));
     final dateInt = int.parse(
       '${date.year}${date.month.toString().padLeft(2, '0')}${date.day.toString().padLeft(2, '0')}',
     );
-    return _entries.where((e) => e.date == dateInt).toList();
+    final entries = _cache[offset]?.entries ?? [];
+    return entries.where((e) => e.date == dateInt).toList();
   }
 
-  bool _isToday(int dayIndex) {
-    final date = _weekStart.add(Duration(days: dayIndex));
-    final now = DateTime.now();
-    return date.year == now.year &&
-        date.month == now.month &&
-        date.day == now.day;
+  bool _isHolidayWeek(int offset) {
+    final data = _cache[offset];
+    return data != null &&
+        data.state == _LoadState.done &&
+        data.entries.isEmpty;
   }
 
-  bool _isThisWeek() {
-    final now = DateTime.now();
-    final thisMonday = now.subtract(Duration(days: now.weekday - 1));
-    return _weekStart.year == thisMonday.year &&
-        _weekStart.month == thisMonday.month &&
-        _weekStart.day == thisMonday.day;
-  }
-
-  int _weekNumber(DateTime date) {
-    final startOfYear = DateTime(date.year, 1, 1);
-    final diff = date.difference(startOfYear).inDays;
-    return ((diff + startOfYear.weekday) / 7).ceil();
-  }
-
-  bool get _isHolidayWeek => !_loading && _entries.isEmpty;
-
-  bool _isSingleHolidayDay(int dayIndex) {
-    if (_loading || _isHolidayWeek) return false;
-    if (_forDay(dayIndex).isNotEmpty) return false;
+  bool _isSingleHolidayDay(int offset, int dayIndex) {
+    if (_isHolidayWeek(offset)) return false;
+    if (_forDay(offset, dayIndex).isNotEmpty) return false;
     for (int i = 0; i < 5; i++) {
-      if (i != dayIndex && _forDay(i).isNotEmpty) return true;
+      if (i != dayIndex && _forDay(offset, i).isNotEmpty) return true;
     }
     return false;
   }
+
+  // ── Time maths ─────────────────────────────────────────────────────────────
 
   int _toMins(int packed) => (packed ~/ 100) * 60 + (packed % 100);
   int _addMinutes(int packed, int minutes) {
@@ -181,9 +251,7 @@ class _TimetableScreenState extends State<TimetableScreen> {
     final endM = _toMins(endTime);
     final startM = _toMins(nextStart);
     for (final b in _fixedBreakWindows) {
-      final bS = _toMins(b.start);
-      final bE = _toMins(b.end);
-      if (endM < bE && startM > bS) return true;
+      if (endM < _toMins(b.end) && startM > _toMins(b.start)) return true;
     }
     return false;
   }
@@ -210,8 +278,9 @@ class _TimetableScreenState extends State<TimetableScreen> {
     return bestIndex >= 0 ? bestIndex : null;
   }
 
-  _SlotInfo _buildSlot(int dayIndex, int startTime, DateTime now) {
+  _SlotInfo _buildSlot(int offset, int dayIndex, int startTime, DateTime now) {
     final dayEntries = _forDay(
+      offset,
       dayIndex,
     ).where((e) => e.startTime == startTime).toList();
     if (dayEntries.isEmpty) return const _SlotInfo();
@@ -243,7 +312,7 @@ class _TimetableScreenState extends State<TimetableScreen> {
       }
     }
 
-    final isNow = _isToday(dayIndex) && _isCurrentLesson(display, now);
+    final isNow = _isToday(offset, dayIndex) && _isCurrentLesson(display, now);
     return _SlotInfo(
       display: display,
       replacement: repl,
@@ -255,14 +324,11 @@ class _TimetableScreenState extends State<TimetableScreen> {
   bool _slotsMergeable(_SlotInfo a, _SlotInfo b) {
     if (a.isEmpty || b.isEmpty) return false;
     if (a.kind != b.kind) return false;
-
     final ea = a.display!, eb = b.display!;
-
     if (a.kind == _SlotKind.normal) {
       return ea.subjectName == eb.subjectName &&
           ea.teacherName == eb.teacherName;
     }
-
     return ea.subjectName == eb.subjectName && ea.lessonText == eb.lessonText;
   }
 
@@ -279,162 +345,205 @@ class _TimetableScreenState extends State<TimetableScreen> {
     );
   }
 
+  bool _isCurrentLesson(TimetableEntry e, DateTime now) {
+    final nowMins = now.hour * 60 + now.minute;
+    final startMins = (e.startTime ~/ 100) * 60 + (e.startTime % 100);
+    final endMins = (e.endTime ~/ 100) * 60 + (e.endTime % 100);
+    return nowMins >= startMins && nowMins < endMins;
+  }
+
+  // ── Build ──────────────────────────────────────────────────────────────────
+
   @override
   Widget build(BuildContext context) {
-    final weekEnd = _weekStart.add(const Duration(days: 4));
     return SafeArea(
-      child: GestureDetector(
-        onHorizontalDragEnd: (d) {
-          if (d.primaryVelocity == null) return;
-          if (d.primaryVelocity! < -300) _nextWeek();
-          if (d.primaryVelocity! > 300) _prevWeek();
-        },
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      const Text(
-                        'Stundenplan',
-                        style: TextStyle(
-                          fontSize: 34,
-                          fontWeight: FontWeight.w700,
-                          color: AppTheme.textPrimary,
-                          letterSpacing: -0.5,
-                        ),
-                      ),
-                      if (!_isThisWeek()) ...[
-                        const SizedBox(width: 10),
-                        GestureDetector(
-                          onTap: _goToToday,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 4,
-                            ),
-                            decoration: BoxDecoration(
-                              color: AppTheme.accent.withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: const Text(
-                              'Heute',
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                color: AppTheme.accent,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      _WeekNavButton(
-                        icon: CupertinoIcons.chevron_left,
-                        onTap: _prevWeek,
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          '${_weekStart.day}. ${_months[_weekStart.month - 1]} – '
-                          '${weekEnd.day}. ${_months[weekEnd.month - 1]} ${weekEnd.year}',
-                          style: const TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w500,
-                            color: AppTheme.textSecondary,
-                          ),
-                        ),
-                      ),
-                      Text(
-                        'KW ${_weekNumber(_weekStart)}',
-                        style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: AppTheme.textTertiary,
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      _WeekNavButton(
-                        icon: CupertinoIcons.chevron_right,
-                        onTap: _nextWeek,
-                      ),
-                    ],
-                  ),
-                ],
-              ),
+      child: Column(
+        children: [
+          _buildHeader(),
+          const SizedBox(height: 10),
+          Expanded(
+            child: PageView.builder(
+              controller: _pageController,
+              onPageChanged: _onPageChanged,
+              itemBuilder: (context, page) {
+                final offset = page - _kBase;
+                return _WeekPage(
+                  key: ValueKey(offset),
+                  offset: offset,
+                  state: this,
+                );
+              },
             ),
-            const SizedBox(height: 10),
-            Expanded(
-              child: _loading
-                  ? const Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          CupertinoActivityIndicator(radius: 14),
-                          SizedBox(height: 14),
-                          Text(
-                            'Stundenplan wird geladen…',
-                            style: TextStyle(
-                              color: AppTheme.textSecondary,
-                              fontSize: 14,
-                            ),
-                          ),
-                        ],
-                      ),
-                    )
-                  : _error != null
-                  ? _buildError()
-                  : _isHolidayWeek
-                  ? _buildHolidayWeek()
-                  : _buildWeekGrid(),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildError() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
+  Widget _buildHeader() {
+    final weekStart = _mondayForOffset(_currentOffset);
+    final weekEnd = weekStart.add(const Duration(days: 4));
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Text(
+                'Stundenplan',
+                style: TextStyle(
+                  fontSize: 34,
+                  fontWeight: FontWeight.w700,
+                  color: AppTheme.textPrimary,
+                  letterSpacing: -0.5,
+                ),
+              ),
+              if (!_isThisWeek(_currentOffset)) ...[
+                const SizedBox(width: 10),
+                GestureDetector(
+                  onTap: _goToToday,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppTheme.accent.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Text(
+                      'Heute',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.accent,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              _WeekNavButton(
+                icon: CupertinoIcons.chevron_left,
+                onTap: () => _pageController.previousPage(
+                  duration: const Duration(milliseconds: 350),
+                  curve: Curves.easeInOutCubic,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  '${weekStart.day}. ${_months[weekStart.month - 1]} – '
+                  '${weekEnd.day}. ${_months[weekEnd.month - 1]} ${weekEnd.year}',
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w500,
+                    color: AppTheme.textSecondary,
+                  ),
+                ),
+              ),
+              Text(
+                'KW ${_weekNumber(weekStart)}',
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: AppTheme.textTertiary,
+                ),
+              ),
+              const SizedBox(width: 10),
+              _WeekNavButton(
+                icon: CupertinoIcons.chevron_right,
+                onTap: () => _pageController.nextPage(
+                  duration: const Duration(milliseconds: 350),
+                  curve: Curves.easeInOutCubic,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Week Page (one page in the PageView) ──────────────────────────────────────
+
+class _WeekPage extends StatelessWidget {
+  final int offset;
+  final _TimetableScreenState state;
+
+  const _WeekPage({super.key, required this.offset, required this.state});
+
+  @override
+  Widget build(BuildContext context) {
+    final data = state._cache[offset];
+    final loadState = data?.state ?? _LoadState.loading;
+
+    if (loadState == _LoadState.loading) {
+      return const Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(
-              CupertinoIcons.exclamationmark_triangle_fill,
-              color: AppTheme.danger,
-              size: 28,
-            ),
-            const SizedBox(height: 10),
+            CupertinoActivityIndicator(radius: 14),
+            SizedBox(height: 14),
             Text(
-              _error!,
-              style: const TextStyle(color: AppTheme.textSecondary),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 14),
-            CupertinoButton(
-              color: AppTheme.accent,
-              borderRadius: BorderRadius.circular(10),
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-              minimumSize: Size.zero,
-              onPressed: _load,
-              child: const Text(
-                'Erneut versuchen',
-                style: TextStyle(fontSize: 14),
-              ),
+              'Stundenplan wird geladen…',
+              style: TextStyle(color: AppTheme.textSecondary, fontSize: 14),
             ),
           ],
         ),
-      ),
-    );
+      );
+    }
+
+    if (loadState == _LoadState.error) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                CupertinoIcons.exclamationmark_triangle_fill,
+                color: AppTheme.danger,
+                size: 28,
+              ),
+              const SizedBox(height: 10),
+              Text(
+                data?.error ?? 'Unbekannter Fehler',
+                style: const TextStyle(color: AppTheme.textSecondary),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 14),
+              CupertinoButton(
+                color: AppTheme.accent,
+                borderRadius: BorderRadius.circular(10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 8,
+                ),
+                minimumSize: Size.zero,
+                onPressed: () => state._retryOffset(offset),
+                child: const Text(
+                  'Erneut versuchen',
+                  style: TextStyle(fontSize: 14),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (state._isHolidayWeek(offset)) {
+      return _buildHolidayWeek();
+    }
+
+    return _buildWeekGrid();
   }
 
   Widget _buildHolidayWeek() {
@@ -475,7 +584,7 @@ class _TimetableScreenState extends State<TimetableScreen> {
           ),
           const SizedBox(height: 4),
           Text(
-            'KW ${_weekNumber(_weekStart)} · Genieße die Zeit! ☀️',
+            'KW ${state._weekNumber(state._mondayForOffset(offset))} · Genieße die Zeit! ☀️',
             style: const TextStyle(fontSize: 13, color: AppTheme.textTertiary),
           ),
         ],
@@ -484,9 +593,11 @@ class _TimetableScreenState extends State<TimetableScreen> {
   }
 
   Widget _buildWeekGrid() {
+    final entries = state._cache[offset]?.entries ?? [];
+
     final allTimes = <int>{};
     for (int d = 0; d < 5; d++) {
-      for (final e in _forDay(d)) {
+      for (final e in state._forDay(offset, d)) {
         allTimes.add(e.startTime);
       }
     }
@@ -495,57 +606,68 @@ class _TimetableScreenState extends State<TimetableScreen> {
     final n = sortedTimes.length;
 
     final endTimeForStart = <int, int>{};
-    for (final e in _entries) {
+    for (final e in entries) {
       if (!endTimeForStart.containsKey(e.startTime) ||
           e.endTime > endTimeForStart[e.startTime]!) {
         endTimeForStart[e.startTime] = e.endTime;
       }
     }
 
-    final lunchGapIndex = _findLunchGapIndex(sortedTimes, endTimeForStart);
+    final lunchGapIndex = state._findLunchGapIndex(
+      sortedTimes,
+      endTimeForStart,
+    );
 
     final timeConnected = List<bool>.filled(n > 0 ? n - 1 : 0, false);
     for (int i = 0; i < n - 1; i++) {
       final t1 = sortedTimes[i];
       final t2 = sortedTimes[i + 1];
-      final endT1 = endTimeForStart[t1] ?? _addMinutes(t1, 50);
-      final gapMins = _toMins(t2) - _toMins(endT1);
+      final endT1 = endTimeForStart[t1] ?? state._addMinutes(t1, 50);
+      final gapMins = state._toMins(t2) - state._toMins(endT1);
       final isLunch = lunchGapIndex != null && i == lunchGapIndex;
-      final isFixed = _crossesFixedBreak(endT1, t2);
+      final isFixed = state._crossesFixedBreak(endT1, t2);
       timeConnected[i] = gapMins <= 5 && !isLunch && !isFixed;
     }
 
     double gapAfter(int i) {
       if (i >= n - 1) return 0;
-      if (timeConnected[i]) return _connectedGap;
-      if (lunchGapIndex != null && i == lunchGapIndex) return _lunchGap;
+      if (timeConnected[i]) return _TimetableScreenState._connectedGap;
+      if (lunchGapIndex != null && i == lunchGapIndex) {
+        return _TimetableScreenState._lunchGap;
+      }
       final endT =
-          endTimeForStart[sortedTimes[i]] ?? _addMinutes(sortedTimes[i], 50);
-      if (_crossesFixedBreak(endT, sortedTimes[i + 1])) return _breakGap;
-      return _normalGap;
+          endTimeForStart[sortedTimes[i]] ??
+          state._addMinutes(sortedTimes[i], 50);
+      if (state._crossesFixedBreak(endT, sortedTimes[i + 1])) {
+        return _TimetableScreenState._breakGap;
+      }
+      return _TimetableScreenState._normalGap;
     }
 
     return Column(
       children: [
+        // Day header tabs
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 10),
           child: Row(
             children: [
               const SizedBox(width: 44),
               ...List.generate(5, (i) {
-                final date = _weekStart.add(Duration(days: i));
-                final isToday = _isToday(i);
-                final isSelected = _selectedDay == i;
-                final isHoliday = _isSingleHolidayDay(i);
+                final date = state
+                    ._mondayForOffset(offset)
+                    .add(Duration(days: i));
+                final isToday = state._isToday(offset, i);
+
+                final isHoliday = state._isSingleHolidayDay(offset, i);
                 return Expanded(
                   child: GestureDetector(
-                    onTap: () => setState(() => _selectedDay = i),
+                    onTap: () => state.setState(() => state._selectedDay = i),
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 200),
                       margin: const EdgeInsets.symmetric(horizontal: 2),
                       padding: const EdgeInsets.symmetric(vertical: 6),
                       decoration: BoxDecoration(
-                        color: isSelected
+                        color: isToday
                             ? AppTheme.accent.withValues(alpha: 0.12)
                             : Colors.transparent,
                         borderRadius: BorderRadius.circular(10),
@@ -553,7 +675,7 @@ class _TimetableScreenState extends State<TimetableScreen> {
                       child: Column(
                         children: [
                           Text(
-                            _dayLabels[i],
+                            _TimetableScreenState._dayLabels[i],
                             style: TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.w600,
@@ -604,7 +726,13 @@ class _TimetableScreenState extends State<TimetableScreen> {
           child: RefreshIndicator(
             color: AppTheme.accent,
             backgroundColor: AppTheme.surface,
-            onRefresh: _load,
+            onRefresh: () async {
+              state._retryOffset(offset);
+              // wait for done
+              while (state._cache[offset]?.state == _LoadState.loading) {
+                await Future.delayed(const Duration(milliseconds: 50));
+              }
+            },
             child: SingleChildScrollView(
               physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.fromLTRB(10, 10, 10, 32),
@@ -633,6 +761,7 @@ class _TimetableScreenState extends State<TimetableScreen> {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // Time labels column
         SizedBox(
           width: 44,
           child: Column(
@@ -640,20 +769,23 @@ class _TimetableScreenState extends State<TimetableScreen> {
               for (int i = 0; i < n; i++) ...[
                 _TimeLabel(
                   startTime: sortedTimes[i],
-                  lessonNr: widget.service.getLessonNumber(sortedTimes[i]),
-                  height: _rowMinHeight,
+                  lessonNr: state.widget.service.getLessonNumber(
+                    sortedTimes[i],
+                  ),
+                  height: _TimetableScreenState._rowMinHeight,
                 ),
                 if (i < n - 1) SizedBox(height: gapAfter(i)),
               ],
             ],
           ),
         ),
+        // Day columns
         ...List.generate(5, (dayIndex) {
-          final isHoliday = _isSingleHolidayDay(dayIndex);
+          final isHoliday = state._isSingleHolidayDay(offset, dayIndex);
 
           if (isHoliday) {
             final totalHeight =
-                n * _rowMinHeight +
+                n * _TimetableScreenState._rowMinHeight +
                 List.generate(
                   n - 1,
                   (i) => gapAfter(i),
@@ -693,7 +825,7 @@ class _TimetableScreenState extends State<TimetableScreen> {
     final n = sortedTimes.length;
     final slots = List<_SlotInfo>.generate(
       n,
-      (idx) => _buildSlot(dayIndex, sortedTimes[idx], now),
+      (idx) => state._buildSlot(offset, dayIndex, sortedTimes[idx], now),
     );
 
     final widgets = <Widget>[];
@@ -702,14 +834,15 @@ class _TimetableScreenState extends State<TimetableScreen> {
       final groupStart = i;
       while (i < n - 1 &&
           timeConnected[i] &&
-          _slotsMergeable(slots[i], slots[i + 1])) {
+          state._slotsMergeable(slots[i], slots[i + 1])) {
         i++;
       }
       final groupEnd = i;
 
       final groupLen = groupEnd - groupStart + 1;
       final double groupHeight =
-          groupLen * _rowMinHeight + (groupLen - 1) * _connectedGap;
+          groupLen * _TimetableScreenState._rowMinHeight +
+          (groupLen - 1) * _TimetableScreenState._connectedGap;
 
       final groupSlots = [
         for (int k = groupStart; k <= groupEnd; k++) slots[k],
@@ -725,7 +858,7 @@ class _TimetableScreenState extends State<TimetableScreen> {
             height: groupHeight,
             onTap: (slot) {
               if (slot.display != null) {
-                _showDetail(slot.display!, slot.replacement);
+                state._showDetail(slot.display!, slot.replacement);
               }
             },
           ),
@@ -742,13 +875,6 @@ class _TimetableScreenState extends State<TimetableScreen> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: widgets,
     );
-  }
-
-  bool _isCurrentLesson(TimetableEntry e, DateTime now) {
-    final nowMins = now.hour * 60 + now.minute;
-    final startMins = (e.startTime ~/ 100) * 60 + (e.startTime % 100);
-    final endMins = (e.endTime ~/ 100) * 60 + (e.endTime % 100);
-    return nowMins >= startMins && nowMins < endMins;
   }
 }
 
@@ -772,10 +898,10 @@ class _HolidayColumn extends StatelessWidget {
           padding: const EdgeInsets.only(top: 14),
           child: Column(
             mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text('🏖️', style: TextStyle(fontSize: 20)),
-              const SizedBox(height: 4),
-              const Text(
+            children: const [
+              Text('🏖️', style: TextStyle(fontSize: 20)),
+              SizedBox(height: 4),
+              Text(
                 'Ferien',
                 style: TextStyle(
                   fontSize: 11,
@@ -813,7 +939,6 @@ class _MergedCell extends StatelessWidget {
 
     final entry = primary.display!;
     final subjectColor = AppTheme.colorForSubject(entry.subjectName);
-
     final isNow = slots.any((s) => s.isNow);
 
     final isTappable = slots.any((s) {
@@ -883,7 +1008,6 @@ class _SlotContent extends StatelessWidget {
     final replacement = slot.replacement;
     final hasReplacement = replacement != null;
 
-    // Pick bottom-right icon based on status
     IconData? statusIcon;
     Color? statusIconColor;
     if (entry.isCancelled && !hasReplacement) {
@@ -905,7 +1029,6 @@ class _SlotContent extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(6, 3, 4, 3),
         child: Stack(
           children: [
-            // Main content
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisAlignment: MainAxisAlignment.center,
@@ -955,7 +1078,6 @@ class _SlotContent extends StatelessWidget {
                 ],
               ],
             ),
-            // Bottom-right: status icon only
             if (statusIcon != null)
               Positioned(
                 right: 0,
