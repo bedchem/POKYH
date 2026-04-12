@@ -1179,30 +1179,33 @@ class _DetailSheet extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-Row(
-  children: [
-    Container(
-      width: 8, height: 8,
-      decoration: BoxDecoration(
-        color: AppTheme.colorForSubject(replacement!.subjectName),
-        shape: BoxShape.circle,
-      ),
-    ),
-    const SizedBox(width: 8),
-    Expanded(
-      child: Text(
-        replacement!.displayName,
-        style: const TextStyle(
-          fontSize: 16,
-          fontWeight: FontWeight.w700,
-          color: AppTheme.textPrimary,
-        ),
-        maxLines: 2,
-        overflow: TextOverflow.ellipsis,
-      ),
-    ),
-  ],
-),
+                  Row(
+                    children: [
+                      Container(
+                        width: 8,
+                        height: 8,
+                        decoration: BoxDecoration(
+                          color: AppTheme.colorForSubject(
+                            replacement!.subjectName,
+                          ),
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          replacement!.displayName,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            color: AppTheme.textPrimary,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
                   if (replacement!.teacherName.isNotEmpty) ...[
                     const SizedBox(height: 4),
                     _InfoRow(

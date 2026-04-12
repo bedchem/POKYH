@@ -25,20 +25,36 @@ class _GradesScreenState extends State<GradesScreen> {
   }
 
   Future<void> _load() async {
-    setState(() { _loading = true; _error = null; });
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
     try {
       final grades = await widget.service.getAllGrades();
-      if (mounted) setState(() { _subjects = grades; _loading = false; });
+      if (mounted)
+        setState(() {
+          _subjects = grades;
+          _loading = false;
+        });
     } on WebUntisException catch (e) {
       if (!mounted) return;
       if (e.isAuthError) {
-        Navigator.pushReplacement(context,
-            MaterialPageRoute(builder: (_) => const LoginScreen()));
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const LoginScreen()),
+        );
         return;
       }
-      setState(() { _error = e.message; _loading = false; });
+      setState(() {
+        _error = e.message;
+        _loading = false;
+      });
     } catch (e) {
-      if (mounted) setState(() { _error = '$e'; _loading = false; });
+      if (mounted)
+        setState(() {
+          _error = '$e';
+          _loading = false;
+        });
     }
   }
 
@@ -61,15 +77,24 @@ class _GradesScreenState extends State<GradesScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Noten',
-                      style: TextStyle(fontSize: 34, fontWeight: FontWeight.w700,
-                          color: AppTheme.textPrimary, letterSpacing: -0.5)),
+                  const Text(
+                    'Noten',
+                    style: TextStyle(
+                      fontSize: 34,
+                      fontWeight: FontWeight.w700,
+                      color: AppTheme.textPrimary,
+                      letterSpacing: -0.5,
+                    ),
+                  ),
                   if (!_loading && _error == null && _subjects.isNotEmpty)
                     Padding(
                       padding: const EdgeInsets.only(top: 4),
                       child: Text(
                         '${_subjects.length} Fächer · Schuljahr 2025/2026',
-                        style: const TextStyle(fontSize: 14, color: AppTheme.textSecondary),
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: AppTheme.textSecondary,
+                        ),
                       ),
                     ),
                 ],
@@ -101,8 +126,13 @@ class _GradesScreenState extends State<GradesScreen> {
                   children: [
                     CupertinoActivityIndicator(radius: 14),
                     SizedBox(height: 14),
-                    Text('Noten werden geladen\u2026',
-                        style: TextStyle(color: AppTheme.textSecondary, fontSize: 14)),
+                    Text(
+                      'Noten werden geladen\u2026',
+                      style: TextStyle(
+                        color: AppTheme.textSecondary,
+                        fontSize: 14,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -114,18 +144,30 @@ class _GradesScreenState extends State<GradesScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(CupertinoIcons.exclamationmark_triangle_fill,
-                        color: AppTheme.danger, size: 28),
+                    const Icon(
+                      CupertinoIcons.exclamationmark_triangle_fill,
+                      color: AppTheme.danger,
+                      size: 28,
+                    ),
                     const SizedBox(height: 10),
-                    Text(_error!, style: const TextStyle(color: AppTheme.textSecondary)),
+                    Text(
+                      _error!,
+                      style: const TextStyle(color: AppTheme.textSecondary),
+                    ),
                     const SizedBox(height: 14),
                     CupertinoButton(
                       color: AppTheme.accent,
                       borderRadius: BorderRadius.circular(10),
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 8,
+                      ),
                       minimumSize: Size.zero,
                       onPressed: _load,
-                      child: const Text('Erneut versuchen', style: TextStyle(fontSize: 14)),
+                      child: const Text(
+                        'Erneut versuchen',
+                        style: TextStyle(fontSize: 14),
+                      ),
                     ),
                   ],
                 ),
@@ -135,8 +177,10 @@ class _GradesScreenState extends State<GradesScreen> {
             const SliverFillRemaining(
               hasScrollBody: false,
               child: Center(
-                child: Text('Keine Noten vorhanden',
-                    style: TextStyle(color: AppTheme.textSecondary, fontSize: 15)),
+                child: Text(
+                  'Keine Noten vorhanden',
+                  style: TextStyle(color: AppTheme.textSecondary, fontSize: 15),
+                ),
               ),
             )
           else
@@ -165,18 +209,29 @@ class _GradesScreenState extends State<GradesScreen> {
 class _OverviewAndDistributionCard extends StatelessWidget {
   final double? average;
   final List<SubjectGrades> subjects;
-  const _OverviewAndDistributionCard({required this.average, required this.subjects});
+  const _OverviewAndDistributionCard({
+    required this.average,
+    required this.subjects,
+  });
 
   static Color gradeColor(int grade) {
     switch (grade) {
-      case 10: return const Color(0xFF30D158); // grün
-      case 9:  return const Color(0xFF00C7BE); // türkis
-      case 8:  return const Color(0xFF0A84FF); // blau
-      case 7:  return const Color(0xFF5E5CE6); // lila
-      case 6:  return const Color(0xFFFFD60A); // gelb
-      case 5:  return const Color(0xFFFF9F0A); // orange
-      case 4:  return const Color(0xFFFF453A); // rot
-      default: return const Color(0xFF636366);
+      case 10:
+        return const Color(0xFF30D158); // grün
+      case 9:
+        return const Color(0xFF00C7BE); // türkis
+      case 8:
+        return const Color(0xFF0A84FF); // blau
+      case 7:
+        return const Color(0xFF5E5CE6); // lila
+      case 6:
+        return const Color(0xFFFFD60A); // gelb
+      case 5:
+        return const Color(0xFFFF9F0A); // orange
+      case 4:
+        return const Color(0xFFFF453A); // rot
+      default:
+        return const Color(0xFF636366);
     }
   }
 
@@ -228,18 +283,28 @@ class _OverviewAndDistributionCard extends StatelessWidget {
               children: [
                 if (average != null)
                   Container(
-                    width: 64, height: 64,
+                    width: 64,
+                    height: 64,
                     decoration: BoxDecoration(
-                      color: _OverviewAndDistributionCard.gradeColor(average!.round()).withValues(alpha: 0.15),
+                      color: _OverviewAndDistributionCard.gradeColor(
+                        average!.round(),
+                      ).withValues(alpha: 0.15),
                       shape: BoxShape.circle,
-                      border: Border.all(color: _OverviewAndDistributionCard.gradeColor(average!.round()).withValues(alpha: 0.3)),
+                      border: Border.all(
+                        color: _OverviewAndDistributionCard.gradeColor(
+                          average!.round(),
+                        ).withValues(alpha: 0.3),
+                      ),
                     ),
                     child: Center(
                       child: Text(
                         average!.toStringAsFixed(1),
                         style: TextStyle(
-                          fontSize: 22, fontWeight: FontWeight.w700,
-                          color: _OverviewAndDistributionCard.gradeColor(average!.round()),
+                          fontSize: 22,
+                          fontWeight: FontWeight.w700,
+                          color: _OverviewAndDistributionCard.gradeColor(
+                            average!.round(),
+                          ),
                           fontFeatures: const [FontFeature.tabularFigures()],
                         ),
                       ),
@@ -250,17 +315,34 @@ class _OverviewAndDistributionCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('Gesamtdurchschnitt',
-                          style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600,
-                              color: AppTheme.textPrimary)),
+                      const Text(
+                        'Gesamtdurchschnitt',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: AppTheme.textPrimary,
+                        ),
+                      ),
                       const SizedBox(height: 6),
                       Row(
                         children: [
-                          _StatPill(label: '$totalGrades', sub: 'Noten', color: AppTheme.accent),
+                          _StatPill(
+                            label: '$totalGrades',
+                            sub: 'Noten',
+                            color: AppTheme.accent,
+                          ),
                           const SizedBox(width: 8),
-                          _StatPill(label: '$positive', sub: 'positiv', color: AppTheme.success),
+                          _StatPill(
+                            label: '$positive',
+                            sub: 'positiv',
+                            color: AppTheme.success,
+                          ),
                           const SizedBox(width: 8),
-                          _StatPill(label: '$negative', sub: 'negativ', color: AppTheme.danger),
+                          _StatPill(
+                            label: '$negative',
+                            sub: 'negativ',
+                            color: AppTheme.danger,
+                          ),
                         ],
                       ),
                     ],
@@ -291,28 +373,42 @@ class _OverviewAndDistributionCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('Notenverteilung',
-                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
-                              color: AppTheme.textPrimary)),
+                      const Text(
+                        'Notenverteilung',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: AppTheme.textPrimary,
+                        ),
+                      ),
                       const SizedBox(height: 8),
                       Wrap(
                         spacing: 12,
                         runSpacing: 8,
                         children: sortedEntries.map((e) {
-                          final color = _OverviewAndDistributionCard.gradeColor(e.key);
+                          final color = _OverviewAndDistributionCard.gradeColor(
+                            e.key,
+                          );
                           return Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Container(
-                                width: 10, height: 10,
+                                width: 10,
+                                height: 10,
                                 decoration: BoxDecoration(
-                                    color: color, shape: BoxShape.circle),
+                                  color: color,
+                                  shape: BoxShape.circle,
+                                ),
                               ),
                               const SizedBox(width: 5),
-                              Text('${e.value}×',
-                                  style: TextStyle(fontSize: 12,
-                                      fontWeight: FontWeight.w600,
-                                      color: color)),
+                              Text(
+                                '${e.value}×',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: color,
+                                ),
+                              ),
                             ],
                           );
                         }).toList(),
@@ -352,8 +448,10 @@ class _DonutPainter extends CustomPainter {
     final segmentMidAngles = <int, double>{};
     final segmentSweeps = <int, double>{};
     for (final entry in sorted) {
-      final sweep = ((entry.value / total) * (math.pi * 2) - gap)
-          .clamp(0.01, math.pi * 2);
+      final sweep = ((entry.value / total) * (math.pi * 2) - gap).clamp(
+        0.01,
+        math.pi * 2,
+      );
       final paint = Paint()
         ..color = _OverviewAndDistributionCard.gradeColor(entry.key)
         ..style = PaintingStyle.stroke
@@ -361,7 +459,10 @@ class _DonutPainter extends CustomPainter {
         ..strokeCap = StrokeCap.butt;
       canvas.drawArc(
         Rect.fromCircle(center: center, radius: arcRadius),
-        startAngle, sweep, false, paint,
+        startAngle,
+        sweep,
+        false,
+        paint,
       );
       segmentMidAngles[entry.key] = startAngle + sweep / 2;
       segmentSweeps[entry.key] = sweep;
@@ -383,8 +484,13 @@ class _DonutPainter extends CustomPainter {
         center.dx + (arcRadius + strokeWidth / 2 + 7) * math.cos(midAngle),
         center.dy + (arcRadius + strokeWidth / 2 + 7) * math.sin(midAngle),
       );
-      canvas.drawLine(tickStart, tickEnd,
-          Paint()..color = color.withValues(alpha: 0.8)..strokeWidth = 1.2);
+      canvas.drawLine(
+        tickStart,
+        tickEnd,
+        Paint()
+          ..color = color.withValues(alpha: 0.8)
+          ..strokeWidth = 1.2,
+      );
 
       // Label right at tick end
       final labelR = arcRadius + strokeWidth / 2 + 14;
@@ -393,7 +499,11 @@ class _DonutPainter extends CustomPainter {
       final tp = TextPainter(
         text: TextSpan(
           text: '${entry.key}',
-          style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: color),
+          style: TextStyle(
+            fontSize: 9,
+            fontWeight: FontWeight.w700,
+            color: color,
+          ),
         ),
         textDirection: TextDirection.ltr,
       )..layout();
@@ -412,14 +522,28 @@ class _StatPill extends StatelessWidget {
   final String label;
   final String sub;
   final Color color;
-  const _StatPill({required this.label, required this.sub, required this.color});
+  const _StatPill({
+    required this.label,
+    required this.sub,
+    required this.color,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
-        Text(label, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: color)),
-        Text(sub, style: const TextStyle(fontSize: 10, color: AppTheme.textTertiary)),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w700,
+            color: color,
+          ),
+        ),
+        Text(
+          sub,
+          style: const TextStyle(fontSize: 10, color: AppTheme.textTertiary),
+        ),
       ],
     );
   }
@@ -445,7 +569,7 @@ class _SubjectCardState extends State<_SubjectCard>
     if (v >= 9) return AppTheme.success;
     if (v >= 7) return const Color(0xFF86EFAC);
     if (v > 6.5) return const Color(0xFF86EFAC); // hellgrün ab 6.51
-    if (v >= 6) return AppTheme.warning;          // gelb nur noch genau 6
+    if (v >= 6) return AppTheme.warning; // gelb nur noch genau 6
     if (v >= 4) return AppTheme.orange;
     return AppTheme.danger;
   }
@@ -483,8 +607,12 @@ class _SubjectCardState extends State<_SubjectCard>
               child: Row(
                 children: [
                   Container(
-                    width: 10, height: 10,
-                    decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+                    width: 10,
+                    height: 10,
+                    decoration: BoxDecoration(
+                      color: color,
+                      shape: BoxShape.circle,
+                    ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -494,14 +622,18 @@ class _SubjectCardState extends State<_SubjectCard>
                         Text(
                           widget.subject.subjectName,
                           style: const TextStyle(
-                            fontSize: 16, fontWeight: FontWeight.w600,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
                             color: AppTheme.textPrimary,
                           ),
                         ),
                         const SizedBox(height: 2),
                         Text(
                           '${widget.subject.teacherName} \u00b7 ${widget.subject.grades.length} Noten',
-                          style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary),
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: AppTheme.textSecondary,
+                          ),
                         ),
                       ],
                     ),
@@ -511,7 +643,10 @@ class _SubjectCardState extends State<_SubjectCard>
                     behavior: HitTestBehavior.opaque,
                     onTap: () => _openDetail(context),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 5,
+                      ),
                       margin: const EdgeInsets.only(right: 6),
                       decoration: BoxDecoration(
                         color: AppTheme.border.withValues(alpha: 0.4),
@@ -521,13 +656,20 @@ class _SubjectCardState extends State<_SubjectCard>
                       child: const Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(CupertinoIcons.chart_bar_alt_fill,
-                              size: 12, color: AppTheme.textSecondary),
+                          Icon(
+                            CupertinoIcons.chart_bar_alt_fill,
+                            size: 12,
+                            color: AppTheme.textSecondary,
+                          ),
                           SizedBox(width: 4),
-                          Text('Detail',
-                              style: TextStyle(fontSize: 11,
-                                  fontWeight: FontWeight.w600,
-                                  color: AppTheme.textSecondary)),
+                          Text(
+                            'Detail',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: AppTheme.textSecondary,
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -535,16 +677,22 @@ class _SubjectCardState extends State<_SubjectCard>
 
                   if (avg != null)
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
                       decoration: BoxDecoration(
                         color: _gradeColor(avg).withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: _gradeColor(avg).withValues(alpha: 0.3)),
+                        border: Border.all(
+                          color: _gradeColor(avg).withValues(alpha: 0.3),
+                        ),
                       ),
                       child: Text(
                         avg.toStringAsFixed(1),
                         style: TextStyle(
-                          fontSize: 16, fontWeight: FontWeight.w700,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
                           color: _gradeColor(avg),
                           fontFeatures: const [FontFeature.tabularFigures()],
                         ),
@@ -555,8 +703,11 @@ class _SubjectCardState extends State<_SubjectCard>
                   AnimatedRotation(
                     turns: _expanded ? 0.5 : 0,
                     duration: const Duration(milliseconds: 250),
-                    child: const Icon(CupertinoIcons.chevron_down,
-                        size: 14, color: AppTheme.textTertiary),
+                    child: const Icon(
+                      CupertinoIcons.chevron_down,
+                      size: 14,
+                      color: AppTheme.textTertiary,
+                    ),
                   ),
                 ],
               ),
@@ -569,8 +720,12 @@ class _SubjectCardState extends State<_SubjectCard>
                   : CrossFadeState.showSecond,
               firstChild: Column(
                 children: [
-                  Divider(color: AppTheme.border.withValues(alpha: 0.5),
-                      height: 1, indent: 14, endIndent: 14),
+                  Divider(
+                    color: AppTheme.border.withValues(alpha: 0.5),
+                    height: 1,
+                    indent: 14,
+                    endIndent: 14,
+                  ),
                   Padding(
                     padding: const EdgeInsets.fromLTRB(14, 10, 14, 14),
                     child: Column(
@@ -583,7 +738,9 @@ class _SubjectCardState extends State<_SubjectCard>
                               Container(
                                 width: 40,
                                 padding: const EdgeInsets.symmetric(
-                                    horizontal: 6, vertical: 4),
+                                  horizontal: 6,
+                                  vertical: 4,
+                                ),
                                 decoration: BoxDecoration(
                                   color: gc.withValues(alpha: 0.12),
                                   borderRadius: BorderRadius.circular(6),
@@ -592,9 +749,12 @@ class _SubjectCardState extends State<_SubjectCard>
                                   g.markName,
                                   textAlign: TextAlign.center,
                                   style: TextStyle(
-                                    fontSize: 14, fontWeight: FontWeight.w700,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w700,
                                     color: gc,
-                                    fontFeatures: const [FontFeature.tabularFigures()],
+                                    fontFeatures: const [
+                                      FontFeature.tabularFigures(),
+                                    ],
                                   ),
                                 ),
                               ),
@@ -604,15 +764,19 @@ class _SubjectCardState extends State<_SubjectCard>
                                   g.examType.isNotEmpty
                                       ? g.examType
                                       : (g.text.isNotEmpty ? g.text : '\u2014'),
-                                  style: const TextStyle(fontSize: 14,
-                                      color: AppTheme.textSecondary),
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    color: AppTheme.textSecondary,
+                                  ),
                                 ),
                               ),
                               Text(
                                 g.dateFormatted,
-                                style: const TextStyle(fontSize: 12,
-                                    color: AppTheme.textTertiary,
-                                    fontFeatures: [FontFeature.tabularFigures()]),
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: AppTheme.textTertiary,
+                                  fontFeatures: [FontFeature.tabularFigures()],
+                                ),
                               ),
                             ],
                           ),
@@ -645,7 +809,7 @@ class _SubjectDetailSheet extends StatefulWidget {
 
 class _SubjectDetailSheetState extends State<_SubjectDetailSheet> {
   final List<double> _extraGrades = [];
-  final Set<int> _removedIndices = {};  // indices of real grades toggled off
+  final Set<int> _removedIndices = {}; // indices of real grades toggled off
   final TextEditingController _inputCtrl = TextEditingController();
   String? _inputError;
 
@@ -656,7 +820,9 @@ class _SubjectDetailSheetState extends State<_SubjectDetailSheet> {
   }
 
   List<double> get _allGradeValues => [
-    ...widget.subject.grades.asMap().entries
+    ...widget.subject.grades
+        .asMap()
+        .entries
         .where((e) => !_removedIndices.contains(e.key))
         .map((e) => e.value.markDisplayValue),
     ..._extraGrades,
@@ -672,7 +838,7 @@ class _SubjectDetailSheetState extends State<_SubjectDetailSheet> {
     if (v >= 9) return AppTheme.success;
     if (v >= 7) return const Color(0xFF86EFAC);
     if (v > 6.5) return const Color(0xFF86EFAC); // hellgrün ab 6.51
-    if (v >= 6) return AppTheme.warning;          // gelb nur noch genau 6
+    if (v >= 6) return AppTheme.warning; // gelb nur noch genau 6
     if (v >= 4) return AppTheme.orange;
     return AppTheme.danger;
   }
@@ -686,7 +852,9 @@ class _SubjectDetailSheetState extends State<_SubjectDetailSheet> {
   void _addGrade() {
     final val = double.tryParse(_inputCtrl.text.replaceAll(',', '.'));
     if (val == null || val < 1 || val > 10) {
-      setState(() => _inputError = 'Bitte eine Note zwischen 1 und 10 eingeben');
+      setState(
+        () => _inputError = 'Bitte eine Note zwischen 1 und 10 eingeben',
+      );
       return;
     }
     setState(() {
@@ -717,7 +885,8 @@ class _SubjectDetailSheetState extends State<_SubjectDetailSheet> {
             Padding(
               padding: const EdgeInsets.only(top: 10, bottom: 4),
               child: Container(
-                width: 36, height: 4,
+                width: 36,
+                height: 4,
                 decoration: BoxDecoration(
                   color: AppTheme.border,
                   borderRadius: BorderRadius.circular(2),
@@ -731,16 +900,24 @@ class _SubjectDetailSheetState extends State<_SubjectDetailSheet> {
               child: Row(
                 children: [
                   Container(
-                    width: 10, height: 10,
-                    decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+                    width: 10,
+                    height: 10,
+                    decoration: BoxDecoration(
+                      color: color,
+                      shape: BoxShape.circle,
+                    ),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
-                    child: Text(widget.subject.subjectName,
-                        style: const TextStyle(fontSize: 20,
-                            fontWeight: FontWeight.w700,
-                            color: AppTheme.textPrimary,
-                            letterSpacing: -0.3)),
+                    child: Text(
+                      widget.subject.subjectName,
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w700,
+                        color: AppTheme.textPrimary,
+                        letterSpacing: -0.3,
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -754,25 +931,37 @@ class _SubjectDetailSheetState extends State<_SubjectDetailSheet> {
                   // Stats row
                   Row(
                     children: [
-                      Expanded(child: _MiniStatCard(
-                        label: 'Durchschnitt',
-                        value: origAvg != null ? origAvg!.toStringAsFixed(3).replaceAll(RegExp(r'0+\$'), '').replaceAll(RegExp(r'\.\$'), '') : '—',
-                        valueColor: origAvg != null
-                            ? _gradeColor(origAvg)
-                            : AppTheme.textSecondary,
-                      )),
+                      Expanded(
+                        child: _MiniStatCard(
+                          label: 'Durchschnitt',
+                          value: origAvg != null
+                              ? origAvg!
+                                    .toStringAsFixed(3)
+                                    .replaceAll(RegExp(r'0+\$'), '')
+                                    .replaceAll(RegExp(r'\.\$'), '')
+                              : '—',
+                          valueColor: origAvg != null
+                              ? _gradeColor(origAvg)
+                              : AppTheme.textSecondary,
+                        ),
+                      ),
                       const SizedBox(width: 10),
-                      Expanded(child: _MiniStatCard(
-                        label: 'Pos. / Neg.',
-                        value: '${widget.subject.positiveCount} / ${widget.subject.negativeCount}',
-                        valueColor: AppTheme.textPrimary,
-                      )),
+                      Expanded(
+                        child: _MiniStatCard(
+                          label: 'Pos. / Neg.',
+                          value:
+                              '${widget.subject.positiveCount} / ${widget.subject.negativeCount}',
+                          valueColor: AppTheme.textPrimary,
+                        ),
+                      ),
                       const SizedBox(width: 10),
-                      Expanded(child: _MiniStatCard(
-                        label: 'Noten',
-                        value: '${widget.subject.grades.length}',
-                        valueColor: AppTheme.textPrimary,
-                      )),
+                      Expanded(
+                        child: _MiniStatCard(
+                          label: 'Noten',
+                          value: '${widget.subject.grades.length}',
+                          valueColor: AppTheme.textPrimary,
+                        ),
+                      ),
                     ],
                   ),
 
@@ -794,40 +983,67 @@ class _SubjectDetailSheetState extends State<_SubjectDetailSheet> {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text('Trend',
-                                      style: TextStyle(fontSize: 14,
-                                          fontWeight: FontWeight.w600,
-                                          color: AppTheme.textPrimary)),
-                                  Text('Notenentwicklung',
-                                      style: TextStyle(fontSize: 11,
-                                          color: AppTheme.textSecondary)),
+                                  Text(
+                                    'Trend',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                      color: AppTheme.textPrimary,
+                                    ),
+                                  ),
+                                  Text(
+                                    'Notenentwicklung',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: AppTheme.textSecondary,
+                                    ),
+                                  ),
                                 ],
                               ),
                             ),
                             // Legend
                             Row(
                               children: [
-                                Container(width: 14, height: 2,
-                                    color: color),
+                                Container(width: 14, height: 2, color: color),
                                 const SizedBox(width: 4),
-                                const Text('Noten',
-                                    style: TextStyle(fontSize: 10,
-                                        color: AppTheme.textTertiary)),
+                                const Text(
+                                  'Noten',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    color: AppTheme.textTertiary,
+                                  ),
+                                ),
                                 const SizedBox(width: 10),
-                                Container(width: 14, height: 2,
-                                    color: AppTheme.danger.withValues(alpha: 0.5)),
+                                Container(
+                                  width: 14,
+                                  height: 2,
+                                  color: AppTheme.danger.withValues(alpha: 0.5),
+                                ),
                                 const SizedBox(width: 4),
-                                const Text('Trend',
-                                    style: TextStyle(fontSize: 10,
-                                        color: AppTheme.textTertiary)),
+                                const Text(
+                                  'Trend',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    color: AppTheme.textTertiary,
+                                  ),
+                                ),
                                 if (_extraGrades.isNotEmpty) ...[
                                   const SizedBox(width: 10),
-                                  Container(width: 14, height: 2,
-                                      color: AppTheme.accent.withValues(alpha: 0.7)),
+                                  Container(
+                                    width: 14,
+                                    height: 2,
+                                    color: AppTheme.accent.withValues(
+                                      alpha: 0.7,
+                                    ),
+                                  ),
                                   const SizedBox(width: 4),
-                                  const Text('Simulation',
-                                      style: TextStyle(fontSize: 10,
-                                          color: AppTheme.textTertiary)),
+                                  const Text(
+                                    'Simulation',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      color: AppTheme.textTertiary,
+                                    ),
+                                  ),
                                 ],
                               ],
                             ),
@@ -859,14 +1075,22 @@ class _SubjectDetailSheetState extends State<_SubjectDetailSheet> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('Mittelwert-Rechner',
-                            style: TextStyle(fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                                color: AppTheme.textPrimary)),
+                        const Text(
+                          'Mittelwert-Rechner',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: AppTheme.textPrimary,
+                          ),
+                        ),
                         const SizedBox(height: 2),
-                        const Text('Simuliere zukünftige Noten',
-                            style: TextStyle(fontSize: 11,
-                                color: AppTheme.textSecondary)),
+                        const Text(
+                          'Simuliere zukünftige Noten',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: AppTheme.textSecondary,
+                          ),
+                        ),
                         const SizedBox(height: 16),
 
                         // Simulated average
@@ -880,18 +1104,23 @@ class _SubjectDetailSheetState extends State<_SubjectDetailSheet> {
                                     fontSize: 40,
                                     fontWeight: FontWeight.w700,
                                     color: _gradeColor(simAvg),
-                                    fontFeatures: const [FontFeature.tabularFigures()],
+                                    fontFeatures: const [
+                                      FontFeature.tabularFigures(),
+                                    ],
                                   ),
                                 ),
                                 if (_extraGrades.isNotEmpty && origAvg != null)
                                   Container(
                                     padding: const EdgeInsets.symmetric(
-                                        horizontal: 10, vertical: 3),
+                                      horizontal: 10,
+                                      vertical: 3,
+                                    ),
                                     decoration: BoxDecoration(
-                                      color: (simAvg >= origAvg
-                                          ? AppTheme.success
-                                          : AppTheme.danger)
-                                          .withValues(alpha: 0.12),
+                                      color:
+                                          (simAvg >= origAvg
+                                                  ? AppTheme.success
+                                                  : AppTheme.danger)
+                                              .withValues(alpha: 0.12),
                                       borderRadius: BorderRadius.circular(6),
                                     ),
                                     child: Text(
@@ -921,42 +1150,138 @@ class _SubjectDetailSheetState extends State<_SubjectDetailSheet> {
                           children: [
                             // Real grades — tap to toggle out/in
                             if (widget.subject.grades.isNotEmpty) ...[
-                              const Text('Vorhandene Noten',
-                                  style: TextStyle(fontSize: 11,
-                                      color: AppTheme.textTertiary)),
+                              const Text(
+                                'Vorhandene Noten',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: AppTheme.textTertiary,
+                                ),
+                              ),
                               const SizedBox(height: 8),
                               Wrap(
                                 spacing: 8,
                                 runSpacing: 7,
-                                children: widget.subject.grades.asMap().entries.map((e) {
-                                  final removed = _removedIndices.contains(e.key);
-                                  final raw = e.value.markDisplayValue;
-                                  final label = raw.toStringAsFixed(3)
+                                children: widget.subject.grades
+                                    .asMap()
+                                    .entries
+                                    .map((e) {
+                                      final removed = _removedIndices.contains(
+                                        e.key,
+                                      );
+                                      final raw = e.value.markDisplayValue;
+                                      final label = raw
+                                          .toStringAsFixed(3)
+                                          .replaceAll(RegExp(r'0+$'), '')
+                                          .replaceAll(RegExp(r'\.?$'), '');
+                                      final gc = removed
+                                          ? AppTheme.textTertiary
+                                          : _gradeColor(
+                                              raw,
+                                            ).withValues(alpha: 0.85);
+                                      return GestureDetector(
+                                        onTap: () => setState(() {
+                                          if (removed) {
+                                            _removedIndices.remove(e.key);
+                                          } else {
+                                            _removedIndices.add(e.key);
+                                          }
+                                        }),
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 12,
+                                            vertical: 7,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: removed
+                                                ? AppTheme.surface
+                                                : AppTheme.card,
+                                            borderRadius: BorderRadius.circular(
+                                              9,
+                                            ),
+                                            border: Border.all(
+                                              color: removed
+                                                  ? AppTheme.border.withValues(
+                                                      alpha: 0.35,
+                                                    )
+                                                  : AppTheme.border,
+                                            ),
+                                          ),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Text(
+                                                label,
+                                                style: TextStyle(
+                                                  fontSize: 15,
+                                                  fontWeight: removed
+                                                      ? FontWeight.w400
+                                                      : FontWeight.w600,
+                                                  color: gc,
+                                                  decoration: removed
+                                                      ? TextDecoration
+                                                            .lineThrough
+                                                      : null,
+                                                  decorationColor: AppTheme
+                                                      .textTertiary
+                                                      .withValues(alpha: 0.6),
+                                                ),
+                                              ),
+                                              const SizedBox(width: 5),
+                                              Icon(
+                                                removed
+                                                    ? CupertinoIcons.plus
+                                                    : CupertinoIcons.xmark,
+                                                size: 12,
+                                                color: removed
+                                                    ? AppTheme.textTertiary
+                                                          .withValues(
+                                                            alpha: 0.5,
+                                                          )
+                                                    : AppTheme.danger,
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      );
+                                    })
+                                    .toList(),
+                              ),
+                              const SizedBox(height: 14),
+                            ],
+                            // Test grades (colored, tappable to remove)
+                            if (_extraGrades.isNotEmpty) ...[
+                              const Text(
+                                'Testnoten',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: AppTheme.textTertiary,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 7,
+                                children: _extraGrades.asMap().entries.map((e) {
+                                  final gc = _gradeColor(e.value);
+                                  final raw = e.value;
+                                  final label = raw
+                                      .toStringAsFixed(3)
                                       .replaceAll(RegExp(r'0+$'), '')
                                       .replaceAll(RegExp(r'\.?$'), '');
-                                  final gc = removed
-                                      ? AppTheme.textTertiary
-                                      : _gradeColor(raw).withValues(alpha: 0.85);
                                   return GestureDetector(
-                                    onTap: () => setState(() {
-                                      if (removed) {
-                                        _removedIndices.remove(e.key);
-                                      } else {
-                                        _removedIndices.add(e.key);
-                                      }
-                                    }),
+                                    onTap: () => setState(
+                                      () => _extraGrades.removeAt(e.key),
+                                    ),
                                     child: Container(
                                       padding: const EdgeInsets.symmetric(
-                                          horizontal: 12, vertical: 7),
+                                        horizontal: 12,
+                                        vertical: 7,
+                                      ),
                                       decoration: BoxDecoration(
-                                        color: removed
-                                            ? AppTheme.surface
-                                            : AppTheme.card,
+                                        color: gc.withValues(alpha: 0.12),
                                         borderRadius: BorderRadius.circular(9),
                                         border: Border.all(
-                                          color: removed
-                                              ? AppTheme.border.withValues(alpha: 0.35)
-                                              : AppTheme.border,
+                                          color: gc.withValues(alpha: 0.35),
                                         ),
                                       ),
                                       child: Row(
@@ -965,70 +1290,17 @@ class _SubjectDetailSheetState extends State<_SubjectDetailSheet> {
                                           Text(
                                             label,
                                             style: TextStyle(
-                                                fontSize: 15,
-                                                fontWeight: removed ? FontWeight.w400 : FontWeight.w600,
-                                                color: gc,
-                                                decoration: removed ? TextDecoration.lineThrough : null,
-                                                decorationColor: AppTheme.textTertiary
-                                                    .withValues(alpha: 0.6)),
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.w700,
+                                              color: gc,
+                                            ),
                                           ),
                                           const SizedBox(width: 5),
                                           Icon(
-                                            removed
-                                                ? CupertinoIcons.plus
-                                                : CupertinoIcons.xmark,
-                                            size: 12,
-                                            color: removed
-                                                ? AppTheme.textTertiary.withValues(alpha: 0.5)
-                                                : AppTheme.danger,
+                                            CupertinoIcons.xmark,
+                                            size: 11,
+                                            color: gc.withValues(alpha: 0.7),
                                           ),
-                                        ],
-                                      ),
-                                    ),
-                                  );
-                                }).toList(),
-                              ),
-                              const SizedBox(height: 14),
-                            ],
-                            // Test grades (colored, tappable to remove)
-                            if (_extraGrades.isNotEmpty) ...[
-                              const Text('Testnoten',
-                                  style: TextStyle(fontSize: 11,
-                                      color: AppTheme.textTertiary)),
-                              const SizedBox(height: 6),
-                              Wrap(
-                                spacing: 8,
-                                runSpacing: 7,
-                                children: _extraGrades.asMap().entries.map((e) {
-                                  final gc = _gradeColor(e.value);
-                                  final raw = e.value;
-                                  final label = raw.toStringAsFixed(3)
-                                      .replaceAll(RegExp(r'0+$'), '')
-                                      .replaceAll(RegExp(r'\.?$'), '');
-                                  return GestureDetector(
-                                    onTap: () =>
-                                        setState(() => _extraGrades.removeAt(e.key)),
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 12, vertical: 7),
-                                      decoration: BoxDecoration(
-                                        color: gc.withValues(alpha: 0.12),
-                                        borderRadius: BorderRadius.circular(9),
-                                        border: Border.all(
-                                            color: gc.withValues(alpha: 0.35)),
-                                      ),
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Text(label,
-                                              style: TextStyle(
-                                                  fontSize: 13,
-                                                  fontWeight: FontWeight.w700,
-                                                  color: gc)),
-                                          const SizedBox(width: 5),
-                                          Icon(CupertinoIcons.xmark,
-                                              size: 11,
-                                              color: gc.withValues(alpha: 0.7)),
                                         ],
                                       ),
                                     ),
@@ -1047,12 +1319,18 @@ class _SubjectDetailSheetState extends State<_SubjectDetailSheet> {
                               child: CupertinoTextField(
                                 controller: _inputCtrl,
                                 placeholder: 'Note eingeben (1–10)',
-                                keyboardType: const TextInputType.numberWithOptions(
-                                    decimal: true),
+                                keyboardType:
+                                    const TextInputType.numberWithOptions(
+                                      decimal: true,
+                                    ),
                                 style: const TextStyle(
-                                    color: AppTheme.textPrimary, fontSize: 14),
+                                  color: AppTheme.textPrimary,
+                                  fontSize: 14,
+                                ),
                                 placeholderStyle: const TextStyle(
-                                    color: AppTheme.textTertiary, fontSize: 14),
+                                  color: AppTheme.textTertiary,
+                                  fontSize: 14,
+                                ),
                                 decoration: BoxDecoration(
                                   color: AppTheme.bg,
                                   borderRadius: BorderRadius.circular(10),
@@ -1063,7 +1341,9 @@ class _SubjectDetailSheetState extends State<_SubjectDetailSheet> {
                                   ),
                                 ),
                                 padding: const EdgeInsets.symmetric(
-                                    horizontal: 12, vertical: 10),
+                                  horizontal: 12,
+                                  vertical: 10,
+                                ),
                                 onSubmitted: (_) => _addGrade(),
                               ),
                             ),
@@ -1072,22 +1352,30 @@ class _SubjectDetailSheetState extends State<_SubjectDetailSheet> {
                               color: AppTheme.accent,
                               borderRadius: BorderRadius.circular(10),
                               padding: const EdgeInsets.symmetric(
-                                  horizontal: 16, vertical: 10),
+                                horizontal: 16,
+                                vertical: 10,
+                              ),
                               minimumSize: Size.zero,
                               onPressed: _addGrade,
-                              child: const Icon(CupertinoIcons.plus, size: 18, color: Colors.white),
+                              child: const Icon(
+                                CupertinoIcons.plus,
+                                size: 18,
+                                color: Colors.white,
+                              ),
                             ),
                           ],
                         ),
 
                         if (_inputError != null) ...[
                           const SizedBox(height: 6),
-                          Text(_inputError!,
-                              style: const TextStyle(
-                                  fontSize: 11, color: AppTheme.danger)),
+                          Text(
+                            _inputError!,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: AppTheme.danger,
+                            ),
+                          ),
                         ],
-
-
                       ],
                     ),
                   ),
@@ -1107,8 +1395,11 @@ class _MiniStatCard extends StatelessWidget {
   final String label;
   final String value;
   final Color valueColor;
-  const _MiniStatCard(
-      {required this.label, required this.value, required this.valueColor});
+  const _MiniStatCard({
+    required this.label,
+    required this.value,
+    required this.valueColor,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1121,16 +1412,20 @@ class _MiniStatCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label,
-              style: const TextStyle(
-                  fontSize: 10, color: AppTheme.textTertiary)),
+          Text(
+            label,
+            style: const TextStyle(fontSize: 10, color: AppTheme.textTertiary),
+          ),
           const SizedBox(height: 4),
-          Text(value,
-              style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                  color: valueColor,
-                  fontFeatures: const [FontFeature.tabularFigures()])),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+              color: valueColor,
+              fontFeatures: const [FontFeature.tabularFigures()],
+            ),
+          ),
         ],
       ),
     );
@@ -1144,20 +1439,22 @@ class _TrendChart extends StatelessWidget {
   final List<double> extraGrades;
   final Set<int> removedIndices;
   final Color color;
-  const _TrendChart(
-      {required this.grades,
-      required this.extraGrades,
-      required this.removedIndices,
-      required this.color});
+  const _TrendChart({
+    required this.grades,
+    required this.extraGrades,
+    required this.removedIndices,
+    required this.color,
+  });
 
   @override
   Widget build(BuildContext context) {
     return CustomPaint(
       painter: _TrendPainter(
-          grades: grades,
-          extraGrades: extraGrades,
-          removedIndices: removedIndices,
-          lineColor: color),
+        grades: grades,
+        extraGrades: extraGrades,
+        removedIndices: removedIndices,
+        lineColor: color,
+      ),
       size: Size.infinite,
     );
   }
@@ -1169,11 +1466,12 @@ class _TrendPainter extends CustomPainter {
   final Set<int> removedIndices;
   final Color lineColor;
 
-  const _TrendPainter(
-      {required this.grades,
-      required this.extraGrades,
-      required this.removedIndices,
-      required this.lineColor});
+  const _TrendPainter({
+    required this.grades,
+    required this.extraGrades,
+    required this.removedIndices,
+    required this.lineColor,
+  });
 
   static const double _minV = 1.0;
   static const double _maxV = 10.0;
@@ -1186,15 +1484,15 @@ class _TrendPainter extends CustomPainter {
   }
 
   double _yOf(double v, double height) =>
-      height -
-      _padV -
-      ((v - _minV) / (_maxV - _minV)) * (height - _padV * 2);
+      height - _padV - ((v - _minV) / (_maxV - _minV)) * (height - _padV * 2);
 
   @override
   void paint(Canvas canvas, Size size) {
     if (grades.isEmpty) return;
 
-    final activeGrades = grades.asMap().entries
+    final activeGrades = grades
+        .asMap()
+        .entries
         .where((e) => !removedIndices.contains(e.key))
         .map((e) => e.value)
         .toList();
@@ -1210,11 +1508,15 @@ class _TrendPainter extends CustomPainter {
       ..strokeWidth = 0.5;
     for (final v in [4.0, 6.0, 7.0, 9.0]) {
       final y = _yOf(v, size.height);
-      canvas.drawLine(
-          Offset(_padH, y), Offset(size.width - 4, y), gridPaint);
+      canvas.drawLine(Offset(_padH, y), Offset(size.width - 4, y), gridPaint);
       // Y label
-      _drawText(canvas, v.toInt().toString(), Offset(0, y - 6),
-          AppTheme.textTertiary.withValues(alpha: 0.6), 9);
+      _drawText(
+        canvas,
+        v.toInt().toString(),
+        Offset(0, y - 6),
+        AppTheme.textTertiary.withValues(alpha: 0.6),
+        9,
+      );
     }
 
     // Original line
@@ -1229,7 +1531,10 @@ class _TrendPainter extends CustomPainter {
       for (int i = 0; i < activeGrades.length; i++) {
         final x = _xOf(i, n, size.width);
         final y = _yOf(activeGrades[i].markDisplayValue, size.height);
-        if (i == 0) path.moveTo(x, y); else path.lineTo(x, y);
+        if (i == 0)
+          path.moveTo(x, y);
+        else
+          path.lineTo(x, y);
       }
       canvas.drawPath(path, linePaint);
     }
@@ -1238,9 +1543,13 @@ class _TrendPainter extends CustomPainter {
     final dotPaint = Paint()..color = lineColor;
     for (int i = 0; i < activeGrades.length; i++) {
       canvas.drawCircle(
-          Offset(_xOf(i, n, size.width),
-              _yOf(activeGrades[i].markDisplayValue, size.height)),
-          3.5, dotPaint);
+        Offset(
+          _xOf(i, n, size.width),
+          _yOf(activeGrades[i].markDisplayValue, size.height),
+        ),
+        3.5,
+        dotPaint,
+      );
     }
 
     // Extra grades dashed
@@ -1253,16 +1562,22 @@ class _TrendPainter extends CustomPainter {
       final startIdx = activeGrades.length - 1;
       for (int i = startIdx; i < n - 1; i++) {
         _drawDashed(
-          canvas, dashPaint,
+          canvas,
+          dashPaint,
           Offset(_xOf(i, n, size.width), _yOf(allValues[i], size.height)),
-          Offset(_xOf(i + 1, n, size.width), _yOf(allValues[i + 1], size.height)),
+          Offset(
+            _xOf(i + 1, n, size.width),
+            _yOf(allValues[i + 1], size.height),
+          ),
         );
       }
       final extraDotPaint = Paint()..color = AppTheme.accent;
       for (int i = activeGrades.length; i < n; i++) {
         canvas.drawCircle(
-            Offset(_xOf(i, n, size.width), _yOf(allValues[i], size.height)),
-            4, extraDotPaint);
+          Offset(_xOf(i, n, size.width), _yOf(allValues[i], size.height)),
+          4,
+          extraDotPaint,
+        );
       }
     }
 
@@ -1273,10 +1588,11 @@ class _TrendPainter extends CustomPainter {
       final cnt = xs.length.toDouble();
       final sumX = xs.reduce((a, b) => a + b);
       final sumY = ys.reduce((a, b) => a + b);
-      final sumXY = List.generate(xs.length, (i) => xs[i] * ys[i])
-          .reduce((a, b) => a + b);
-      final sumXX =
-          xs.map((x) => x * x).reduce((a, b) => a + b);
+      final sumXY = List.generate(
+        xs.length,
+        (i) => xs[i] * ys[i],
+      ).reduce((a, b) => a + b);
+      final sumXX = xs.map((x) => x * x).reduce((a, b) => a + b);
       final denom = cnt * sumXX - sumX * sumX;
       if (denom.abs() > 0.0001) {
         final slope = (cnt * sumXY - sumX * sumY) / denom;
@@ -1308,18 +1624,29 @@ class _TrendPainter extends CustomPainter {
     while (drawn < total) {
       final len = math.min(drawing ? dashLen : gapLen, total - drawn);
       if (drawing) {
-        canvas.drawLine(start + dir * drawn, start + dir * (drawn + len), paint);
+        canvas.drawLine(
+          start + dir * drawn,
+          start + dir * (drawn + len),
+          paint,
+        );
       }
       drawn += len;
       drawing = !drawing;
     }
   }
 
-  void _drawText(Canvas canvas, String text, Offset offset, Color color,
-      double fontSize) {
+  void _drawText(
+    Canvas canvas,
+    String text,
+    Offset offset,
+    Color color,
+    double fontSize,
+  ) {
     final tp = TextPainter(
       text: TextSpan(
-          text: text, style: TextStyle(fontSize: fontSize, color: color)),
+        text: text,
+        style: TextStyle(fontSize: fontSize, color: color),
+      ),
       textDirection: TextDirection.ltr,
     )..layout();
     tp.paint(canvas, offset);
@@ -1327,6 +1654,7 @@ class _TrendPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_TrendPainter old) =>
-      old.grades != grades || old.extraGrades != extraGrades ||
+      old.grades != grades ||
+      old.extraGrades != extraGrades ||
       old.removedIndices.length != removedIndices.length;
 }
