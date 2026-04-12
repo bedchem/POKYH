@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -29,10 +30,44 @@ class WebUntisService {
   String? get username => _username;
   int? get studentId => _studentId;
 
+  /// Cached profile image bytes (null = not yet fetched, empty = no image available)
+  Uint8List? _profileImageBytes;
+  bool _profileImageFetched = false;
+
   /// URL for the student's WebUntis profile portrait
   String? get profileImageUrl {
     if (_studentId == null || _sessionId == null) return null;
     return '$_baseUrl/api/portrait/students/$_studentId?v=${DateTime.now().millisecondsSinceEpoch}';
+  }
+
+  /// Cached profile image bytes, or null if unavailable
+  Uint8List? get profileImageBytes => _profileImageBytes;
+
+  /// Whether the profile image has been fetched at least once
+  bool get profileImageFetched => _profileImageFetched;
+
+  /// Fetches the profile image bytes. Returns null if unavailable.
+  Future<Uint8List?> fetchProfileImage() async {
+    if (_studentId == null || _sessionId == null) return null;
+    try {
+      final url = '$_baseUrl/api/portrait/students/$_studentId?v=${DateTime.now().millisecondsSinceEpoch}';
+      final response = await http.get(
+        Uri.parse(url),
+        headers: {'Cookie': _cookieHeader},
+      ).timeout(const Duration(seconds: 10));
+
+      _profileImageFetched = true;
+      if (response.statusCode == 200 && response.bodyBytes.isNotEmpty) {
+        _profileImageBytes = response.bodyBytes;
+        return _profileImageBytes;
+      }
+      _profileImageBytes = null;
+      return null;
+    } catch (_) {
+      _profileImageFetched = true;
+      _profileImageBytes = null;
+      return null;
+    }
   }
 
   /// Cookie header needed for authenticated image requests
@@ -170,6 +205,8 @@ class WebUntisService {
     _bearerToken = null;
     _klasseId = null;
     _schoolYearId = null;
+    _profileImageBytes = null;
+    _profileImageFetched = false;
     await clearSession();
   }
 

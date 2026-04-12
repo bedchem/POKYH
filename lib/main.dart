@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
 import 'services/webuntis_service.dart';
 import 'screens/login_screen.dart';
 import 'screens/home_screen.dart';
@@ -7,6 +9,9 @@ import 'theme/app_theme.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
   runApp(const PockyhApp());
 }
 
@@ -59,6 +64,11 @@ class _SplashScreenState extends State<SplashScreen>
     final restored = await service.restoreSession();
 
     if (!mounted) return;
+
+    if (restored) {
+      // Pre-fetch profile image in background
+      service.fetchProfileImage();
+    }
 
     final target = restored
         ? HomeScreen(service: service)
