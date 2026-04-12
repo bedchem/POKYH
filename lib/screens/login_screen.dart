@@ -982,49 +982,7 @@ class _AuthChainRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Zeigt die verfügbare Biometrie-Kette als kleine Icons an
-    final steps = <Widget>[];
-
-    if (hasFaceId) {
-      steps.add(
-        _Step(
-          icon: Icons.face,
-          label: Platform.isIOS ? 'Face ID' : 'Gesicht',
-          active: true,
-          withAlpha: withAlpha,
-        ),
-      );
-    }
-
-    if (hasFaceId && hasFingerprint) {
-      steps.add(_Arrow(withAlpha: withAlpha));
-    }
-
-    if (hasFingerprint) {
-      steps.add(
-        _Step(
-          icon: Icons.fingerprint,
-          label: 'Fingerabdruck',
-          active: true,
-          withAlpha: withAlpha,
-        ),
-      );
-    }
-
-    if (steps.isNotEmpty) {
-      steps.add(_Arrow(withAlpha: withAlpha));
-    }
-
-    steps.add(
-      _Step(
-        icon: Platform.isAndroid ? Icons.pin : Icons.lock_outline,
-        label: Platform.isAndroid ? 'PIN' : 'Passcode',
-        active: false,
-        withAlpha: withAlpha,
-      ),
-    );
-
-    return Row(mainAxisSize: MainAxisSize.min, children: steps);
+    return const SizedBox.shrink();
   }
 }
 
