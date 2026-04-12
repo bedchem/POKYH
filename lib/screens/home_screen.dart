@@ -1,5 +1,7 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:http/http.dart' as http;
 import '../services/webuntis_service.dart';
 import '../theme/app_theme.dart';
 import 'timetable_screen.dart';
@@ -64,7 +66,6 @@ class _HomeScreenState extends State<HomeScreen> {
       body: Stack(
         children: [
           IndexedStack(index: _tab, children: _screens),
-          // ── Persistent profile button (top right) ──
           Positioned(
             top: MediaQuery.of(context).padding.top + 14,
             right: 20,
@@ -79,7 +80,8 @@ class _HomeScreenState extends State<HomeScreen> {
         decoration: BoxDecoration(
           color: AppTheme.surface,
           border: Border(
-            top: BorderSide(color: AppTheme.border.withValues(alpha: 0.5), width: 0.5),
+            top: BorderSide(
+                color: AppTheme.border.withValues(alpha: 0.5), width: 0.5),
           ),
         ),
         child: SafeArea(
@@ -122,7 +124,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-// ── Small Profile Avatar (top right) ─────────────────────────────────────────
+// ── Small Profile Avatar ──────────────────────────────────────────────────────
 
 class _SmallProfileAvatar extends StatefulWidget {
   final WebUntisService service;
@@ -146,9 +148,9 @@ class _SmallProfileAvatarState extends State<_SmallProfileAvatar> {
   @override
   Widget build(BuildContext context) {
     final bytes = widget.service.profileImageBytes;
-
     return Container(
-      width: 36, height: 36,
+      width: 36,
+      height: 36,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         color: AppTheme.surface,
@@ -163,24 +165,20 @@ class _SmallProfileAvatarState extends State<_SmallProfileAvatar> {
       ),
       clipBehavior: Clip.antiAlias,
       child: bytes != null
-          ? Image.memory(
-              bytes,
-              fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => _fallback(),
-            )
+          ? Image.memory(bytes,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => _fallback())
           : _fallback(),
     );
   }
 
-  Widget _fallback() {
-    return const Center(
-      child: Icon(CupertinoIcons.person_fill,
-          size: 18, color: AppTheme.textSecondary),
-    );
-  }
+  Widget _fallback() => const Center(
+    child: Icon(CupertinoIcons.person_fill,
+        size: 18, color: AppTheme.textSecondary),
+  );
 }
 
-// ── Tab Item ─────────────────────────────────────────────────────────────────
+// ── Tab Item ──────────────────────────────────────────────────────────────────
 
 class _TabItem extends StatelessWidget {
   final IconData icon;
@@ -205,7 +203,8 @@ class _TabItem extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 22,
+            Icon(icon,
+                size: 22,
                 color: active ? AppTheme.accent : AppTheme.textTertiary),
             const SizedBox(height: 2),
             Text(label,
@@ -235,8 +234,15 @@ class _DashboardTab extends StatefulWidget {
 
 class _DashboardTabState extends State<_DashboardTab> {
   List<TimetableEntry> _today = [];
-  bool _loading = true;
-  String? _error;
+  List<TimetableEntry> _tomorrow = [];
+  bool _loadingTimetable = true;
+  String? _errorTimetable;
+
+  List<_RecentGrade> _recentGrades = [];
+  bool _loadingGrades = true;
+
+  String? _mensaToday;
+  bool _loadingMensa = true;
 
   @override
   void initState() {
@@ -245,26 +251,156 @@ class _DashboardTabState extends State<_DashboardTab> {
   }
 
   Future<void> _load() async {
-    setState(() { _loading = true; _error = null; });
+    setState(() {
+      _loadingTimetable = true;
+      _loadingGrades = true;
+      _loadingMensa = true;
+      _errorTimetable = null;
+    });
+    await Future.wait([
+      _loadTimetable(),
+      _loadGrades(),
+      _loadMensa(),
+    ]);
+  }
+
+  // ── Lädt die ganze Woche → filtert heute + morgen ────────────────────────
+  Future<void> _loadTimetable() async {
     try {
-      final entries = await widget.service.getTimetable();
-      if (mounted) setState(() { _today = entries; _loading = false; });
+      final now = DateTime.now();
+      // getWeekTimetable() returns all entries for the current week with dates
+      final allWeek = await widget.service.getWeekTimetable();
+
+      final todayInt = _dateInt(now);
+      final tomorrowInt = _dateInt(now.add(const Duration(days: 1)));
+
+      if (mounted) {
+        setState(() {
+          _today = allWeek.where((e) => e.date == todayInt).toList();
+          _tomorrow = allWeek.where((e) => e.date == tomorrowInt).toList();
+          _loadingTimetable = false;
+        });
+      }
     } on WebUntisException catch (e) {
-      if (!mounted) return;
-      setState(() { _error = e.message; _loading = false; });
+      if (mounted) {
+        setState(() {
+          _errorTimetable = e.message;
+          _loadingTimetable = false;
+        });
+      }
     } catch (e) {
-      if (mounted) setState(() { _error = '$e'; _loading = false; });
+      if (mounted) {
+        setState(() {
+          _errorTimetable = '$e';
+          _loadingTimetable = false;
+        });
+      }
     }
+  }
+
+  // ── Sammelt ALLE Noten aus allen Fächern, sortiert neueste zuerst ─────────
+  // GradeEntry.date ist YYYYMMDD als int — sort descending = neueste zuerst.
+  // Der Service sortiert intern aufsteigend; hier drehen wir das um.
+  Future<void> _loadGrades() async {
+    try {
+      final subjects = await widget.service.getAllGrades();
+      final allGrades = <_RecentGrade>[];
+
+      for (final subject in subjects) {
+        for (final grade in subject.grades) {
+          if (grade.markDisplayValue <= 0) continue; // leere Einträge überspringen
+          allGrades.add(_RecentGrade(
+            subject: subject.subjectName,
+            value: grade.markDisplayValue,
+            date: grade.date, // YYYYMMDD integer
+            type: grade.examType,
+          ));
+        }
+      }
+
+      // Neueste Note zuerst (YYYYMMDD descending)
+      allGrades.sort((a, b) => b.date.compareTo(a.date));
+
+      if (mounted) {
+        setState(() {
+          _recentGrades = allGrades.take(3).toList();
+          _loadingGrades = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _loadingGrades = false);
+    }
+  }
+
+  Future<void> _loadMensa() async {
+    try {
+      final now = DateTime.now();
+      final todayStr =
+          '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+
+      final response = await http
+          .get(Uri.parse('https://mensa.plattnericus.dev/mensa.json'))
+          .timeout(const Duration(seconds: 6));
+
+      if (response.statusCode == 200) {
+        final json = jsonDecode(response.body) as Map<String, dynamic>;
+        final dishes = (json['menu']?['dishes'] as List?) ?? [];
+        final todayDishes =
+        dishes.where((d) => d['date'] == todayStr).toList();
+
+        if (mounted) {
+          if (todayDishes.isEmpty) {
+            setState(() {
+              _mensaToday = null;
+              _loadingMensa = false;
+            });
+          } else {
+            final main = todayDishes.firstWhere(
+                  (d) => (d['category'] ?? '')
+                  .toString()
+                  .toLowerCase()
+                  .contains('haupt'),
+              orElse: () => todayDishes.first,
+            );
+            final nameMap = main['name'] as Map<String, dynamic>?;
+            final name =
+                nameMap?['de'] ?? nameMap?.values.first ?? 'Unbekanntes Gericht';
+            setState(() {
+              _mensaToday = '$name';
+              _loadingMensa = false;
+            });
+          }
+        }
+      } else {
+        if (mounted) setState(() => _loadingMensa = false);
+      }
+    } catch (_) {
+      if (mounted) setState(() => _loadingMensa = false);
+    }
+  }
+
+  int _dateInt(DateTime d) => int.parse(
+      '${d.year}${d.month.toString().padLeft(2, '0')}${d.day.toString().padLeft(2, '0')}');
+
+  bool _isCurrentLesson(TimetableEntry e, DateTime now) {
+    final nowMins = now.hour * 60 + now.minute;
+    final s = (e.startTime ~/ 100) * 60 + (e.startTime % 100);
+    final en = (e.endTime ~/ 100) * 60 + (e.endTime % 100);
+    return nowMins >= s && nowMins < en;
   }
 
   @override
   Widget build(BuildContext context) {
     final now = DateTime.now();
-    final weekdays = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'];
-    final months = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni',
-      'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
+    final weekdays = [
+      'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag',
+      'Freitag', 'Samstag', 'Sonntag'
+    ];
+    final months = [
+      'Januar', 'Februar', 'März', 'April', 'Mai', 'Juni',
+      'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'
+    ];
 
-    // Find current/next lesson
     TimetableEntry? currentLesson;
     TimetableEntry? nextLesson;
     for (final e in _today) {
@@ -276,6 +412,10 @@ class _DashboardTabState extends State<_DashboardTab> {
         if (startMins > nowMins) nextLesson = e;
       }
     }
+
+    final todayExams = _today.where((e) => e.isExam).toList();
+    final tomorrowExams = _tomorrow.where((e) => e.isExam).toList();
+    final hasExam = todayExams.isNotEmpty || tomorrowExams.isNotEmpty;
 
     return SafeArea(
       child: RefreshIndicator(
@@ -295,9 +435,7 @@ class _DashboardTabState extends State<_DashboardTab> {
                     Text(
                       '${weekdays[now.weekday - 1]}, ${now.day}. ${months[now.month - 1]}',
                       style: const TextStyle(
-                        fontSize: 14,
-                        color: AppTheme.textSecondary,
-                      ),
+                          fontSize: 14, color: AppTheme.textSecondary),
                     ),
                     const SizedBox(height: 2),
                     const Text(
@@ -316,8 +454,24 @@ class _DashboardTabState extends State<_DashboardTab> {
 
             const SliverToBoxAdapter(child: SizedBox(height: 20)),
 
-            // ── Now/Next card ──
-            if (!_loading && _error == null && _today.isNotEmpty && (currentLesson != null || nextLesson != null))
+            // ── Prüfungs-Card (immer sichtbar nach dem Laden) ──
+            if (!_loadingTimetable && _errorTimetable == null)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+                  child: _ExamCard(
+                    todayExams: todayExams,
+                    tomorrowExams: tomorrowExams,
+                    hasExam: hasExam,
+                  ),
+                ),
+              ),
+
+            // ── Jetzt / Als Nächstes ──
+            if (!_loadingTimetable &&
+                _errorTimetable == null &&
+                _today.isNotEmpty &&
+                (currentLesson != null || nextLesson != null))
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
@@ -329,69 +483,79 @@ class _DashboardTabState extends State<_DashboardTab> {
                 ),
               ),
 
-            // ── Content ──
-            if (_loading)
-              const SliverFillRemaining(
-                hasScrollBody: false,
-                child: Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      CupertinoActivityIndicator(radius: 14),
-                      SizedBox(height: 14),
-                      Text('Stundenplan wird geladen\u2026',
-                          style: TextStyle(color: AppTheme.textSecondary, fontSize: 14)),
-                    ],
-                  ),
+            // ── Stundenplan-Liste (KEIN "Kein Unterricht"-Item mehr) ──
+            if (_loadingTimetable)
+              const SliverToBoxAdapter(
+                child: Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  child:
+                  Center(child: CupertinoActivityIndicator(radius: 14)),
                 ),
               )
-            else if (_error != null)
+            else if (_errorTimetable != null)
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: _ErrorCard(message: _error!, onRetry: _load),
+                  child:
+                  _ErrorCard(message: _errorTimetable!, onRetry: _load),
                 ),
               )
-            else if (_today.isEmpty)
-              SliverToBoxAdapter(
-                child: Padding(
+            else if (_today.isNotEmpty) ...[
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
+                    child: Text(
+                      '${_today.length} Stunden heute',
+                      style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: AppTheme.textSecondary),
+                    ),
+                  ),
+                ),
+                SliverPadding(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: _InfoCard(
-                    icon: CupertinoIcons.sun_max_fill,
-                    title: 'Kein Unterricht',
-                    subtitle: 'Heute hast du frei!',
-                    color: AppTheme.success,
+                  sliver: SliverList(
+                    delegate: SliverChildBuilderDelegate(
+                          (_, i) => Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: _LessonCard(
+                          entry: _today[i],
+                          lessonNr: widget.service
+                              .getLessonNumber(_today[i].startTime),
+                          isNow: _isCurrentLesson(_today[i], now),
+                        ),
+                      ),
+                      childCount: _today.length,
+                    ),
                   ),
                 ),
-              )
-            else ...[
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
-                  child: Text(
-                    '${_today.length} Stunden heute',
-                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600,
-                        color: AppTheme.textSecondary),
-                  ),
-                ),
-              ),
-              SliverPadding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                sliver: SliverList(
-                  delegate: SliverChildBuilderDelegate(
-                    (_, i) => Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: _LessonCard(
-                        entry: _today[i],
-                        lessonNr: widget.service.getLessonNumber(_today[i].startTime),
-                        isNow: _isCurrentLesson(_today[i], now),
+              ],
+
+            // ── Mensa + Letzte Noten ──
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: _MensaPreviewCard(
+                        dish: _mensaToday,
+                        loading: _loadingMensa,
                       ),
                     ),
-                    childCount: _today.length,
-                  ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _RecentGradesCard(
+                        grades: _recentGrades,
+                        loading: _loadingGrades,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ],
+            ),
 
             const SliverToBoxAdapter(child: SizedBox(height: 32)),
           ],
@@ -399,19 +563,360 @@ class _DashboardTabState extends State<_DashboardTab> {
       ),
     );
   }
+}
 
-  bool _isCurrentLesson(TimetableEntry e, DateTime now) {
-    final nowMins = now.hour * 60 + now.minute;
-    final startH = e.startTime ~/ 100;
-    final startM = e.startTime % 100;
-    final endH = e.endTime ~/ 100;
-    final endM = e.endTime % 100;
-    return nowMins >= (startH * 60 + startM) && nowMins < (endH * 60 + endM);
+// ── Helper model ──────────────────────────────────────────────────────────────
+
+class _RecentGrade {
+  final String subject;
+  final double value;
+  final int date;
+  final String type;
+  const _RecentGrade({
+    required this.subject,
+    required this.value,
+    required this.date,
+    required this.type,
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  PRÜFUNGS-CARD
+// ═══════════════════════════════════════════════════════════════════════════════
+
+class _ExamCard extends StatelessWidget {
+  final List<TimetableEntry> todayExams;
+  final List<TimetableEntry> tomorrowExams;
+  final bool hasExam;
+
+  const _ExamCard({
+    required this.todayExams,
+    required this.tomorrowExams,
+    required this.hasExam,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    // ── Grün: keine Prüfung ──
+    if (!hasExam) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+        decoration: BoxDecoration(
+          color: AppTheme.success.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+              color: AppTheme.success.withValues(alpha: 0.25), width: 1),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 28,
+              height: 28,
+              decoration: BoxDecoration(
+                color: AppTheme.success.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Center(
+                child: Icon(CupertinoIcons.checkmark_seal_fill,
+                    size: 15, color: AppTheme.success),
+              ),
+            ),
+            const SizedBox(width: 10),
+            const Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Keine Prüfung demnächst',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: AppTheme.success,
+                    ),
+                  ),
+                  Text(
+                    'Heute und morgen ist alles entspannt.',
+                    style: TextStyle(
+                        fontSize: 11, color: AppTheme.textSecondary),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // ── Gelb: Prüfung vorhanden ──
+    final urgentToday = todayExams.isNotEmpty;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: AppTheme.warning.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+            color: AppTheme.warning.withValues(alpha: 0.38), width: 1),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 28,
+            height: 28,
+            decoration: BoxDecoration(
+              color: AppTheme.warning.withValues(alpha: 0.18),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: const Center(
+              child: Icon(CupertinoIcons.exclamationmark_triangle_fill,
+                  size: 15, color: AppTheme.warning),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  urgentToday ? '⚠️  Prüfung heute!' : '📅  Prüfung morgen!',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: AppTheme.warning,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                if (todayExams.isNotEmpty)
+                  _ExamLine(label: 'Heute', exams: todayExams),
+                if (tomorrowExams.isNotEmpty)
+                  _ExamLine(label: 'Morgen', exams: tomorrowExams),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ExamLine extends StatelessWidget {
+  final String label;
+  final List<TimetableEntry> exams;
+  const _ExamLine({required this.label, required this.exams});
+
+  @override
+  Widget build(BuildContext context) {
+    final names = exams.map((e) => e.displayName).join(', ');
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 2),
+      child: RichText(
+        text: TextSpan(
+          style: const TextStyle(
+              fontSize: 12, color: AppTheme.textSecondary),
+          children: [
+            TextSpan(
+              text: '$label: ',
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+            TextSpan(text: names),
+          ],
+        ),
+      ),
+    );
   }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-//  WIDGETS
+//  MENSA PREVIEW CARD
+// ═══════════════════════════════════════════════════════════════════════════════
+
+class _MensaPreviewCard extends StatelessWidget {
+  final String? dish;
+  final bool loading;
+  const _MensaPreviewCard({this.dish, required this.loading});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppTheme.surface,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 28,
+                height: 28,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFF6B35).withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Center(
+                  child: Icon(CupertinoIcons.flame_fill,
+                      size: 14, color: Color(0xFFFF6B35)),
+                ),
+              ),
+              const SizedBox(width: 8),
+              const Text('Mensa',
+                  style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: AppTheme.textSecondary)),
+            ],
+          ),
+          const SizedBox(height: 10),
+          if (loading)
+            const CupertinoActivityIndicator(radius: 9)
+          else if (dish != null)
+            Text(dish!,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: AppTheme.textPrimary,
+                  height: 1.3,
+                ),
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis)
+          else
+            const Text('Heute gibts nichts!',
+                style: TextStyle(
+                    fontSize: 13,
+                    color: AppTheme.textSecondary,
+                    height: 1.3)),
+        ],
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  LETZTE NOTEN CARD
+// ═══════════════════════════════════════════════════════════════════════════════
+
+class _RecentGradesCard extends StatelessWidget {
+  final List<_RecentGrade> grades;
+  final bool loading;
+  const _RecentGradesCard({required this.grades, required this.loading});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppTheme.surface,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 28,
+                height: 28,
+                decoration: BoxDecoration(
+                  color: AppTheme.accent.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Center(
+                  child: Icon(CupertinoIcons.chart_bar_fill,
+                      size: 14, color: AppTheme.accent),
+                ),
+              ),
+              const SizedBox(width: 8),
+              const Text('Letzte Noten',
+                  style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: AppTheme.textSecondary)),
+            ],
+          ),
+          const SizedBox(height: 10),
+          if (loading)
+            const CupertinoActivityIndicator(radius: 9)
+          else if (grades.isEmpty)
+            const Text('Noch keine Noten',
+                style:
+                TextStyle(fontSize: 12, color: AppTheme.textSecondary))
+          else
+            Column(children: grades.map((g) => _GradeRow(grade: g)).toList()),
+        ],
+      ),
+    );
+  }
+}
+
+class _GradeRow extends StatelessWidget {
+  final _RecentGrade grade;
+  const _GradeRow({required this.grade});
+
+  Color _gradeColor(double v) {
+    if (v >= 9) return AppTheme.success;
+    if (v >= 7) return const Color(0xFF86EFAC);
+    if (v >= 6) return AppTheme.warning;
+    if (v >= 4) return const Color(0xFFFF9F0A);
+    return AppTheme.danger;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final color = _gradeColor(grade.value);
+    final d = grade.date.toString();
+    // YYYYMMDD → DD.MM
+    final dateStr =
+    d.length == 8 ? '${d.substring(6)}.${d.substring(4, 6)}' : '';
+    final valStr = grade.value % 1 == 0
+        ? grade.value.toInt().toString()
+        : grade.value.toStringAsFixed(1);
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 7),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              grade.subject,
+              style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                  color: AppTheme.textPrimary),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          const SizedBox(width: 4),
+          Text(dateStr,
+              style: const TextStyle(
+                  fontSize: 10, color: AppTheme.textTertiary)),
+          const SizedBox(width: 5),
+          Container(
+            width: 32,
+            height: 24,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Center(
+              child: Text(valStr,
+                  style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: color)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  NOW / NEXT CARD
 // ═══════════════════════════════════════════════════════════════════════════════
 
 class _NowNextCard extends StatelessWidget {
@@ -436,7 +941,10 @@ class _NowNextCard extends StatelessWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: isCurrent
-              ? [AppTheme.accent.withValues(alpha: 0.15), AppTheme.accent.withValues(alpha: 0.05)]
+              ? [
+            AppTheme.accent.withValues(alpha: 0.15),
+            AppTheme.accent.withValues(alpha: 0.05)
+          ]
               : [AppTheme.surface, AppTheme.surface],
         ),
         borderRadius: BorderRadius.circular(16),
@@ -452,7 +960,8 @@ class _NowNextCard extends StatelessWidget {
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                padding:
+                const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
                   color: isCurrent
                       ? AppTheme.accent.withValues(alpha: 0.2)
@@ -464,7 +973,9 @@ class _NowNextCard extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
-                    color: isCurrent ? AppTheme.accent : AppTheme.textSecondary,
+                    color: isCurrent
+                        ? AppTheme.accent
+                        : AppTheme.textSecondary,
                   ),
                 ),
               ),
@@ -473,7 +984,9 @@ class _NowNextCard extends StatelessWidget {
                 '${entry.startFormatted} – ${entry.endFormatted}',
                 style: TextStyle(
                   fontSize: 13,
-                  color: isCurrent ? AppTheme.accent : AppTheme.textSecondary,
+                  color: isCurrent
+                      ? AppTheme.accent
+                      : AppTheme.textSecondary,
                   fontFeatures: const [FontFeature.tabularFigures()],
                 ),
               ),
@@ -483,7 +996,8 @@ class _NowNextCard extends StatelessWidget {
           Row(
             children: [
               Container(
-                width: 4, height: 36,
+                width: 4,
+                height: 36,
                 decoration: BoxDecoration(
                   color: color,
                   borderRadius: BorderRadius.circular(2),
@@ -502,26 +1016,32 @@ class _NowNextCard extends StatelessWidget {
                         color: AppTheme.textPrimary,
                       ),
                     ),
-                    if (entry.teacherName.isNotEmpty || entry.roomName.isNotEmpty)
+                    if (entry.teacherName.isNotEmpty ||
+                        entry.roomName.isNotEmpty)
                       Text(
                         [entry.teacherName, entry.roomName]
                             .where((s) => s.isNotEmpty)
-                            .join(' \u00b7 '),
-                        style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary),
+                            .join(' · '),
+                        style: const TextStyle(
+                            fontSize: 13, color: AppTheme.textSecondary),
                       ),
                   ],
                 ),
               ),
               if (nr != null)
                 Container(
-                  width: 32, height: 32,
+                  width: 32,
+                  height: 32,
                   decoration: BoxDecoration(
                     color: color.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Center(
                     child: Text(nr,
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: color)),
+                        style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            color: color)),
                   ),
                 ),
             ],
@@ -532,11 +1052,14 @@ class _NowNextCard extends StatelessWidget {
   }
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════
+//  LESSON CARD
+// ═══════════════════════════════════════════════════════════════════════════════
+
 class _LessonCard extends StatelessWidget {
   final TimetableEntry entry;
   final String? lessonNr;
   final bool isNow;
-
   const _LessonCard({required this.entry, this.lessonNr, this.isNow = false});
 
   @override
@@ -544,8 +1067,8 @@ class _LessonCard extends StatelessWidget {
     final color = entry.isCancelled
         ? AppTheme.danger
         : entry.isExam
-            ? AppTheme.warning
-            : AppTheme.colorForSubject(entry.subjectName);
+        ? AppTheme.warning
+        : AppTheme.colorForSubject(entry.subjectName);
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -553,40 +1076,33 @@ class _LessonCard extends StatelessWidget {
         color: AppTheme.surface,
         borderRadius: BorderRadius.circular(14),
         border: isNow
-            ? Border.all(color: AppTheme.accent.withValues(alpha: 0.5), width: 1.5)
+            ? Border.all(
+            color: AppTheme.accent.withValues(alpha: 0.5), width: 1.5)
             : null,
       ),
       child: Row(
         children: [
-          // Lesson number + color bar
           SizedBox(
             width: 36,
             child: Column(
               children: [
                 if (lessonNr != null)
-                  Text(
-                    lessonNr!,
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w700,
-                      color: color.withValues(alpha: 0.8),
-                    ),
-                  )
+                  Text(lessonNr!,
+                      style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w700,
+                          color: color.withValues(alpha: 0.8)))
                 else
                   Container(
-                    width: 4,
-                    height: 36,
-                    decoration: BoxDecoration(
-                      color: color,
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
+                      width: 4,
+                      height: 36,
+                      decoration: BoxDecoration(
+                          color: color,
+                          borderRadius: BorderRadius.circular(2))),
               ],
             ),
           ),
           const SizedBox(width: 12),
-
-          // Subject + Teacher
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -599,63 +1115,60 @@ class _LessonCard extends StatelessWidget {
                     color: entry.isCancelled
                         ? AppTheme.danger.withValues(alpha: 0.6)
                         : AppTheme.textPrimary,
-                    decoration: entry.isCancelled ? TextDecoration.lineThrough : null,
+                    decoration:
+                    entry.isCancelled ? TextDecoration.lineThrough : null,
                   ),
                 ),
                 const SizedBox(height: 2),
                 Row(
                   children: [
                     if (entry.teacherName.isNotEmpty)
-                      Text(
-                        entry.teacherName,
-                        style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary),
-                      ),
-                    if (entry.teacherName.isNotEmpty && entry.roomName.isNotEmpty)
-                      const Text(' \u00b7 ',
-                          style: TextStyle(fontSize: 13, color: AppTheme.textTertiary)),
+                      Text(entry.teacherName,
+                          style: const TextStyle(
+                              fontSize: 13, color: AppTheme.textSecondary)),
+                    if (entry.teacherName.isNotEmpty &&
+                        entry.roomName.isNotEmpty)
+                      const Text(' · ',
+                          style: TextStyle(
+                              fontSize: 13, color: AppTheme.textTertiary)),
                     if (entry.roomName.isNotEmpty)
-                      Text(
-                        entry.roomName,
-                        style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary),
-                      ),
+                      Text(entry.roomName,
+                          style: const TextStyle(
+                              fontSize: 13, color: AppTheme.textSecondary)),
                   ],
                 ),
               ],
             ),
           ),
-
-          // Time + badges
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Text(
-                entry.startFormatted,
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                  color: isNow ? AppTheme.accent : AppTheme.textPrimary,
-                  fontFeatures: const [FontFeature.tabularFigures()],
-                ),
-              ),
-              Text(
-                entry.endFormatted,
-                style: const TextStyle(
-                  fontSize: 13,
-                  color: AppTheme.textTertiary,
-                  fontFeatures: [FontFeature.tabularFigures()],
-                ),
-              ),
+              Text(entry.startFormatted,
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: isNow ? AppTheme.accent : AppTheme.textPrimary,
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                  )),
+              Text(entry.endFormatted,
+                  style: const TextStyle(
+                      fontSize: 13,
+                      color: AppTheme.textTertiary,
+                      fontFeatures: [FontFeature.tabularFigures()])),
               if (entry.isExam)
                 Padding(
                   padding: const EdgeInsets.only(top: 4),
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
                       color: AppTheme.warning.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: const Text('Prüfung',
-                        style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600,
+                        style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
                             color: AppTheme.warning)),
                   ),
                 ),
@@ -663,13 +1176,16 @@ class _LessonCard extends StatelessWidget {
                 Padding(
                   padding: const EdgeInsets.only(top: 4),
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
                       color: AppTheme.danger.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: const Text('Entfällt',
-                        style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600,
+                        style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
                             color: AppTheme.danger)),
                   ),
                 ),
@@ -680,6 +1196,10 @@ class _LessonCard extends StatelessWidget {
     );
   }
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  ERROR CARD
+// ═══════════════════════════════════════════════════════════════════════════════
 
 class _ErrorCard extends StatelessWidget {
   final String message;
@@ -701,45 +1221,19 @@ class _ErrorCard extends StatelessWidget {
           const SizedBox(height: 10),
           Text(message,
               textAlign: TextAlign.center,
-              style: const TextStyle(color: AppTheme.textSecondary, fontSize: 14)),
+              style: const TextStyle(
+                  color: AppTheme.textSecondary, fontSize: 14)),
           const SizedBox(height: 14),
           CupertinoButton(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+            padding:
+            const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
             color: AppTheme.accent,
             borderRadius: BorderRadius.circular(10),
             minimumSize: Size.zero,
             onPressed: onRetry,
-            child: const Text('Erneut versuchen', style: TextStyle(fontSize: 14)),
+            child: const Text('Erneut versuchen',
+                style: TextStyle(fontSize: 14)),
           ),
-        ],
-      ),
-    );
-  }
-}
-
-class _InfoCard extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final Color color;
-  const _InfoCard({required this.icon, required this.title, required this.subtitle, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: AppTheme.surface,
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Column(
-        children: [
-          Icon(icon, color: color, size: 36),
-          const SizedBox(height: 12),
-          Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600,
-              color: AppTheme.textPrimary)),
-          const SizedBox(height: 4),
-          Text(subtitle, style: const TextStyle(fontSize: 14, color: AppTheme.textSecondary)),
         ],
       ),
     );
