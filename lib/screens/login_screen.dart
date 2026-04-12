@@ -429,7 +429,7 @@ class _LoginScreenState extends State<LoginScreen>
                 const SizedBox(height: 20),
                 const Center(
                   child: Text(
-                    'POCKYH',
+                    'POKYH',
                     style: TextStyle(
                       fontSize: 32,
                       fontWeight: FontWeight.w700,

@@ -117,7 +117,7 @@ class _SplashScreenState extends State<SplashScreen>
               ),
               const SizedBox(height: 20),
               const Text(
-                'pockyh',
+                'POKYH',
                 style: TextStyle(
                   fontSize: 28,
                   fontWeight: FontWeight.w700,
