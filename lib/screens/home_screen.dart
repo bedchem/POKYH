@@ -124,13 +124,28 @@ class _HomeScreenState extends State<HomeScreen> {
 
 // ── Small Profile Avatar (top right) ─────────────────────────────────────────
 
-class _SmallProfileAvatar extends StatelessWidget {
+class _SmallProfileAvatar extends StatefulWidget {
   final WebUntisService service;
   const _SmallProfileAvatar({required this.service});
 
   @override
+  State<_SmallProfileAvatar> createState() => _SmallProfileAvatarState();
+}
+
+class _SmallProfileAvatarState extends State<_SmallProfileAvatar> {
+  @override
+  void initState() {
+    super.initState();
+    if (!widget.service.profileImageFetched) {
+      widget.service.fetchProfileImage().then((_) {
+        if (mounted) setState(() {});
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final url = service.profileImageUrl;
+    final bytes = widget.service.profileImageBytes;
 
     return Container(
       width: 36, height: 36,
@@ -147,11 +162,10 @@ class _SmallProfileAvatar extends StatelessWidget {
         ],
       ),
       clipBehavior: Clip.antiAlias,
-      child: url != null
-          ? Image.network(
-              url,
+      child: bytes != null
+          ? Image.memory(
+              bytes,
               fit: BoxFit.cover,
-              headers: {'Cookie': service.cookieHeader},
               errorBuilder: (_, __, ___) => _fallback(),
             )
           : _fallback(),

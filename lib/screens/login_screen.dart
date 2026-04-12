@@ -54,6 +54,8 @@ class _LoginScreenState extends State<LoginScreen>
       if (!mounted) return;
 
       if (ok) {
+        // Pre-fetch profile image in background (don't block navigation)
+        _service.fetchProfileImage();
         Navigator.pushReplacement(
           context,
           PageRouteBuilder(

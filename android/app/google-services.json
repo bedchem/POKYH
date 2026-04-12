@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "77686619005",
+    "project_id": "pokyh-a92a5",
+    "storage_bucket": "pokyh-a92a5.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:77686619005:android:a3eab080ee929ff5eaaa14",
+        "android_client_info": {
+          "package_name": "dev.plattnericus.project"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC_QZTEyvc_Hh4fCiCyDnFO3F9XGVmeF3M"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

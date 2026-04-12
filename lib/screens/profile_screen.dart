@@ -347,13 +347,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
 // ── Profile Avatar ───────────────────────────────────────────────────────────
 
-class _ProfileAvatar extends StatelessWidget {
+class _ProfileAvatar extends StatefulWidget {
   final WebUntisService service;
   const _ProfileAvatar({required this.service});
 
   @override
+  State<_ProfileAvatar> createState() => _ProfileAvatarState();
+}
+
+class _ProfileAvatarState extends State<_ProfileAvatar> {
+  @override
+  void initState() {
+    super.initState();
+    if (!widget.service.profileImageFetched) {
+      widget.service.fetchProfileImage().then((_) {
+        if (mounted) setState(() {});
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final url = service.profileImageUrl;
+    final bytes = widget.service.profileImageBytes;
 
     return Container(
       width: 64, height: 64,
@@ -363,11 +378,10 @@ class _ProfileAvatar extends StatelessWidget {
         border: Border.all(color: AppTheme.accent.withValues(alpha: 0.3), width: 2),
       ),
       clipBehavior: Clip.antiAlias,
-      child: url != null
-          ? Image.network(
-              url,
+      child: bytes != null
+          ? Image.memory(
+              bytes,
               fit: BoxFit.cover,
-              headers: {'Cookie': service.cookieHeader},
               errorBuilder: (_, __, ___) => _fallbackIcon(),
             )
           : _fallbackIcon(),
@@ -377,7 +391,7 @@ class _ProfileAvatar extends StatelessWidget {
   Widget _fallbackIcon() {
     return Center(
       child: Text(
-        (service.username ?? '?')[0].toUpperCase(),
+        (widget.service.username ?? '?')[0].toUpperCase(),
         style: const TextStyle(
           fontSize: 26,
           fontWeight: FontWeight.w700,
