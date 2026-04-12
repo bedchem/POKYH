@@ -1,5 +1,5 @@
-name: classbyte
-description: "Premium Mensa recipe app for school"
+name: pockyh
+description: "WebUntis Stundenplan & Noten App"
 publish_to: 'none'
 version: 1.0.0+1
 
@@ -11,20 +11,14 @@ dependencies:
     sdk: flutter
   cupertino_icons: ^1.0.8
   http: ^1.2.0
-  flutter_local_notifications: ^21.0.0
+  shared_preferences: ^2.2.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
-  flutter_launcher_icons: ^0.14.4
 
 flutter:
   uses-material-design: true
-
-flutter_launcher_icons:
-  ios: true
-  android: false
-  image_path: assets/app_icon.svg
-  remove_alpha_ios: true
-
+  assets:
+    - assets/icons/

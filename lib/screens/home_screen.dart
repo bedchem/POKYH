@@ -1,189 +1,298 @@
+import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
-import '../l10n/app_localizations.dart';
-import '../models/dish.dart';
-import '../screens/settings_screen.dart';
-import '../widgets/dish_card.dart';
-import '../widgets/error_view.dart';
-import '../widgets/loading_indicator.dart';
-import 'detail_screen.dart';
+import '../services/webuntis_service.dart';
+import '../theme/app_theme.dart';
+import 'timetable_screen.dart';
+import 'grades_screen.dart';
+import 'mensa_screen.dart';
+import 'login_screen.dart';
+import 'profile_screen.dart';
 
 class HomeScreen extends StatefulWidget {
-  final List<Dish> dishes;
-  final bool isLoading;
-  final String? error;
-  final VoidCallback onRefresh;
-  final AppSettings settings;
-
-  const HomeScreen({
-    super.key,
-    required this.dishes,
-    required this.isLoading,
-    this.error,
-    required this.onRefresh,
-    required this.settings,
-  });
+  final WebUntisService service;
+  const HomeScreen({super.key, required this.service});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  Map<DateTime, List<Dish>> _dishesByDate = const {};
+  int _tab = 0;
+  late final List<Widget> _screens;
 
   @override
   void initState() {
     super.initState();
-    _rebuildDishIndex();
+    _screens = [
+      _DashboardTab(service: widget.service),
+      TimetableScreen(service: widget.service),
+      GradesScreen(service: widget.service),
+      const MensaScreen(),
+    ];
   }
 
-  @override
-  void didUpdateWidget(covariant HomeScreen oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (!identical(oldWidget.dishes, widget.dishes)) {
-      _rebuildDishIndex();
-    }
-  }
-
-  DateTime _normalizeDate(DateTime value) =>
-      DateTime(value.year, value.month, value.day);
-
-  void _rebuildDishIndex() {
-    final grouped = <DateTime, List<Dish>>{};
-    for (final dish in widget.dishes) {
-      final key = _normalizeDate(dish.date);
-      grouped.putIfAbsent(key, () => <Dish>[]).add(dish);
-    }
-    _dishesByDate = grouped;
-  }
-
-  // ── Week helpers ─────────────────────────────────────────────────────
-
-  DateTime get _weekStart {
-    final now = DateTime.now();
-    return DateTime(now.year, now.month, now.day - (now.weekday - 1));
-  }
-
-  List<DateTime> get _weekDays {
-    final start = _weekStart;
-    return List.generate(7, (i) => start.add(Duration(days: i)));
-  }
-
-  /// Week days sorted so today (or next day with dishes) is first
-  List<DateTime> get _sortedWeekDays {
-    final days = _weekDays;
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-
-    // Find the index of today or the next day with dishes
-    int startIndex = days.indexWhere((d) =>
-        !d.isBefore(today) && _dishesForDate(d).isNotEmpty);
-
-    // If no future day has dishes, fall back to today's index
-    if (startIndex < 0) {
-      startIndex = days.indexWhere((d) => !d.isBefore(today));
-    }
-    if (startIndex < 0) startIndex = 0;
-
-    return [...days.sublist(startIndex), ...days.sublist(0, startIndex)];
-  }
-
-  List<Dish> _dishesForDate(DateTime date) {
-    return _dishesByDate[_normalizeDate(date)] ?? const [];
-  }
-
-  List<Dish> get _weekDishes {
-    final result = <Dish>[];
-    for (final day in _weekDays) {
-      result.addAll(_dishesForDate(day));
-    }
-    return result;
-  }
-
-  bool _isToday(DateTime date) {
-    final now = DateTime.now();
-    return date.year == now.year &&
-        date.month == now.month &&
-        date.day == now.day;
-  }
-
-  void _navigateToDetail(Dish dish) {
-    Navigator.of(context).push(
-      CupertinoPageRoute(
-        builder: (_) => DetailScreen(dish: dish, settings: widget.settings),
+  Future<void> _logout() async {
+    await widget.service.logout();
+    if (!mounted) return;
+    Navigator.pushReplacement(
+      context,
+      PageRouteBuilder(
+        pageBuilder: (_, __, ___) => const LoginScreen(),
+        transitionsBuilder: (_, a, __, child) =>
+            FadeTransition(opacity: a, child: child),
+        transitionDuration: const Duration(milliseconds: 300),
       ),
     );
   }
 
-  String _weekRangeLabel(AppLocalizations l) {
-    final days = _weekDays;
-    final start = days.first;
-    final end = days.last;
-    if (start.month == end.month) {
-      return '${start.day}–${end.day} ${l.monthName(start.month)}';
-    }
-    return '${start.day} ${l.monthName(start.month)} – ${end.day} ${l.monthName(end.month)}';
+  void _openProfile() {
+    Navigator.push(
+      context,
+      CupertinoPageRoute(
+        builder: (_) => ProfileScreen(
+          service: widget.service,
+          onLogout: _logout,
+        ),
+      ),
+    );
   }
-
-  // ── Build ────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
-    final l = AppLocalizations.of(context);
-
-    return CupertinoPageScaffold(
-      backgroundColor: CupertinoColors.systemGroupedBackground,
-      child: CustomScrollView(
-        physics: const BouncingScrollPhysics(
-          parent: AlwaysScrollableScrollPhysics(),
+    return Scaffold(
+      backgroundColor: AppTheme.bg,
+      body: Stack(
+        children: [
+          IndexedStack(index: _tab, children: _screens),
+          // ── Persistent profile button (top right) ──
+          Positioned(
+            top: MediaQuery.of(context).padding.top + 14,
+            right: 20,
+            child: GestureDetector(
+              onTap: _openProfile,
+              child: _SmallProfileAvatar(service: widget.service),
+            ),
+          ),
+        ],
+      ),
+      bottomNavigationBar: Container(
+        decoration: BoxDecoration(
+          color: AppTheme.surface,
+          border: Border(
+            top: BorderSide(color: AppTheme.border.withValues(alpha: 0.5), width: 0.5),
+          ),
         ),
-        slivers: [
-          CupertinoSliverNavigationBar(
-            largeTitle: Text(l.get('menu')),
-            border: null,
+        child: SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.only(top: 6, bottom: 2),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _TabItem(
+                  icon: CupertinoIcons.house_fill,
+                  label: 'Home',
+                  active: _tab == 0,
+                  onTap: () => setState(() => _tab = 0),
+                ),
+                _TabItem(
+                  icon: CupertinoIcons.calendar,
+                  label: 'Stundenplan',
+                  active: _tab == 1,
+                  onTap: () => setState(() => _tab = 1),
+                ),
+                _TabItem(
+                  icon: CupertinoIcons.chart_bar_fill,
+                  label: 'Noten',
+                  active: _tab == 2,
+                  onTap: () => setState(() => _tab = 2),
+                ),
+                _TabItem(
+                  icon: CupertinoIcons.flame_fill,
+                  label: 'Mensa',
+                  active: _tab == 3,
+                  onTap: () => setState(() => _tab = 3),
+                ),
+              ],
+            ),
           ),
-          CupertinoSliverRefreshControl(
-            onRefresh: () async => widget.onRefresh(),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Small Profile Avatar (top right) ─────────────────────────────────────────
+
+class _SmallProfileAvatar extends StatelessWidget {
+  final WebUntisService service;
+  const _SmallProfileAvatar({required this.service});
+
+  @override
+  Widget build(BuildContext context) {
+    final url = service.profileImageUrl;
+
+    return Container(
+      width: 36, height: 36,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: AppTheme.surface,
+        border: Border.all(color: AppTheme.border.withValues(alpha: 0.4)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.2),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
           ),
-          if (widget.isLoading)
-            const SliverFillRemaining(
-              hasScrollBody: false,
-              child: LoadingIndicator(),
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: url != null
+          ? Image.network(
+              url,
+              fit: BoxFit.cover,
+              headers: {'Cookie': service.cookieHeader},
+              errorBuilder: (_, __, ___) => _fallback(),
             )
-          else if (widget.error != null)
-            SliverFillRemaining(
-              hasScrollBody: false,
-              child: ErrorView(
-                message: widget.error!,
-                onRetry: widget.onRefresh,
-              ),
-            )
-          else ...[
-            // Week header
+          : _fallback(),
+    );
+  }
+
+  Widget _fallback() {
+    return const Center(
+      child: Icon(CupertinoIcons.person_fill,
+          size: 18, color: AppTheme.textSecondary),
+    );
+  }
+}
+
+// ── Tab Item ─────────────────────────────────────────────────────────────────
+
+class _TabItem extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool active;
+  final VoidCallback onTap;
+
+  const _TabItem({
+    required this.icon,
+    required this.label,
+    required this.active,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: SizedBox(
+        width: 72,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 22,
+                color: active ? AppTheme.accent : AppTheme.textTertiary),
+            const SizedBox(height: 2),
+            Text(label,
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: active ? FontWeight.w600 : FontWeight.w400,
+                  color: active ? AppTheme.accent : AppTheme.textTertiary,
+                )),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  DASHBOARD TAB
+// ═══════════════════════════════════════════════════════════════════════════════
+
+class _DashboardTab extends StatefulWidget {
+  final WebUntisService service;
+  const _DashboardTab({required this.service});
+
+  @override
+  State<_DashboardTab> createState() => _DashboardTabState();
+}
+
+class _DashboardTabState extends State<_DashboardTab> {
+  List<TimetableEntry> _today = [];
+  bool _loading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() { _loading = true; _error = null; });
+    try {
+      final entries = await widget.service.getTimetable();
+      if (mounted) setState(() { _today = entries; _loading = false; });
+    } on WebUntisException catch (e) {
+      if (!mounted) return;
+      setState(() { _error = e.message; _loading = false; });
+    } catch (e) {
+      if (mounted) setState(() { _error = '$e'; _loading = false; });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final now = DateTime.now();
+    final weekdays = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'];
+    final months = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni',
+      'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
+
+    // Find current/next lesson
+    TimetableEntry? currentLesson;
+    TimetableEntry? nextLesson;
+    for (final e in _today) {
+      if (_isCurrentLesson(e, now)) {
+        currentLesson = e;
+      } else if (nextLesson == null) {
+        final startMins = (e.startTime ~/ 100) * 60 + (e.startTime % 100);
+        final nowMins = now.hour * 60 + now.minute;
+        if (startMins > nowMins) nextLesson = e;
+      }
+    }
+
+    return SafeArea(
+      child: RefreshIndicator(
+        color: AppTheme.accent,
+        backgroundColor: AppTheme.surface,
+        onRefresh: _load,
+        child: CustomScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          slivers: [
+            // ── Header ──
             SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                child: Row(
+                padding: const EdgeInsets.fromLTRB(20, 16, 60, 0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(
-                      CupertinoIcons.calendar_today,
-                      size: 16,
-                      color: CupertinoColors.activeBlue,
-                    ),
-                    const SizedBox(width: 6),
                     Text(
-                      l.get('this_week'),
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                        color: CupertinoColors.activeBlue,
+                      '${weekdays[now.weekday - 1]}, ${now.day}. ${months[now.month - 1]}',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        color: AppTheme.textSecondary,
                       ),
                     ),
-                    const Spacer(),
-                    Text(
-                      _weekRangeLabel(l),
+                    const SizedBox(height: 2),
+                    const Text(
+                      'Heute',
                       style: TextStyle(
-                        fontSize: 13,
-                        color: CupertinoColors.secondaryLabel.resolveFrom(context),
+                        fontSize: 34,
+                        fontWeight: FontWeight.w700,
+                        color: AppTheme.textPrimary,
+                        letterSpacing: -0.5,
                       ),
                     ),
                   ],
@@ -191,99 +300,309 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
 
-            // Week content
-            if (_weekDishes.isEmpty)
-              SliverFillRemaining(
-                hasScrollBody: false,
-                child: _buildEmptyWeekState(l),
-              )
-            else
-              SliverPadding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
-                sliver: SliverList(
-                  delegate: SliverChildBuilderDelegate(
-                    (context, index) {
-                      final date = _sortedWeekDays[index];
-                      final dishes = _dishesForDate(date);
-                      return _FadeInItem(
-                        index: index,
-                        child: _buildDaySection(context, date, dishes, l),
-                      );
-                    },
-                    childCount: _sortedWeekDays.length,
+            const SliverToBoxAdapter(child: SizedBox(height: 20)),
+
+            // ── Now/Next card ──
+            if (!_loading && _error == null && _today.isNotEmpty && (currentLesson != null || nextLesson != null))
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+                  child: _NowNextCard(
+                    current: currentLesson,
+                    next: nextLesson,
+                    service: widget.service,
                   ),
                 ),
               ),
+
+            // ── Content ──
+            if (_loading)
+              const SliverFillRemaining(
+                hasScrollBody: false,
+                child: Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      CupertinoActivityIndicator(radius: 14),
+                      SizedBox(height: 14),
+                      Text('Stundenplan wird geladen\u2026',
+                          style: TextStyle(color: AppTheme.textSecondary, fontSize: 14)),
+                    ],
+                  ),
+                ),
+              )
+            else if (_error != null)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: _ErrorCard(message: _error!, onRetry: _load),
+                ),
+              )
+            else if (_today.isEmpty)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: _InfoCard(
+                    icon: CupertinoIcons.sun_max_fill,
+                    title: 'Kein Unterricht',
+                    subtitle: 'Heute hast du frei!',
+                    color: AppTheme.success,
+                  ),
+                ),
+              )
+            else ...[
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+                  child: Text(
+                    '${_today.length} Stunden heute',
+                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600,
+                        color: AppTheme.textSecondary),
+                  ),
+                ),
+              ),
+              SliverPadding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                sliver: SliverList(
+                  delegate: SliverChildBuilderDelegate(
+                    (_, i) => Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: _LessonCard(
+                        entry: _today[i],
+                        lessonNr: widget.service.getLessonNumber(_today[i].startTime),
+                        isNow: _isCurrentLesson(_today[i], now),
+                      ),
+                    ),
+                    childCount: _today.length,
+                  ),
+                ),
+              ),
+            ],
+
+            const SliverToBoxAdapter(child: SizedBox(height: 32)),
           ],
-        ],
+        ),
       ),
     );
   }
 
-  // ── Day section ──────────────────────────────────────────────────────
+  bool _isCurrentLesson(TimetableEntry e, DateTime now) {
+    final nowMins = now.hour * 60 + now.minute;
+    final startH = e.startTime ~/ 100;
+    final startM = e.startTime % 100;
+    final endH = e.endTime ~/ 100;
+    final endM = e.endTime % 100;
+    return nowMins >= (startH * 60 + startM) && nowMins < (endH * 60 + endM);
+  }
+}
 
-  Widget _buildDaySection(
-    BuildContext context,
-    DateTime date,
-    List<Dish> dishes,
-    AppLocalizations l,
-  ) {
-    final isToday = _isToday(date);
+// ═══════════════════════════════════════════════════════════════════════════════
+//  WIDGETS
+// ═══════════════════════════════════════════════════════════════════════════════
 
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 20),
+class _NowNextCard extends StatelessWidget {
+  final TimetableEntry? current;
+  final TimetableEntry? next;
+  final WebUntisService service;
+  const _NowNextCard({this.current, this.next, required this.service});
+
+  @override
+  Widget build(BuildContext context) {
+    final entry = current ?? next!;
+    final isCurrent = current != null;
+    final color = entry.isCancelled
+        ? AppTheme.danger
+        : AppTheme.colorForSubject(entry.subjectName);
+    final nr = service.getLessonNumber(entry.startTime);
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: isCurrent
+              ? [AppTheme.accent.withValues(alpha: 0.15), AppTheme.accent.withValues(alpha: 0.05)]
+              : [AppTheme.surface, AppTheme.surface],
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isCurrent
+              ? AppTheme.accent.withValues(alpha: 0.3)
+              : AppTheme.border.withValues(alpha: 0.2),
+        ),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Day header
-          Padding(
-            padding: const EdgeInsets.only(bottom: 10),
-            child: Row(
-              children: [
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: isToday
-                        ? CupertinoColors.activeBlue
-                        : CupertinoColors.systemGrey5.resolveFrom(context),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Center(
-                    child: Text(
-                      '${date.day}',
-                      style: TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.w700,
-                        color: isToday
-                            ? CupertinoColors.white
-                            : CupertinoColors.label.resolveFrom(context),
-                      ),
-                    ),
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: isCurrent
+                      ? AppTheme.accent.withValues(alpha: 0.2)
+                      : AppTheme.textTertiary.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  isCurrent ? 'Jetzt' : 'Als Nächstes',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: isCurrent ? AppTheme.accent : AppTheme.textSecondary,
                   ),
                 ),
-                const SizedBox(width: 10),
-                Column(
+              ),
+              const Spacer(),
+              Text(
+                '${entry.startFormatted} – ${entry.endFormatted}',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: isCurrent ? AppTheme.accent : AppTheme.textSecondary,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Container(
+                width: 4, height: 36,
+                decoration: BoxDecoration(
+                  color: color,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      l.weekdayLong(date.weekday),
-                      style: TextStyle(
-                        fontSize: 16,
+                      entry.displayName,
+                      style: const TextStyle(
+                        fontSize: 18,
                         fontWeight: FontWeight.w600,
-                        color: isToday
-                            ? CupertinoColors.activeBlue
-                            : CupertinoColors.label.resolveFrom(context),
+                        color: AppTheme.textPrimary,
                       ),
                     ),
-                    if (isToday)
+                    if (entry.teacherName.isNotEmpty || entry.roomName.isNotEmpty)
                       Text(
-                        l.get('today'),
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                          color: CupertinoColors.activeBlue,
-                        ),
+                        [entry.teacherName, entry.roomName]
+                            .where((s) => s.isNotEmpty)
+                            .join(' \u00b7 '),
+                        style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary),
+                      ),
+                  ],
+                ),
+              ),
+              if (nr != null)
+                Container(
+                  width: 32, height: 32,
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Center(
+                    child: Text(nr,
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: color)),
+                  ),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LessonCard extends StatelessWidget {
+  final TimetableEntry entry;
+  final String? lessonNr;
+  final bool isNow;
+
+  const _LessonCard({required this.entry, this.lessonNr, this.isNow = false});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = entry.isCancelled
+        ? AppTheme.danger
+        : entry.isExam
+            ? AppTheme.warning
+            : AppTheme.colorForSubject(entry.subjectName);
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppTheme.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: isNow
+            ? Border.all(color: AppTheme.accent.withValues(alpha: 0.5), width: 1.5)
+            : null,
+      ),
+      child: Row(
+        children: [
+          // Lesson number + color bar
+          SizedBox(
+            width: 36,
+            child: Column(
+              children: [
+                if (lessonNr != null)
+                  Text(
+                    lessonNr!,
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w700,
+                      color: color.withValues(alpha: 0.8),
+                    ),
+                  )
+                else
+                  Container(
+                    width: 4,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: color,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+
+          // Subject + Teacher
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  entry.displayName,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: entry.isCancelled
+                        ? AppTheme.danger.withValues(alpha: 0.6)
+                        : AppTheme.textPrimary,
+                    decoration: entry.isCancelled ? TextDecoration.lineThrough : null,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Row(
+                  children: [
+                    if (entry.teacherName.isNotEmpty)
+                      Text(
+                        entry.teacherName,
+                        style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary),
+                      ),
+                    if (entry.teacherName.isNotEmpty && entry.roomName.isNotEmpty)
+                      const Text(' \u00b7 ',
+                          style: TextStyle(fontSize: 13, color: AppTheme.textTertiary)),
+                    if (entry.roomName.isNotEmpty)
+                      Text(
+                        entry.roomName,
+                        style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary),
                       ),
                   ],
                 ),
@@ -291,187 +610,56 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
 
-          // Dishes or empty
-          if (dishes.isEmpty)
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 20),
-              decoration: BoxDecoration(
-                color: CupertinoColors.systemBackground.resolveFrom(context),
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: Center(
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      CupertinoIcons.moon_zzz,
-                      size: 16,
-                      color: CupertinoColors.tertiaryLabel.resolveFrom(context),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      l.get('no_dish_planned'),
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: CupertinoColors.tertiaryLabel.resolveFrom(context),
-                      ),
-                    ),
-                  ],
+          // Time + badges
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                entry.startFormatted,
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  color: isNow ? AppTheme.accent : AppTheme.textPrimary,
+                  fontFeatures: const [FontFeature.tabularFigures()],
                 ),
               ),
-            )
-          else
-            ...dishes.map((dish) => Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: isToday
-                      ? SizedBox(
-                          height: 220,
-                          child: DishCard(
-                            dish: dish,
-                            lang: l.langCode,
-                            onTap: () => _navigateToDetail(dish),
-                          ),
-                        )
-                      : _buildCompactDishRow(context, dish, l.langCode),
-                )),
-        ],
-      ),
-    );
-  }
-
-  // ── Compact row for non-today dishes ─────────────────────────────────
-
-  Widget _buildCompactDishRow(BuildContext context, Dish dish, String lang) {
-    return GestureDetector(
-      onTap: () => _navigateToDetail(dish),
-      child: Container(
-        decoration: BoxDecoration(
-          color: CupertinoColors.systemBackground.resolveFrom(context),
-          borderRadius: BorderRadius.circular(14),
-        ),
-        child: Row(
-          children: [
-            ClipRRect(
-              borderRadius: const BorderRadius.horizontal(
-                left: Radius.circular(14),
-              ),
-              child: SizedBox(
-                width: 80,
-                height: 80,
-                child: dish.hasImage
-                    ? Image.network(
-                        dish.imageUrl,
-                        fit: BoxFit.cover,
-                        loadingBuilder: (context, child, progress) {
-                          if (progress == null) return child;
-                          return _compactPlaceholder(context);
-                        },
-                        errorBuilder: (_, __, ___) => _compactPlaceholder(context),
-                      )
-                    : _compactPlaceholder(context),
-              ),
-            ),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      dish.name(lang),
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: CupertinoColors.label.resolveFrom(context),
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    if (dish.hasCategory || dish.isVegetarian) ...[
-                      const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          if (dish.hasCategory) ...[
-                            Icon(
-                              CupertinoIcons.tag,
-                              size: 12,
-                              color: CupertinoColors.secondaryLabel.resolveFrom(context),
-                            ),
-                            const SizedBox(width: 4),
-                            Flexible(
-                              child: Text(
-                                dish.category,
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  color: CupertinoColors.secondaryLabel.resolveFrom(context),
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ],
-                          if (dish.isVegetarian) ...[
-                            if (dish.hasCategory) const SizedBox(width: 10),
-                            Icon(
-                              CupertinoIcons.leaf_arrow_circlepath,
-                              size: 12,
-                              color: CupertinoColors.systemGreen,
-                            ),
-                          ],
-                        ],
-                      ),
-                    ],
-                  ],
+              Text(
+                entry.endFormatted,
+                style: const TextStyle(
+                  fontSize: 13,
+                  color: AppTheme.textTertiary,
+                  fontFeatures: [FontFeature.tabularFigures()],
                 ),
               ),
-            ),
-            Padding(
-              padding: const EdgeInsets.only(right: 12),
-              child: Icon(
-                CupertinoIcons.chevron_right,
-                size: 14,
-                color: CupertinoColors.systemGrey3.resolveFrom(context),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _compactPlaceholder(BuildContext context) {
-    return Container(
-      color: CupertinoColors.systemGrey5.resolveFrom(context),
-      child: Center(
-        child: Icon(
-          CupertinoIcons.square_favorites_alt,
-          size: 24,
-          color: CupertinoColors.systemGrey3.resolveFrom(context),
-        ),
-      ),
-    );
-  }
-
-  // ── Empty states ─────────────────────────────────────────────────────
-
-  Widget _buildEmptyWeekState(AppLocalizations l) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            CupertinoIcons.calendar_badge_minus,
-            size: 48,
-            color: CupertinoColors.systemGrey.resolveFrom(context),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            l.get('no_dishes_this_week'),
-            style: TextStyle(
-              fontSize: 17,
-              fontWeight: FontWeight.w600,
-              color: CupertinoColors.secondaryLabel.resolveFrom(context),
-            ),
+              if (entry.isExam)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: AppTheme.warning.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: const Text('Prüfung',
+                        style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600,
+                            color: AppTheme.warning)),
+                  ),
+                ),
+              if (entry.isCancelled)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: AppTheme.danger.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: const Text('Entfällt',
+                        style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600,
+                            color: AppTheme.danger)),
+                  ),
+                ),
+            ],
           ),
         ],
       ),
@@ -479,55 +667,66 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-// ── Staggered fade-in animation ──────────────────────────────────────────
-
-class _FadeInItem extends StatefulWidget {
-  final int index;
-  final Widget child;
-
-  const _FadeInItem({required this.index, required this.child});
-
-  @override
-  State<_FadeInItem> createState() => _FadeInItemState();
-}
-
-class _FadeInItemState extends State<_FadeInItem>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-  late final Animation<double> _opacity;
-  late final Animation<Offset> _slide;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 400),
-    );
-    _opacity = CurvedAnimation(parent: _controller, curve: Curves.easeOut);
-    _slide = Tween<Offset>(
-      begin: const Offset(0, 0.05),
-      end: Offset.zero,
-    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
-
-    Future.delayed(Duration(milliseconds: 50 * widget.index), () {
-      if (mounted) _controller.forward();
-    });
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
+class _ErrorCard extends StatelessWidget {
+  final String message;
+  final VoidCallback onRetry;
+  const _ErrorCard({required this.message, required this.onRetry});
 
   @override
   Widget build(BuildContext context) {
-    return FadeTransition(
-      opacity: _opacity,
-      child: SlideTransition(
-        position: _slide,
-        child: widget.child,
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppTheme.surface,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        children: [
+          const Icon(CupertinoIcons.exclamationmark_triangle_fill,
+              color: AppTheme.danger, size: 28),
+          const SizedBox(height: 10),
+          Text(message,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: AppTheme.textSecondary, fontSize: 14)),
+          const SizedBox(height: 14),
+          CupertinoButton(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+            color: AppTheme.accent,
+            borderRadius: BorderRadius.circular(10),
+            minimumSize: Size.zero,
+            onPressed: onRetry,
+            child: const Text('Erneut versuchen', style: TextStyle(fontSize: 14)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _InfoCard extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final Color color;
+  const _InfoCard({required this.icon, required this.title, required this.subtitle, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: AppTheme.surface,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        children: [
+          Icon(icon, color: color, size: 36),
+          const SizedBox(height: 12),
+          Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600,
+              color: AppTheme.textPrimary)),
+          const SizedBox(height: 4),
+          Text(subtitle, style: const TextStyle(fontSize: 14, color: AppTheme.textSecondary)),
+        ],
       ),
     );
   }

@@ -2,7 +2,7 @@ import 'package:flutter/cupertino.dart';
 import '../config/app_config.dart';
 import '../l10n/app_localizations.dart';
 import '../services/dish_service.dart';
-import '../services/notification_service.dart';
+// notification_service removed - not used in current flow
 
 class AppSettings {
   AppLanguage language;
@@ -57,17 +57,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _handleDailyReminderToggle(bool enabled) async {
-    final notif = NotificationService();
     try {
       if (enabled) {
-        final granted = await notif.requestPermission();
-        if (granted) {
-          await notif.scheduleDailyReminder(_settings.language);
-        } else {
-          _update(() => _settings.dailyReminder = false);
-        }
+        // Notifications not available in current build
+        _update(() => _settings.dailyReminder = false);
       } else {
-        await notif.cancelDailyReminder();
+        // cancelDailyReminder - notifications not available
       }
     } catch (_) {
       _update(() => _settings.dailyReminder = false);

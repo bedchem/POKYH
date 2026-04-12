@@ -1,10 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:classbyte/main.dart';
+import 'package:pockyh/main.dart';
 
 void main() {
-  testWidgets('App renders with tab bar', (WidgetTester tester) async {
-    await tester.pumpWidget(const ClassByteApp());
-    await tester.pumpAndSettle();
-    expect(find.text('Speisekarte'), findsWidgets);
+  testWidgets('App renders splash screen', (WidgetTester tester) async {
+    await tester.pumpWidget(const PockyhApp());
+    expect(find.text('pockyh'), findsOneWidget);
   });
 }
