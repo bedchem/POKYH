@@ -24,25 +24,23 @@ class AppTheme {
   static const Color orange = Color(0xFFFF9F0A);
 
   // ── Lesson colors (pastel, iOS-inspired) ────────────────────────────────
-  static const List<Color> subjectColors = [
-    Color(0xFF0A84FF), // Blue
-    Color(0xFF5E5CE6), // Indigo
-    Color(0xFFBF5AF2), // Purple
-    Color(0xFFFF2D55), // Pink
-    Color(0xFFFF9F0A), // Orange
-    Color(0xFF30D158), // Green
-    Color(0xFF64D2FF), // Cyan
-    Color(0xFFFFD60A), // Yellow
-    Color(0xFFAC8E68), // Brown
-    Color(0xFFFF6482), // Rose
-  ];
+// ── Lesson colors ────────────────────────────────────────────────────────
+static const Map<String, Color> _subjectColorMap = {
+  'D':         Color(0xFF5AA0E8), // Stahlblau
+  'M':         Color(0xFF4ED87A), // Salbeigrün
+  'IT':        Color(0xFFD4855A), // Terrakotta
+  'Bew.Sport': Color(0xFFAA8EE0), // Lavendel
+  'ENGL':      Color(0xFF3DC4CE), // Türkis
+  'R':         Color(0xFFE8B84A), // Amber
+  'M5-M7':     Color(0xFFE08899), // Altrosa
+  'M8':        Color(0xFFE89E6E), // Lachs
+  'Re-Wiku':   Color(0xFF6AB87A), // Moosgrün
+};
 
-  static Color colorForSubject(String name) {
-    if (name.isEmpty) return subjectColors[0];
-    final hash = name.codeUnits.fold<int>(0, (h, c) => h + c);
-    return subjectColors[hash % subjectColors.length];
-  }
-
+static Color colorForSubject(String name) {
+  if (name.isEmpty) return const Color.fromARGB(255, 48, 137, 209);
+  return _subjectColorMap[name] ?? const Color(0xFF7A7A8A);
+}
   // ── Theme ───────────────────────────────────────────────────────────────
   static ThemeData dark() {
     return ThemeData(
