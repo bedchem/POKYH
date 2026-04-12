@@ -7,6 +7,10 @@ environment:
   sdk: ^3.11.4
 
 dependencies:
+  local_auth: ^2.3.0
+  flutter_secure_storage: ^9.2.2
+  crypto: ^3.0.3
+
   flutter:
     sdk: flutter
   cupertino_icons: ^1.0.8
