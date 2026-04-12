@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io' show Platform;
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -44,6 +45,16 @@ class _LoginScreenState extends State<LoginScreen>
   late final AnimationController _anim;
   late final Animation<double> _fade;
 
+  // ──────────────────────────────────────────────────────────────────────────
+  // PLATTFORM-HELPER
+  // ──────────────────────────────────────────────────────────────────────────
+
+  /// Auf Android müssen System-Dialoge aktiv bleiben (useErrorDialogs: true),
+  /// damit der BiometricPrompt korrekt angezeigt wird.
+  /// Auf iOS übernimmt das System den Dialog selbst – false verhindert
+  /// doppelte Dialoge beim LAContext.
+  bool get _useErrorDialogs => Platform.isAndroid;
+
   @override
   void initState() {
     super.initState();
@@ -74,7 +85,10 @@ class _LoginScreenState extends State<LoginScreen>
   }
 
   // ──────────────────────────────────────────────────────────────────────────
-  // BIOMETRIE ERKENNEN – ABSOLUT CRASHSICHER
+  // BIOMETRIE ERKENNEN
+  // iOS:     BiometricType.face / BiometricType.fingerprint
+  // Android: BiometricType.fingerprint / BiometricType.strong (API 30+)
+  //          / BiometricType.weak / BiometricType.iris (Samsung)
   // ──────────────────────────────────────────────────────────────────────────
 
   Future<void> _detectBiometrics() async {
@@ -92,10 +106,17 @@ class _LoginScreenState extends State<LoginScreen>
     }
   }
 
+  // Face ID (iOS) oder Gesichtserkennung (Android – z. B. BiometricType.face)
   bool get _hasFaceId =>
-      _availableBiometrics.contains(BiometricType.face);
+      _availableBiometrics.contains(BiometricType.face) ||
+      _availableBiometrics.contains(BiometricType.iris); // Samsung iris
+
+  // Fingerabdruck auf iOS & Android (fingerprint, strong, weak)
   bool get _hasFingerprint =>
-      _availableBiometrics.contains(BiometricType.fingerprint);
+      _availableBiometrics.contains(BiometricType.fingerprint) ||
+      _availableBiometrics.contains(BiometricType.strong) || // Android API 30+
+      _availableBiometrics.contains(BiometricType.weak); // Android API 30+
+
   bool get _hasAnyBiometric => _hasFaceId || _hasFingerprint;
 
   IconData get _bestBiometricIcon {
@@ -105,8 +126,13 @@ class _LoginScreenState extends State<LoginScreen>
   }
 
   String get _bestBiometricLabel {
-    if (_hasFaceId) return 'Face ID';
-    if (_hasFingerprint) return 'Fingerabdruck';
+    if (_hasFaceId) {
+      // Auf Android heißt es i. d. R. "Gesichtserkennung", auf iOS "Face ID"
+      return Platform.isIOS ? 'Face ID' : 'Gesichtserkennung';
+    }
+    if (_hasFingerprint) {
+      return Platform.isIOS ? 'Fingerabdruck' : 'Fingerabdruck';
+    }
     return 'Biometrie';
   }
 
@@ -149,14 +175,18 @@ class _LoginScreenState extends State<LoginScreen>
   }
 
   // ──────────────────────────────────────────────────────────────────────────
-  // BIOMETRISCHER LOGIN – ABSOLUT CRASHSICHER
+  // BIOMETRISCHER LOGIN
+  // iOS:     LAContext → Face ID / Touch ID → Passcode-Fallback
+  // Android: BiometricPrompt → Geräte-PIN-Fallback
+  //          WICHTIG: useErrorDialogs muss auf Android true sein,
+  //          sonst erscheint der BiometricPrompt nie.
   // ──────────────────────────────────────────────────────────────────────────
 
   Future<void> _biometricLogin(SavedAccount account) async {
     if (_loading) return;
     if (!mounted) return;
 
-    // Lockout‑Prüfung
+    // Lockout-Prüfung
     if (_isLockedOut(account.username)) {
       _setError(_lockoutMessage(account.username));
       return;
@@ -168,7 +198,7 @@ class _LoginScreenState extends State<LoginScreen>
     });
 
     try {
-      // 1. Prüfen, ob Biometrie überhaupt möglich ist
+      // 1. Prüfen ob Biometrie grundsätzlich möglich ist
       bool canCheck = false;
       try {
         canCheck = await _localAuth.canCheckBiometrics;
@@ -181,7 +211,7 @@ class _LoginScreenState extends State<LoginScreen>
         return;
       }
 
-      // 2. Geräte‑Unterstützung (fängt JEDEN Fehler ab)
+      // 2. Geräte-Unterstützung prüfen
       bool isSupported = false;
       try {
         isSupported = await _localAuth.isDeviceSupported();
@@ -196,28 +226,35 @@ class _LoginScreenState extends State<LoginScreen>
 
       bool authenticated = false;
 
-      // 3. Biometrie‑Kette: Face ID → Fingerprint (biometricOnly = true)
+      // 3. Primär: Biometrie (biometricOnly = true)
+      //    iOS:     Face ID / Touch ID – useErrorDialogs false (System übernimmt)
+      //    Android: BiometricPrompt    – useErrorDialogs true  (Plugin übernimmt)
       if (_hasAnyBiometric) {
         try {
           authenticated = await _localAuth.authenticate(
             localizedReason: _biometricReason(account.username),
-            options: const AuthenticationOptions(
+            options: AuthenticationOptions(
               biometricOnly: true,
               stickyAuth: true,
-              useErrorDialogs: false,   // ❗️ KEINE SYSTEM-DIALOGE (verhindert Crash)
+              useErrorDialogs: _useErrorDialogs, // false=iOS, true=Android
               sensitiveTransaction: true,
             ),
           );
         } catch (e) {
-          // Benutzer hat abgebrochen oder Sensorfehler → nicht zur PIN springen
+          // Nutzer hat abgebrochen oder Sensorfehler →
+          // nur bei echtem Sensorfehler zum PIN-Fallback springen,
+          // bei Abbruch direkt beenden.
           if (!_isSensorError(e.toString())) {
             if (mounted) setState(() => _loading = false);
             return;
           }
+          // Bei Sensorfehler: weiter zum Fallback unten
         }
       }
 
-      // 4. Fallback: Geräte‑PIN (nur wenn Biometrie fehlschlug / nicht verfügbar)
+      // 4. Fallback: Geräte-PIN / Passcode
+      //    Wird nur erreicht wenn Biometrie fehlschlug (Sensorfehler) oder
+      //    gar kein biometrisches Merkmal vorhanden ist.
       if (!authenticated) {
         _recordFailedAttempt(account.username);
 
@@ -228,11 +265,13 @@ class _LoginScreenState extends State<LoginScreen>
 
         try {
           authenticated = await _localAuth.authenticate(
-            localizedReason: 'Bitte Geräte‑PIN eingeben',
-            options: const AuthenticationOptions(
-              biometricOnly: false,
+            localizedReason: Platform.isAndroid
+                ? 'Bitte Geräte-PIN oder Muster eingeben'
+                : 'Bitte Passcode eingeben',
+            options: AuthenticationOptions(
+              biometricOnly: false, // erlaubt PIN/Passcode
               stickyAuth: true,
-              useErrorDialogs: false,
+              useErrorDialogs: _useErrorDialogs, // false=iOS, true=Android
               sensitiveTransaction: true,
             ),
           );
@@ -256,11 +295,13 @@ class _LoginScreenState extends State<LoginScreen>
       }
 
       if (password == null) {
-        _setError('Kein gespeichertes Passwort. Bitte einmal manuell anmelden.');
+        _setError(
+          'Kein gespeichertes Passwort. Bitte einmal manuell anmelden.',
+        );
         return;
       }
 
-      // 6. Server‑Login
+      // 6. Server-Login
       bool ok = false;
       try {
         ok = await _service.login(account.username, password);
@@ -279,33 +320,50 @@ class _LoginScreenState extends State<LoginScreen>
         _setError('Passwort ungültig. Bitte manuell anmelden.');
       }
     } catch (e) {
-      // Fängt wirklich ALLES ab – kein Crash mehr
       if (!mounted) return;
-      _setError('Authentifizierung fehlgeschlagen: ${e.toString().split('\n').first}');
+      _setError(
+        'Authentifizierung fehlgeschlagen: ${e.toString().split('\n').first}',
+      );
     } finally {
       if (mounted) setState(() => _loading = false);
     }
   }
 
+  /// Gibt true zurück wenn der Fehler ein Hardware-/Sensor-Problem ist
+  /// (kein Nutzerabbruch) → dann PIN-Fallback sinnvoll.
   bool _isSensorError(String msg) {
     return msg.contains('NotEnrolled') ||
         msg.contains('NotAvailable') ||
         msg.contains('PasscodeNotSet') ||
         msg.contains('PermanentlyLockedOut') ||
-        msg.contains('LockedOut');
+        msg.contains('LockedOut') ||
+        msg.contains('HardwareUnavailable') || // Android spezifisch
+        msg.contains('BiometricUnavailable') || // Android spezifisch
+        msg.contains('NoBiometrics'); // Android spezifisch
   }
 
   String _biometricReason(String username) {
-    if (_hasFaceId) return 'Face ID: Als $username anmelden';
+    if (_hasFaceId) {
+      final label = Platform.isIOS ? 'Face ID' : 'Gesichtserkennung';
+      return '$label: Als $username anmelden';
+    }
     if (_hasFingerprint) return 'Fingerabdruck: Als $username anmelden';
     return 'Biometrie: Als $username anmelden';
   }
 
   String _friendlyBiometricError(String msg) {
-    if (msg.contains('NotEnrolled')) return 'Keine Biometrie eingerichtet.';
-    if (msg.contains('NotAvailable')) return 'Biometrie nicht verfügbar.';
-    if (msg.contains('LockedOut')) return 'Biometrie gesperrt. Bitte PIN nutzen.';
-    if (msg.contains('PasscodeNotSet')) return 'Kein Geräte‑PIN.';
+    if (msg.contains('NotEnrolled') || msg.contains('NoBiometrics')) {
+      return 'Keine Biometrie eingerichtet.';
+    }
+    if (msg.contains('NotAvailable') ||
+        msg.contains('HardwareUnavailable') ||
+        msg.contains('BiometricUnavailable')) {
+      return 'Biometrie nicht verfügbar.';
+    }
+    if (msg.contains('LockedOut') || msg.contains('PermanentlyLockedOut')) {
+      return 'Biometrie gesperrt. Bitte PIN nutzen.';
+    }
+    if (msg.contains('PasscodeNotSet')) return 'Kein Geräte-PIN eingerichtet.';
     return 'Authentifizierung fehlgeschlagen.';
   }
 
@@ -377,11 +435,14 @@ class _LoginScreenState extends State<LoginScreen>
   }
 
   void _afterSuccessfulLogin(String username) {
-    _service.fetchProfileImage().then((img) {
-      if (img != null) {
-        _credService.updateProfileImage(username, base64Encode(img));
-      }
-    }).catchError((_) {});
+    _service
+        .fetchProfileImage()
+        .then((img) {
+          if (img != null) {
+            _credService.updateProfileImage(username, base64Encode(img));
+          }
+        })
+        .catchError((_) {});
     _navigateHome();
   }
 
@@ -397,8 +458,8 @@ class _LoginScreenState extends State<LoginScreen>
     Navigator.pushReplacement(
       context,
       PageRouteBuilder(
-        pageBuilder: (_, __, ___) => HomeScreen(service: _service),
-        transitionsBuilder: (_, a, __, child) =>
+        pageBuilder: (_, _, _) => HomeScreen(service: _service),
+        transitionsBuilder: (_, a, _, child) =>
             FadeTransition(opacity: a, child: child),
         transitionDuration: const Duration(milliseconds: 300),
       ),
@@ -535,40 +596,42 @@ class _LoginScreenState extends State<LoginScreen>
                   curve: Curves.easeOut,
                   child: _error != null
                       ? Padding(
-                    padding: const EdgeInsets.only(top: 16),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 10),
-                      decoration: BoxDecoration(
-                        color: _withAlpha(AppTheme.danger, 0.1),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(
-                            CupertinoIcons.exclamationmark_circle_fill,
-                            color: AppTheme.danger,
-                            size: 16,
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              _error!,
-                              style: const TextStyle(
-                                color: AppTheme.danger,
-                                fontSize: 13,
-                              ),
+                          padding: const EdgeInsets.only(top: 16),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 10,
+                            ),
+                            decoration: BoxDecoration(
+                              color: _withAlpha(AppTheme.danger, 0.1),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(
+                                  CupertinoIcons.exclamationmark_circle_fill,
+                                  color: AppTheme.danger,
+                                  size: 16,
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    _error!,
+                                    style: const TextStyle(
+                                      color: AppTheme.danger,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                        ],
-                      ),
-                    ),
-                  )
+                        )
                       : const SizedBox.shrink(),
                 ),
                 const SizedBox(height: 24),
 
-                // Login‑Button
+                // Login-Button
                 SizedBox(
                   width: double.infinity,
                   height: 52,
@@ -601,7 +664,11 @@ class _LoginScreenState extends State<LoginScreen>
           ),
           borderRadius: BorderRadius.circular(18),
         ),
-        child: const Icon(CupertinoIcons.book_fill, color: Colors.white, size: 32),
+        child: const Icon(
+          CupertinoIcons.book_fill,
+          color: Colors.white,
+          size: 32,
+        ),
       ),
     );
   }
@@ -651,12 +718,21 @@ class _LoginScreenState extends State<LoginScreen>
         decoration: InputDecoration(
           prefixIcon: Icon(icon, color: AppTheme.textTertiary, size: 18),
           suffixIcon: suffix != null
-              ? Padding(padding: const EdgeInsets.only(right: 12), child: suffix)
+              ? Padding(
+                  padding: const EdgeInsets.only(right: 12),
+                  child: suffix,
+                )
               : null,
-          suffixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
+          suffixIconConstraints: const BoxConstraints(
+            minWidth: 0,
+            minHeight: 0,
+          ),
           hintText: placeholder,
           border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 16,
+          ),
         ),
       ),
     );
@@ -664,7 +740,7 @@ class _LoginScreenState extends State<LoginScreen>
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// SUB‑WIDGETS
+// SUB-WIDGETS
 // ────────────────────────────────────────────────────────────────────────────
 
 class _SaveLoginCheckbox extends StatelessWidget {
@@ -705,7 +781,11 @@ class _SaveLoginCheckbox extends StatelessWidget {
                   borderRadius: BorderRadius.circular(5),
                 ),
                 child: value
-                    ? const Icon(CupertinoIcons.checkmark, color: Colors.white, size: 13)
+                    ? const Icon(
+                        CupertinoIcons.checkmark,
+                        color: Colors.white,
+                        size: 13,
+                      )
                     : null,
               ),
               const SizedBox(width: 10),
@@ -719,38 +799,6 @@ class _SaveLoginCheckbox extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-class _ChainStep extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final bool dim;
-  final Color Function(Color, double) withAlpha;
-
-  const _ChainStep({
-    required this.icon,
-    required this.label,
-    this.dim = false,
-    required this.withAlpha,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 12, color: dim ? AppTheme.textTertiary : AppTheme.accent),
-        const SizedBox(width: 3),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 11,
-            color: dim ? AppTheme.textTertiary : AppTheme.textSecondary,
-          ),
-        ),
-      ],
     );
   }
 }
@@ -813,7 +861,10 @@ class _SavedAccountTile extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      _Avatar(imageBytes: imageBytes, username: account.username),
+                      _Avatar(
+                        imageBytes: imageBytes,
+                        username: account.username,
+                      ),
                       const SizedBox(width: 14),
                       Expanded(
                         child: Column(
@@ -841,7 +892,9 @@ class _SavedAccountTile extends StatelessWidget {
                         children: [
                           Icon(
                             isLockedOut ? Icons.lock_outline : biometricIcon,
-                            color: isLockedOut ? AppTheme.danger : AppTheme.accent,
+                            color: isLockedOut
+                                ? AppTheme.danger
+                                : AppTheme.accent,
                             size: 24,
                           ),
                           const SizedBox(width: 10),
@@ -889,23 +942,28 @@ class _Avatar extends StatelessWidget {
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         gradient: imageBytes == null
-            ? const LinearGradient(colors: [AppTheme.accent, AppTheme.accentSoft])
+            ? const LinearGradient(
+                colors: [AppTheme.accent, AppTheme.accentSoft],
+              )
             : null,
         image: imageBytes != null
-            ? DecorationImage(image: MemoryImage(imageBytes!), fit: BoxFit.cover)
+            ? DecorationImage(
+                image: MemoryImage(imageBytes!),
+                fit: BoxFit.cover,
+              )
             : null,
       ),
       child: imageBytes == null
           ? Center(
-        child: Text(
-          username.isNotEmpty ? username[0].toUpperCase() : '?',
-          style: const TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.w700,
-            fontSize: 18,
-          ),
-        ),
-      )
+              child: Text(
+                username.isNotEmpty ? username[0].toUpperCase() : '?',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 18,
+                ),
+              ),
+            )
           : null,
     );
   }
@@ -924,9 +982,49 @@ class _AuthChainRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
+    // Zeigt die verfügbare Biometrie-Kette als kleine Icons an
+    final steps = <Widget>[];
+
+    if (hasFaceId) {
+      steps.add(
+        _Step(
+          icon: Icons.face,
+          label: Platform.isIOS ? 'Face ID' : 'Gesicht',
+          active: true,
+          withAlpha: withAlpha,
+        ),
+      );
+    }
+
+    if (hasFaceId && hasFingerprint) {
+      steps.add(_Arrow(withAlpha: withAlpha));
+    }
+
+    if (hasFingerprint) {
+      steps.add(
+        _Step(
+          icon: Icons.fingerprint,
+          label: 'Fingerabdruck',
+          active: true,
+          withAlpha: withAlpha,
+        ),
+      );
+    }
+
+    if (steps.isNotEmpty) {
+      steps.add(_Arrow(withAlpha: withAlpha));
+    }
+
+    steps.add(
+      _Step(
+        icon: Platform.isAndroid ? Icons.pin : Icons.lock_outline,
+        label: Platform.isAndroid ? 'PIN' : 'Passcode',
+        active: false,
+        withAlpha: withAlpha,
+      ),
     );
+
+    return Row(mainAxisSize: MainAxisSize.min, children: steps);
   }
 }
 
@@ -939,7 +1037,7 @@ class _Step extends StatelessWidget {
   const _Step({
     required this.icon,
     required this.label,
-    this.active = true,
+    required this.active,
     required this.withAlpha,
   });
 
@@ -951,14 +1049,18 @@ class _Step extends StatelessWidget {
         Icon(
           icon,
           size: 11,
-          color: active ? AppTheme.accent : withAlpha(AppTheme.textTertiary, 0.45),
+          color: active
+              ? AppTheme.accent
+              : withAlpha(AppTheme.textTertiary, 0.45),
         ),
         const SizedBox(width: 2),
         Text(
           label,
           style: TextStyle(
             fontSize: 10,
-            color: active ? AppTheme.textSecondary : withAlpha(AppTheme.textTertiary, 0.45),
+            color: active
+                ? AppTheme.textSecondary
+                : withAlpha(AppTheme.textTertiary, 0.45),
           ),
         ),
       ],
@@ -1016,13 +1118,15 @@ class _AttemptsIndicator extends StatelessWidget {
         Row(
           children: List.generate(
             max,
-                (i) => Container(
+            (i) => Container(
               width: 6,
               height: 6,
               margin: const EdgeInsets.only(right: 3),
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: i < failed ? AppTheme.danger : withAlpha(AppTheme.textTertiary, 0.25),
+                color: i < failed
+                    ? AppTheme.danger
+                    : withAlpha(AppTheme.textTertiary, 0.25),
               ),
             ),
           ),
