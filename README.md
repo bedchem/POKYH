@@ -3,7 +3,7 @@
   <img src="https://img.shields.io/badge/Dart-3.11+-0175C2?style=for-the-badge&logo=dart&logoColor=white" />
   <img src="https://img.shields.io/badge/Firebase-12.9-FFCA28?style=for-the-badge&logo=firebase&logoColor=black" />
   <img src="https://img.shields.io/badge/Platform-iOS%20%7C%20Android-lightgrey?style=for-the-badge" />
-  <img src="https://img.shields.io/badge/License-Private-red?style=for-the-badge" />
+  <img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge" />
 </p>
 
 <br>
@@ -443,12 +443,12 @@ Dish {
 
 ## Lizenz
 
-Dieses Projekt ist privat und nicht zur oeffentlichen Nutzung bestimmt.
+Dieses Projekt ist Public unter der MIT Lizenz.
 
 <br>
 
 ---
 
 <p align="center">
-  <sub>Gebaut mit Flutter & viel Koffein fuer die LBS Brixen &#x2615;</sub>
+  <sub>Gebaut mit Flutter & viel Koffein für die LBS Brixen &#x2615;</sub>
 </p>
