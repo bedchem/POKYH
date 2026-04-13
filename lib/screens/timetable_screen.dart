@@ -40,14 +40,52 @@ class _WeekData {
 // ── Root screen ───────────────────────────────────────────────────────────────
 
 class TimetableScreen extends StatefulWidget {
+  // Public API: allow parent to open a detail sheet for a given entry
+  static TimetableScreenState? of(BuildContext context) {
+    final state = context.findAncestorStateOfType<TimetableScreenState>();
+    return state;
+  }
+
+  // Helper to create a GlobalKey for TimetableScreen
+  static GlobalKey<TimetableScreenState> createKey() =>
+      GlobalKey<TimetableScreenState>();
   final WebUntisService service;
   const TimetableScreen({super.key, required this.service});
 
   @override
-  State<TimetableScreen> createState() => _TimetableScreenState();
+  State<TimetableScreen> createState() => TimetableScreenState();
 }
 
-class _TimetableScreenState extends State<TimetableScreen> {
+class TimetableScreenState extends State<TimetableScreen> {
+  // Public: Show detail sheet for a given entry (optionally with replacement)
+  void showDetail(TimetableEntry entry, [TimetableEntry? replacement]) {
+    _showDetail(entry, replacement);
+  }
+
+  // Public: Jump to a specific week offset and day, then optionally show detail
+  void jumpToWeekAndDay({
+    required int weekOffset,
+    int? dayIndex,
+    TimetableEntry? entry,
+    TimetableEntry? replacement,
+  }) {
+    setState(() {
+      _currentOffset = weekOffset;
+      if (dayIndex != null) _selectedDay = dayIndex;
+    });
+    _pageController.animateToPage(
+      _kBase + weekOffset,
+      duration: const Duration(milliseconds: 400),
+      curve: Curves.easeInOutCubic,
+    );
+    if (entry != null) {
+      // Wait for animation, then show detail
+      Future.delayed(const Duration(milliseconds: 420), () {
+        if (mounted) showDetail(entry, replacement);
+      });
+    }
+  }
+
   // PageView uses a virtual index; _kBase is page 0 in week-offset space.
   static const int _kBase = 500;
 
@@ -475,7 +513,7 @@ class _TimetableScreenState extends State<TimetableScreen> {
 
 class _WeekPage extends StatelessWidget {
   final int offset;
-  final _TimetableScreenState state;
+  final TimetableScreenState state;
 
   const _WeekPage({super.key, required this.offset, required this.state});
 
@@ -631,17 +669,17 @@ class _WeekPage extends StatelessWidget {
 
     double gapAfter(int i) {
       if (i >= n - 1) return 0;
-      if (timeConnected[i]) return _TimetableScreenState._connectedGap;
+      if (timeConnected[i]) return TimetableScreenState._connectedGap;
       if (lunchGapIndex != null && i == lunchGapIndex) {
-        return _TimetableScreenState._lunchGap;
+        return TimetableScreenState._lunchGap;
       }
       final endT =
           endTimeForStart[sortedTimes[i]] ??
           state._addMinutes(sortedTimes[i], 50);
       if (state._crossesFixedBreak(endT, sortedTimes[i + 1])) {
-        return _TimetableScreenState._breakGap;
+        return TimetableScreenState._breakGap;
       }
-      return _TimetableScreenState._normalGap;
+      return TimetableScreenState._normalGap;
     }
 
     return Column(
@@ -675,7 +713,7 @@ class _WeekPage extends StatelessWidget {
                       child: Column(
                         children: [
                           Text(
-                            _TimetableScreenState._dayLabels[i],
+                            TimetableScreenState._dayLabels[i],
                             style: TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.w600,
@@ -772,7 +810,7 @@ class _WeekPage extends StatelessWidget {
                   lessonNr: state.widget.service.getLessonNumber(
                     sortedTimes[i],
                   ),
-                  height: _TimetableScreenState._rowMinHeight,
+                  height: TimetableScreenState._rowMinHeight,
                 ),
                 if (i < n - 1) SizedBox(height: gapAfter(i)),
               ],
@@ -785,7 +823,7 @@ class _WeekPage extends StatelessWidget {
 
           if (isHoliday) {
             final totalHeight =
-                n * _TimetableScreenState._rowMinHeight +
+                n * TimetableScreenState._rowMinHeight +
                 List.generate(
                   n - 1,
                   (i) => gapAfter(i),
@@ -841,8 +879,8 @@ class _WeekPage extends StatelessWidget {
 
       final groupLen = groupEnd - groupStart + 1;
       final double groupHeight =
-          groupLen * _TimetableScreenState._rowMinHeight +
-          (groupLen - 1) * _TimetableScreenState._connectedGap;
+          groupLen * TimetableScreenState._rowMinHeight +
+          (groupLen - 1) * TimetableScreenState._connectedGap;
 
       final groupSlots = [
         for (int k = groupStart; k <= groupEnd; k++) slots[k],

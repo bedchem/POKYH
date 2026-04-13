@@ -25,13 +25,19 @@ class _MensaScreenState extends State<MensaScreen> {
   }
 
   Future<void> _load() async {
-    setState(() { _loading = true; _error = null; });
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
 
     final server = await _service.fetchFromServer();
     if (!mounted) return;
 
     if (server != null) {
-      setState(() { _dishes = server; _loading = false; });
+      setState(() {
+        _dishes = server;
+        _loading = false;
+      });
       return;
     }
 
@@ -39,11 +45,17 @@ class _MensaScreenState extends State<MensaScreen> {
     if (!mounted) return;
 
     if (cached != null && cached.isNotEmpty) {
-      setState(() { _dishes = cached; _loading = false; });
+      setState(() {
+        _dishes = cached;
+        _loading = false;
+      });
       return;
     }
 
-    setState(() { _loading = false; _error = 'Keine Verbindung zum Server'; });
+    setState(() {
+      _loading = false;
+      _error = 'Keine Verbindung zum Server';
+    });
   }
 
   Map<DateTime, List<Dish>> get _grouped {
@@ -60,9 +72,7 @@ class _MensaScreenState extends State<MensaScreen> {
   List<MapEntry<DateTime, List<Dish>>> get _upcomingDays {
     final today = DateTime.now();
     final todayKey = DateTime(today.year, today.month, today.day);
-    return _grouped.entries
-        .where((e) => !e.key.isBefore(todayKey))
-        .toList();
+    return _grouped.entries.where((e) => !e.key.isBefore(todayKey)).toList();
   }
 
   void _showDishDetail(BuildContext context, Dish dish) {
@@ -91,15 +101,24 @@ class _MensaScreenState extends State<MensaScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Mensa',
-                        style: TextStyle(fontSize: 34, fontWeight: FontWeight.w700,
-                            color: AppTheme.textPrimary, letterSpacing: -0.5)),
+                    const Text(
+                      'Mensa',
+                      style: TextStyle(
+                        fontSize: 34,
+                        fontWeight: FontWeight.w700,
+                        color: AppTheme.textPrimary,
+                        letterSpacing: -0.5,
+                      ),
+                    ),
                     if (!_loading && _error == null && _dishes.isNotEmpty)
                       Padding(
                         padding: const EdgeInsets.only(top: 4),
                         child: Text(
                           '${_upcomingDays.length} Tage verfügbar',
-                          style: const TextStyle(fontSize: 14, color: AppTheme.textSecondary),
+                          style: const TextStyle(
+                            fontSize: 14,
+                            color: AppTheme.textSecondary,
+                          ),
                         ),
                       ),
                   ],
@@ -119,8 +138,13 @@ class _MensaScreenState extends State<MensaScreen> {
                     children: [
                       CupertinoActivityIndicator(radius: 14),
                       SizedBox(height: 14),
-                      Text('Menü wird geladen\u2026',
-                          style: TextStyle(color: AppTheme.textSecondary, fontSize: 14)),
+                      Text(
+                        'Menü wird geladen\u2026',
+                        style: TextStyle(
+                          color: AppTheme.textSecondary,
+                          fontSize: 14,
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -133,26 +157,40 @@ class _MensaScreenState extends State<MensaScreen> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Container(
-                        width: 56, height: 56,
+                        width: 56,
+                        height: 56,
                         decoration: BoxDecoration(
                           color: AppTheme.textTertiary.withValues(alpha: 0.1),
                           shape: BoxShape.circle,
                         ),
-                        child: const Icon(CupertinoIcons.wifi_slash,
-                            color: AppTheme.textTertiary, size: 26),
+                        child: const Icon(
+                          CupertinoIcons.wifi_slash,
+                          color: AppTheme.textTertiary,
+                          size: 26,
+                        ),
                       ),
                       const SizedBox(height: 16),
-                      Text(_error!,
-                          style: const TextStyle(color: AppTheme.textSecondary, fontSize: 15)),
+                      Text(
+                        _error!,
+                        style: const TextStyle(
+                          color: AppTheme.textSecondary,
+                          fontSize: 15,
+                        ),
+                      ),
                       const SizedBox(height: 14),
                       CupertinoButton(
                         color: AppTheme.accent,
                         borderRadius: BorderRadius.circular(10),
-                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 8,
+                        ),
                         minimumSize: Size.zero,
                         onPressed: _load,
-                        child: const Text('Erneut versuchen',
-                            style: TextStyle(fontSize: 14)),
+                        child: const Text(
+                          'Erneut versuchen',
+                          style: TextStyle(fontSize: 14),
+                        ),
                       ),
                     ],
                   ),
@@ -165,10 +203,19 @@ class _MensaScreenState extends State<MensaScreen> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(CupertinoIcons.tray, color: AppTheme.textTertiary, size: 36),
+                      Icon(
+                        CupertinoIcons.tray,
+                        color: AppTheme.textTertiary,
+                        size: 36,
+                      ),
                       SizedBox(height: 12),
-                      Text('Kein Menü verfügbar',
-                          style: TextStyle(color: AppTheme.textSecondary, fontSize: 15)),
+                      Text(
+                        'Kein Menü verfügbar',
+                        style: TextStyle(
+                          color: AppTheme.textSecondary,
+                          fontSize: 15,
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -177,17 +224,14 @@ class _MensaScreenState extends State<MensaScreen> {
               SliverPadding(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
                 sliver: SliverList(
-                  delegate: SliverChildBuilderDelegate(
-                    (_, i) {
-                      final entry = _upcomingDays[i];
-                      return _DaySection(
-                        date: entry.key,
-                        dishes: entry.value,
-                        onDishTap: (dish) => _showDishDetail(context, dish),
-                      );
-                    },
-                    childCount: _upcomingDays.length,
-                  ),
+                  delegate: SliverChildBuilderDelegate((_, i) {
+                    final entry = _upcomingDays[i];
+                    return _DaySection(
+                      date: entry.key,
+                      dishes: entry.value,
+                      onDishTap: (dish) => _showDishDetail(context, dish),
+                    );
+                  }, childCount: _upcomingDays.length),
                 ),
               ),
           ],
@@ -203,20 +247,48 @@ class _DaySection extends StatelessWidget {
   final DateTime date;
   final List<Dish> dishes;
   final void Function(Dish) onDishTap;
-  const _DaySection({required this.date, required this.dishes, required this.onDishTap});
+  const _DaySection({
+    required this.date,
+    required this.dishes,
+    required this.onDishTap,
+  });
 
-  static const _weekdays = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'];
-  static const _months = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun',
-    'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
+  static const _weekdays = [
+    'Montag',
+    'Dienstag',
+    'Mittwoch',
+    'Donnerstag',
+    'Freitag',
+    'Samstag',
+    'Sonntag',
+  ];
+  static const _months = [
+    'Jan',
+    'Feb',
+    'Mär',
+    'Apr',
+    'Mai',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Okt',
+    'Nov',
+    'Dez',
+  ];
 
   bool get _isToday {
     final now = DateTime.now();
-    return date.year == now.year && date.month == now.month && date.day == now.day;
+    return date.year == now.year &&
+        date.month == now.month &&
+        date.day == now.day;
   }
 
   bool get _isTomorrow {
     final tomorrow = DateTime.now().add(const Duration(days: 1));
-    return date.year == tomorrow.year && date.month == tomorrow.month && date.day == tomorrow.day;
+    return date.year == tomorrow.year &&
+        date.month == tomorrow.month &&
+        date.day == tomorrow.day;
   }
 
   @override
@@ -233,25 +305,41 @@ class _DaySection extends StatelessWidget {
               children: [
                 if (_isToday)
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: AppTheme.accent,
                       borderRadius: BorderRadius.circular(7),
                     ),
-                    child: const Text('Heute',
-                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
-                            color: Colors.white)),
+                    child: const Text(
+                      'Heute',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
+                    ),
                   )
                 else if (_isTomorrow)
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: AppTheme.accent.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(7),
                     ),
-                    child: const Text('Morgen',
-                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
-                            color: AppTheme.accent)),
+                    child: const Text(
+                      'Morgen',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.accent,
+                      ),
+                    ),
                   ),
                 if (_isToday || _isTomorrow) const SizedBox(width: 8),
                 Text(
@@ -259,7 +347,9 @@ class _DaySection extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
-                    color: _isToday ? AppTheme.textPrimary : AppTheme.textSecondary,
+                    color: _isToday
+                        ? AppTheme.textPrimary
+                        : AppTheme.textSecondary,
                   ),
                 ),
               ],
@@ -267,10 +357,12 @@ class _DaySection extends StatelessWidget {
           ),
 
           // Dishes
-          ...dishes.map((d) => Padding(
-            padding: const EdgeInsets.only(bottom: 10),
-            child: _DishCard(dish: d, onTap: () => onDishTap(d)),
-          )),
+          ...dishes.map(
+            (d) => Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: _DishCard(dish: d, onTap: () => onDishTap(d)),
+            ),
+          ),
         ],
       ),
     );
@@ -310,14 +402,20 @@ class _DishCard extends StatelessWidget {
                       errorBuilder: (_, _, _) => Container(
                         color: AppTheme.card,
                         child: const Center(
-                          child: Icon(CupertinoIcons.photo, color: AppTheme.textTertiary, size: 32),
+                          child: Icon(
+                            CupertinoIcons.photo,
+                            color: AppTheme.textTertiary,
+                            size: 32,
+                          ),
                         ),
                       ),
                     ),
                   ),
                   // Gradient overlay at bottom of image
                   Positioned(
-                    bottom: 0, left: 0, right: 0,
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
                     child: Container(
                       height: 40,
                       decoration: BoxDecoration(
@@ -335,13 +433,20 @@ class _DishCard extends StatelessWidget {
                   // Tags on image
                   if (dish.isVegan || dish.isVegetarian)
                     Positioned(
-                      top: 10, left: 10,
+                      top: 10,
+                      left: 10,
                       child: Row(
                         children: [
                           if (dish.isVegan)
-                            _FloatingTag(label: 'Vegan', color: AppTheme.success),
+                            _FloatingTag(
+                              label: 'Vegan',
+                              color: AppTheme.success,
+                            ),
                           if (dish.isVegetarian && !dish.isVegan)
-                            _FloatingTag(label: 'Vegetarisch', color: AppTheme.tint),
+                            _FloatingTag(
+                              label: 'Vegetarisch',
+                              color: AppTheme.tint,
+                            ),
                         ],
                       ),
                     ),
@@ -367,8 +472,11 @@ class _DishCard extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(width: 8),
-                      Icon(CupertinoIcons.chevron_right,
-                          size: 14, color: AppTheme.textTertiary.withValues(alpha: 0.6)),
+                      Icon(
+                        CupertinoIcons.chevron_right,
+                        size: 14,
+                        color: AppTheme.textTertiary.withValues(alpha: 0.6),
+                      ),
                     ],
                   ),
 
@@ -376,7 +484,10 @@ class _DishCard extends StatelessWidget {
                     const SizedBox(height: 4),
                     Text(
                       dish.category,
-                      style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary),
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: AppTheme.textSecondary,
+                      ),
                     ),
                   ],
 
@@ -387,29 +498,34 @@ class _DishCard extends StatelessWidget {
                       children: [
                         if (dish.calories > 0)
                           _NutritionChip(
-                              icon: CupertinoIcons.flame_fill,
-                              value: '${dish.calories} kcal',
-                              color: AppTheme.orange),
+                            icon: CupertinoIcons.flame_fill,
+                            value: '${dish.calories} kcal',
+                            color: AppTheme.orange,
+                          ),
                         if (dish.protein > 0) ...[
                           const SizedBox(width: 6),
                           _NutritionChip(
-                              icon: CupertinoIcons.bolt_fill,
-                              value: '${dish.protein.toStringAsFixed(0)}g Protein',
-                              color: AppTheme.accent),
+                            icon: CupertinoIcons.bolt_fill,
+                            value:
+                                '${dish.protein.toStringAsFixed(0)}g Protein',
+                            color: AppTheme.accent,
+                          ),
                         ],
                         if (dish.fat > 0) ...[
                           const SizedBox(width: 6),
                           _NutritionChip(
-                              icon: CupertinoIcons.drop_fill,
-                              value: '${dish.fat.toStringAsFixed(0)}g Fett',
-                              color: AppTheme.warning),
+                            icon: CupertinoIcons.drop_fill,
+                            value: '${dish.fat.toStringAsFixed(0)}g Fett',
+                            color: AppTheme.warning,
+                          ),
                         ],
                       ],
                     ),
                   ],
 
                   // Tags if no image
-                  if (!dish.hasImage && (dish.isVegan || dish.isVegetarian)) ...[
+                  if (!dish.hasImage &&
+                      (dish.isVegan || dish.isVegetarian)) ...[
                     const SizedBox(height: 8),
                     Row(
                       children: [
@@ -453,7 +569,8 @@ class _DishDetailSheet extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.only(top: 8, bottom: 4),
             child: Container(
-              width: 36, height: 5,
+              width: 36,
+              height: 5,
               decoration: BoxDecoration(
                 color: AppTheme.textTertiary.withValues(alpha: 0.4),
                 borderRadius: BorderRadius.circular(3),
@@ -480,8 +597,11 @@ class _DishDetailSheet extends StatelessWidget {
                           errorBuilder: (_, _, _) => Container(
                             color: AppTheme.card,
                             child: const Center(
-                              child: Icon(CupertinoIcons.photo,
-                                  color: AppTheme.textTertiary, size: 40),
+                              child: Icon(
+                                CupertinoIcons.photo,
+                                color: AppTheme.textTertiary,
+                                size: 40,
+                              ),
                             ),
                           ),
                         ),
@@ -497,11 +617,17 @@ class _DishDetailSheet extends StatelessWidget {
                       child: Row(
                         children: [
                           if (dish.isVegan)
-                            _DetailTag(label: 'Vegan', color: AppTheme.success,
-                                icon: CupertinoIcons.leaf_arrow_circlepath),
+                            _DetailTag(
+                              label: 'Vegan',
+                              color: AppTheme.success,
+                              icon: CupertinoIcons.leaf_arrow_circlepath,
+                            ),
                           if (dish.isVegetarian && !dish.isVegan)
-                            _DetailTag(label: 'Vegetarisch', color: AppTheme.tint,
-                                icon: CupertinoIcons.leaf_arrow_circlepath),
+                            _DetailTag(
+                              label: 'Vegetarisch',
+                              color: AppTheme.tint,
+                              icon: CupertinoIcons.leaf_arrow_circlepath,
+                            ),
                         ],
                       ),
                     ),
@@ -521,7 +647,10 @@ class _DishDetailSheet extends StatelessWidget {
                     const SizedBox(height: 4),
                     Text(
                       dish.category,
-                      style: const TextStyle(fontSize: 15, color: AppTheme.textSecondary),
+                      style: const TextStyle(
+                        fontSize: 15,
+                        color: AppTheme.textSecondary,
+                      ),
                     ),
                   ],
 
@@ -540,12 +669,20 @@ class _DishDetailSheet extends StatelessWidget {
                         children: [
                           const Row(
                             children: [
-                              Icon(CupertinoIcons.text_quote,
-                                  size: 14, color: AppTheme.textSecondary),
+                              Icon(
+                                CupertinoIcons.text_quote,
+                                size: 14,
+                                color: AppTheme.textSecondary,
+                              ),
                               SizedBox(width: 6),
-                              Text('Beschreibung',
-                                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
-                                      color: AppTheme.textSecondary)),
+                              Text(
+                                'Beschreibung',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppTheme.textSecondary,
+                                ),
+                              ),
                             ],
                           ),
                           const SizedBox(height: 8),
@@ -565,9 +702,14 @@ class _DishDetailSheet extends StatelessWidget {
                   // ── Nutrition Section ──
                   if (dish.hasNutrition) ...[
                     const SizedBox(height: 20),
-                    const Text('Nährwerte',
-                        style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700,
-                            color: AppTheme.textPrimary)),
+                    const Text(
+                      'Nährwerte',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w700,
+                        color: AppTheme.textPrimary,
+                      ),
+                    ),
                     const SizedBox(height: 12),
 
                     // Main nutrition cards
@@ -595,7 +737,8 @@ class _DishDetailSheet extends StatelessWidget {
                               color: AppTheme.accent,
                             ),
                           ),
-                        if ((dish.calories > 0 || dish.protein > 0) && dish.fat > 0)
+                        if ((dish.calories > 0 || dish.protein > 0) &&
+                            dish.fat > 0)
                           const SizedBox(width: 10),
                         if (dish.fat > 0)
                           Expanded(
@@ -611,7 +754,9 @@ class _DishDetailSheet extends StatelessWidget {
                     ),
 
                     // Nutrition bar visual
-                    if (dish.calories > 0 && dish.protein > 0 && dish.fat > 0) ...[
+                    if (dish.calories > 0 &&
+                        dish.protein > 0 &&
+                        dish.fat > 0) ...[
                       const SizedBox(height: 16),
                       _NutritionBar(dish: dish),
                     ],
@@ -620,24 +765,45 @@ class _DishDetailSheet extends StatelessWidget {
                   // ── Allergens ──
                   if (dish.allergens.isNotEmpty) ...[
                     const SizedBox(height: 20),
-                    const Text('Allergene',
-                        style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700,
-                            color: AppTheme.textPrimary)),
+                    const Text(
+                      'Allergene',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w700,
+                        color: AppTheme.textPrimary,
+                      ),
+                    ),
                     const SizedBox(height: 10),
                     Wrap(
                       spacing: 6,
                       runSpacing: 6,
-                      children: dish.allergens.map((a) => Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: AppTheme.danger.withValues(alpha: 0.08),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: AppTheme.danger.withValues(alpha: 0.15)),
-                        ),
-                        child: Text(a,
-                            style: const TextStyle(fontSize: 13, color: AppTheme.danger,
-                                fontWeight: FontWeight.w500)),
-                      )).toList(),
+                      children: dish.allergens
+                          .map(
+                            (a) => Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 6,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppTheme.danger.withValues(alpha: 0.08),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                  color: AppTheme.danger.withValues(
+                                    alpha: 0.15,
+                                  ),
+                                ),
+                              ),
+                              child: Text(
+                                a,
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  color: AppTheme.danger,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                          )
+                          .toList(),
                     ),
                   ],
 
@@ -650,15 +816,25 @@ class _DishDetailSheet extends StatelessWidget {
                       decoration: BoxDecoration(
                         color: AppTheme.accent.withValues(alpha: 0.08),
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: AppTheme.accent.withValues(alpha: 0.15)),
+                        border: Border.all(
+                          color: AppTheme.accent.withValues(alpha: 0.15),
+                        ),
                       ),
                       child: Row(
                         children: [
-                          Icon(CupertinoIcons.tag_fill,
-                              size: 18, color: AppTheme.accent.withValues(alpha: 0.7)),
+                          Icon(
+                            CupertinoIcons.tag_fill,
+                            size: 18,
+                            color: AppTheme.accent.withValues(alpha: 0.7),
+                          ),
                           const SizedBox(width: 10),
-                          const Text('Preis',
-                              style: TextStyle(fontSize: 15, color: AppTheme.textSecondary)),
+                          const Text(
+                            'Preis',
+                            style: TextStyle(
+                              fontSize: 15,
+                              color: AppTheme.textSecondary,
+                            ),
+                          ),
                           const Spacer(),
                           Text(
                             '\u20AC ${dish.price.toStringAsFixed(2)}',
@@ -717,18 +893,31 @@ class _NutritionCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.baseline,
             textBaseline: TextBaseline.alphabetic,
             children: [
-              Text(value,
-                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700,
-                      color: color, fontFeatures: const [FontFeature.tabularFigures()])),
+              Text(
+                value,
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.w700,
+                  color: color,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                ),
+              ),
               const SizedBox(width: 2),
-              Text(unit,
-                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500,
-                      color: color.withValues(alpha: 0.7))),
+              Text(
+                unit,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                  color: color.withValues(alpha: 0.7),
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 2),
-          Text(label,
-              style: const TextStyle(fontSize: 12, color: AppTheme.textTertiary)),
+          Text(
+            label,
+            style: const TextStyle(fontSize: 12, color: AppTheme.textTertiary),
+          ),
         ],
       ),
     );
@@ -746,7 +935,10 @@ class _NutritionBar extends StatelessWidget {
     // Estimate carbs from calories (approximate)
     final proteinCal = dish.protein * 4;
     final fatCal = dish.fat * 9;
-    final carbsCal = (dish.calories - proteinCal - fatCal).clamp(0, dish.calories.toDouble());
+    final carbsCal = (dish.calories - proteinCal - fatCal).clamp(
+      0,
+      dish.calories.toDouble(),
+    );
     final total = proteinCal + fatCal + carbsCal;
     if (total <= 0) return const SizedBox.shrink();
 
@@ -763,9 +955,14 @@ class _NutritionBar extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Makroverteilung',
-              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
-                  color: AppTheme.textSecondary)),
+          const Text(
+            'Makroverteilung',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: AppTheme.textSecondary,
+            ),
+          ),
           const SizedBox(height: 10),
           // Bar
           ClipRRect(
@@ -798,17 +995,20 @@ class _NutritionBar extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
               _MacroLegend(
-                  color: AppTheme.accent,
-                  label: 'Protein',
-                  value: '${(proteinFrac * 100).round()}%'),
+                color: AppTheme.accent,
+                label: 'Protein',
+                value: '${(proteinFrac * 100).round()}%',
+              ),
               _MacroLegend(
-                  color: AppTheme.warning,
-                  label: 'Fett',
-                  value: '${(fatFrac * 100).round()}%'),
+                color: AppTheme.warning,
+                label: 'Fett',
+                value: '${(fatFrac * 100).round()}%',
+              ),
               _MacroLegend(
-                  color: AppTheme.success,
-                  label: 'Kohlenhydrate',
-                  value: '${(carbsFrac * 100).round()}%'),
+                color: AppTheme.success,
+                label: 'Kohlenhydrate',
+                value: '${(carbsFrac * 100).round()}%',
+              ),
             ],
           ),
         ],
@@ -821,7 +1021,11 @@ class _MacroLegend extends StatelessWidget {
   final Color color;
   final String label;
   final String value;
-  const _MacroLegend({required this.color, required this.label, required this.value});
+  const _MacroLegend({
+    required this.color,
+    required this.label,
+    required this.value,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -829,15 +1033,18 @@ class _MacroLegend extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         Container(
-          width: 8, height: 8,
+          width: 8,
+          height: 8,
           decoration: BoxDecoration(
             color: color,
             borderRadius: BorderRadius.circular(2),
           ),
         ),
         const SizedBox(width: 5),
-        Text('$label $value',
-            style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary)),
+        Text(
+          '$label $value',
+          style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary),
+        ),
       ],
     );
   }
@@ -862,8 +1069,14 @@ class _FloatingTag extends StatelessWidget {
             color: color.withValues(alpha: 0.25),
             borderRadius: BorderRadius.circular(7),
           ),
-          child: Text(label,
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: color)),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: color,
+            ),
+          ),
         ),
       ),
     );
@@ -874,7 +1087,11 @@ class _NutritionChip extends StatelessWidget {
   final IconData icon;
   final String value;
   final Color color;
-  const _NutritionChip({required this.icon, required this.value, required this.color});
+  const _NutritionChip({
+    required this.icon,
+    required this.value,
+    required this.color,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -889,7 +1106,14 @@ class _NutritionChip extends StatelessWidget {
         children: [
           Icon(icon, size: 11, color: color),
           const SizedBox(width: 4),
-          Text(value, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: color)),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+              color: color,
+            ),
+          ),
         ],
       ),
     );
@@ -910,8 +1134,14 @@ class _TagBadge extends StatelessWidget {
         color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(6),
       ),
-      child: Text(label,
-          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: color)),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          color: color,
+        ),
+      ),
     );
   }
 }
@@ -920,7 +1150,11 @@ class _DetailTag extends StatelessWidget {
   final String label;
   final Color color;
   final IconData icon;
-  const _DetailTag({required this.label, required this.color, required this.icon});
+  const _DetailTag({
+    required this.label,
+    required this.color,
+    required this.icon,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -936,8 +1170,14 @@ class _DetailTag extends StatelessWidget {
         children: [
           Icon(icon, size: 13, color: color),
           const SizedBox(width: 5),
-          Text(label,
-              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: color)),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: color,
+            ),
+          ),
         ],
       ),
     );
