@@ -104,10 +104,14 @@ class _SplashScreenState extends State<SplashScreen>
                   ),
                   borderRadius: BorderRadius.circular(20),
                 ),
-                child: const Icon(
-                  CupertinoIcons.book_fill,
-                  color: Colors.white,
-                  size: 36,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(20),
+                  child: Image.asset(
+                    'assets/icons/POKYH_icon.png',
+                    width: 48,
+                    height: 48,
+                    fit: BoxFit.contain,
+                  ),
                 ),
               ),
               const SizedBox(height: 20),

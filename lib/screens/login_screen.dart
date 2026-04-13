@@ -518,10 +518,14 @@ class _LoginScreenState extends State<LoginScreen>
               ),
               borderRadius: BorderRadius.circular(18),
             ),
-            child: const Icon(
-              CupertinoIcons.book_fill,
-              color: Colors.white,
-              size: 32,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(18),
+              child: Image.asset(
+                'assets/icons/POKYH_icon.png',
+                width: 40,
+                height: 40,
+                fit: BoxFit.contain,
+              ),
             ),
           ),
           const SizedBox(height: 12),
