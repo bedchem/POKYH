@@ -33,14 +33,14 @@ class AppTheme {
   static const Color tint = Color(0xFF30D158);
   static const Color success = Color(0xFF30D158);
   static const Color warning = Color(0xFFFFD60A);
-  static const Color danger = Color(0xFFFF453A);
+  static const Color danger = Color.fromARGB(255, 255, 13, 0);
   static const Color orange = Color(0xFFFF9F0A);
 
   // ── Lesson colors ──────────────────────────────────────────────────────
   static const Map<String, Color> _subjectColorMap = {
     'D': Color(0xFF5AA0E8),
     'M': Color(0xFF4ED87A),
-    'IT': Color.fromARGB(255, 255, 0, 242),
+    'IT': Color.fromARGB(255, 231, 59, 223),
     'Bew.Sport': Color(0xFFAA8EE0),
     'ENGL': Color(0xFF3DC4CE),
     'R': Color(0xFFE8B84A),
