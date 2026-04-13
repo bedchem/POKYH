@@ -60,6 +60,14 @@ flutter build apk --release
 ### iOS (IPA)
 
 ```bash
+cd ~/Downloads/POKYH
+
+flutter clean
+
+flutter build ios --release
+
+
+
 cd ~/Downloads
 
 rm -rf Payload Runner.ipa
