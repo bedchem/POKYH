@@ -45,6 +45,10 @@ class _LoginScreenState extends State<LoginScreen>
   late final AnimationController _anim;
   late final Animation<double> _fade;
 
+  // PageView Controller for swiping
+  final PageController _pageController = PageController();
+  int _currentPage = 0;
+
   // ──────────────────────────────────────────────────────────────────────────
   // PLATTFORM-HELPER
   // ──────────────────────────────────────────────────────────────────────────
@@ -71,6 +75,17 @@ class _LoginScreenState extends State<LoginScreen>
     try {
       await _loadSavedAccounts();
       await _detectBiometrics();
+      // Automatischer biometrischer Login, wenn genau ein Account vorhanden ist
+      if (_savedAccounts.length == 1 && _hasAnyBiometric) {
+        final onlyAccount = _savedAccounts.first;
+        // Nicht automatisch, wenn gesperrt
+        if (!_isLockedOut(onlyAccount.username)) {
+          // Leicht verzögern, damit Build fertig ist
+          Future.delayed(const Duration(milliseconds: 300), () {
+            if (mounted) _biometricLogin(onlyAccount);
+          });
+        }
+      }
     } catch (_) {}
   }
 
@@ -81,14 +96,12 @@ class _LoginScreenState extends State<LoginScreen>
     _passCtrl.dispose();
     _focusUser.dispose();
     _focusPass.dispose();
+    _pageController.dispose();
     super.dispose();
   }
 
   // ──────────────────────────────────────────────────────────────────────────
   // BIOMETRIE ERKENNEN
-  // iOS:     BiometricType.face / BiometricType.fingerprint
-  // Android: BiometricType.fingerprint / BiometricType.strong (API 30+)
-  //          / BiometricType.weak / BiometricType.iris (Samsung)
   // ──────────────────────────────────────────────────────────────────────────
 
   Future<void> _detectBiometrics() async {
@@ -106,16 +119,14 @@ class _LoginScreenState extends State<LoginScreen>
     }
   }
 
-  // Face ID (iOS) oder Gesichtserkennung (Android – z. B. BiometricType.face)
   bool get _hasFaceId =>
       _availableBiometrics.contains(BiometricType.face) ||
-      _availableBiometrics.contains(BiometricType.iris); // Samsung iris
+      _availableBiometrics.contains(BiometricType.iris);
 
-  // Fingerabdruck auf iOS & Android (fingerprint, strong, weak)
   bool get _hasFingerprint =>
       _availableBiometrics.contains(BiometricType.fingerprint) ||
-      _availableBiometrics.contains(BiometricType.strong) || // Android API 30+
-      _availableBiometrics.contains(BiometricType.weak); // Android API 30+
+      _availableBiometrics.contains(BiometricType.strong) ||
+      _availableBiometrics.contains(BiometricType.weak);
 
   bool get _hasAnyBiometric => _hasFaceId || _hasFingerprint;
 
@@ -127,7 +138,6 @@ class _LoginScreenState extends State<LoginScreen>
 
   String get _bestBiometricLabel {
     if (_hasFaceId) {
-      // Auf Android heißt es i. d. R. "Gesichtserkennung", auf iOS "Face ID"
       return Platform.isIOS ? 'Face ID' : 'Gesichtserkennung';
     }
     if (_hasFingerprint) {
@@ -176,17 +186,12 @@ class _LoginScreenState extends State<LoginScreen>
 
   // ──────────────────────────────────────────────────────────────────────────
   // BIOMETRISCHER LOGIN
-  // iOS:     LAContext → Face ID / Touch ID → Passcode-Fallback
-  // Android: BiometricPrompt → Geräte-PIN-Fallback
-  //          WICHTIG: useErrorDialogs muss auf Android true sein,
-  //          sonst erscheint der BiometricPrompt nie.
   // ──────────────────────────────────────────────────────────────────────────
 
   Future<void> _biometricLogin(SavedAccount account) async {
     if (_loading) return;
     if (!mounted) return;
 
-    // Lockout-Prüfung
     if (_isLockedOut(account.username)) {
       _setError(_lockoutMessage(account.username));
       return;
@@ -198,7 +203,6 @@ class _LoginScreenState extends State<LoginScreen>
     });
 
     try {
-      // 1. Prüfen ob Biometrie grundsätzlich möglich ist
       bool canCheck = false;
       try {
         canCheck = await _localAuth.canCheckBiometrics;
@@ -211,7 +215,6 @@ class _LoginScreenState extends State<LoginScreen>
         return;
       }
 
-      // 2. Geräte-Unterstützung prüfen
       bool isSupported = false;
       try {
         isSupported = await _localAuth.isDeviceSupported();
@@ -226,9 +229,6 @@ class _LoginScreenState extends State<LoginScreen>
 
       bool authenticated = false;
 
-      // 3. Primär: Biometrie (biometricOnly = true)
-      //    iOS:     Face ID / Touch ID – useErrorDialogs false (System übernimmt)
-      //    Android: BiometricPrompt    – useErrorDialogs true  (Plugin übernimmt)
       if (_hasAnyBiometric) {
         try {
           authenticated = await _localAuth.authenticate(
@@ -236,47 +236,13 @@ class _LoginScreenState extends State<LoginScreen>
             options: AuthenticationOptions(
               biometricOnly: true,
               stickyAuth: true,
-              useErrorDialogs: _useErrorDialogs, // false=iOS, true=Android
+              useErrorDialogs: _useErrorDialogs,
               sensitiveTransaction: true,
             ),
           );
         } catch (e) {
-          // Nutzer hat abgebrochen oder Sensorfehler →
-          // nur bei echtem Sensorfehler zum PIN-Fallback springen,
-          // bei Abbruch direkt beenden.
-          if (!_isSensorError(e.toString())) {
-            if (mounted) setState(() => _loading = false);
-            return;
-          }
-          // Bei Sensorfehler: weiter zum Fallback unten
-        }
-      }
-
-      // 4. Fallback: Geräte-PIN / Passcode
-      //    Wird nur erreicht wenn Biometrie fehlschlug (Sensorfehler) oder
-      //    gar kein biometrisches Merkmal vorhanden ist.
-      if (!authenticated) {
-        _recordFailedAttempt(account.username);
-
-        if (_isLockedOut(account.username)) {
-          _setError(_lockoutMessage(account.username));
-          return;
-        }
-
-        try {
-          authenticated = await _localAuth.authenticate(
-            localizedReason: Platform.isAndroid
-                ? 'Bitte Geräte-PIN oder Muster eingeben'
-                : 'Bitte Passcode eingeben',
-            options: AuthenticationOptions(
-              biometricOnly: false, // erlaubt PIN/Passcode
-              stickyAuth: true,
-              useErrorDialogs: _useErrorDialogs, // false=iOS, true=Android
-              sensitiveTransaction: true,
-            ),
-          );
-        } catch (e) {
-          if (mounted) _setError(_friendlyBiometricError(e.toString()));
+          // Bei Abbruch oder Fehler - keinen Fehler anzeigen, einfach zurück
+          if (mounted) setState(() => _loading = false);
           return;
         }
       }
@@ -286,7 +252,6 @@ class _LoginScreenState extends State<LoginScreen>
         return;
       }
 
-      // 5. Passwort aus Secure Storage holen
       String? password;
       try {
         password = await _credService.getPassword(account.username);
@@ -301,7 +266,6 @@ class _LoginScreenState extends State<LoginScreen>
         return;
       }
 
-      // 6. Server-Login
       bool ok = false;
       try {
         ok = await _service.login(account.username, password);
@@ -329,19 +293,6 @@ class _LoginScreenState extends State<LoginScreen>
     }
   }
 
-  /// Gibt true zurück wenn der Fehler ein Hardware-/Sensor-Problem ist
-  /// (kein Nutzerabbruch) → dann PIN-Fallback sinnvoll.
-  bool _isSensorError(String msg) {
-    return msg.contains('NotEnrolled') ||
-        msg.contains('NotAvailable') ||
-        msg.contains('PasscodeNotSet') ||
-        msg.contains('PermanentlyLockedOut') ||
-        msg.contains('LockedOut') ||
-        msg.contains('HardwareUnavailable') || // Android spezifisch
-        msg.contains('BiometricUnavailable') || // Android spezifisch
-        msg.contains('NoBiometrics'); // Android spezifisch
-  }
-
   String _biometricReason(String username) {
     if (_hasFaceId) {
       final label = Platform.isIOS ? 'Face ID' : 'Gesichtserkennung';
@@ -349,22 +300,6 @@ class _LoginScreenState extends State<LoginScreen>
     }
     if (_hasFingerprint) return 'Fingerabdruck: Als $username anmelden';
     return 'Biometrie: Als $username anmelden';
-  }
-
-  String _friendlyBiometricError(String msg) {
-    if (msg.contains('NotEnrolled') || msg.contains('NoBiometrics')) {
-      return 'Keine Biometrie eingerichtet.';
-    }
-    if (msg.contains('NotAvailable') ||
-        msg.contains('HardwareUnavailable') ||
-        msg.contains('BiometricUnavailable')) {
-      return 'Biometrie nicht verfügbar.';
-    }
-    if (msg.contains('LockedOut') || msg.contains('PermanentlyLockedOut')) {
-      return 'Biometrie gesperrt. Bitte PIN nutzen.';
-    }
-    if (msg.contains('PasscodeNotSet')) return 'Kein Geräte-PIN eingerichtet.';
-    return 'Authentifizierung fehlgeschlagen.';
   }
 
   // ──────────────────────────────────────────────────────────────────────────
@@ -469,6 +404,20 @@ class _LoginScreenState extends State<LoginScreen>
   Color _withAlpha(Color color, double alpha) =>
       color.withOpacity(alpha.clamp(0.0, 1.0));
 
+  void _goToManualLogin() {
+    _pageController.nextPage(
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
+    );
+  }
+
+  void _goBackToAccounts() {
+    _pageController.previousPage(
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
+    );
+  }
+
   // ──────────────────────────────────────────────────────────────────────────
   // UI
   // ──────────────────────────────────────────────────────────────────────────
@@ -477,199 +426,305 @@ class _LoginScreenState extends State<LoginScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppTheme.bg,
+      resizeToAvoidBottomInset: true,
       body: SafeArea(
         child: FadeTransition(
           opacity: _fade,
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                SizedBox(height: MediaQuery.of(context).size.height * 0.10),
-                _buildLogo(),
-                const SizedBox(height: 20),
-                const Center(
-                  child: Text(
-                    'POKYH',
-                    style: TextStyle(
-                      fontSize: 32,
-                      fontWeight: FontWeight.w700,
-                      color: AppTheme.textPrimary,
-                      letterSpacing: -0.5,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 500),
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.symmetric(vertical: 32),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _buildHeader(),
+                        SizedBox(
+                          height: 420,
+                          child: PageView(
+                            controller: _pageController,
+                            physics: const NeverScrollableScrollPhysics(),
+                            onPageChanged: (page) {
+                              setState(() {
+                                _currentPage = page;
+                              });
+                            },
+                            children: [
+                              _buildSavedAccountsPage(),
+                              _buildManualLoginPage(),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
-                const SizedBox(height: 6),
-                Center(
-                  child: Text(
-                    'Einmal drin, nie mehr ohne.',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: AppTheme.textSecondary,
-                      letterSpacing: 0.3,
-                    ),
-                  ),
-                ),
-                SizedBox(height: MediaQuery.of(context).size.height * 0.06),
-
-                // Gespeicherte Konten
-                if (_savedAccounts.isNotEmpty) ...[
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 10),
-                    child: Text(
-                      'Gespeicherte Konten',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: AppTheme.textTertiary,
+              ),
+              // Back button ganz oben im Stack, volle Touch-Fläche
+              if (_currentPage == 1)
+                Positioned(
+                  top: 12,
+                  left: 8,
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(14),
+                      onTap: _goBackToAccounts,
+                      child: Container(
+                        width: 48,
+                        height: 48,
+                        alignment: Alignment.center,
+                        child: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: AppTheme.surface,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Icon(
+                            CupertinoIcons.back,
+                            color: AppTheme.textPrimary,
+                            size: 20,
+                          ),
+                        ),
                       ),
                     ),
                   ),
-                  for (final account in _savedAccounts)
-                    _SavedAccountTile(
-                      account: account,
-                      biometricIcon: _bestBiometricIcon,
-                      biometricLabel: _bestBiometricLabel,
-                      hasFaceId: _hasFaceId,
-                      hasFingerprint: _hasFingerprint,
-                      loading: _loading,
-                      failedAttempts: _failedAttempts[account.username] ?? 0,
-                      maxAttempts: _kMaxBiometricAttempts,
-                      isLockedOut: _isLockedOut(account.username),
-                      onTap: () => _biometricLogin(account),
-                      onRemove: () => _removeAccount(account),
-                      withAlpha: _withAlpha,
-                    ),
-                  const SizedBox(height: 20),
-                  _buildDividerWithText('oder manuell anmelden'),
-                  const SizedBox(height: 20),
-                ] else
-                  SizedBox(height: MediaQuery.of(context).size.height * 0.02),
-
-                // Eingabefelder
-                _buildField(
-                  controller: _userCtrl,
-                  placeholder: 'Username',
-                  icon: CupertinoIcons.person_fill,
-                  focusNode: _focusUser,
-                  textAction: TextInputAction.next,
-                  onSubmit: (_) => _focusPass.requestFocus(),
-                  autocorrect: false,
-                  autocapitalize: TextCapitalization.none,
                 ),
-                const SizedBox(height: 12),
-                _buildField(
-                  controller: _passCtrl,
-                  placeholder: 'Password',
-                  icon: CupertinoIcons.lock_fill,
-                  obscure: _obscure,
-                  focusNode: _focusPass,
-                  textAction: TextInputAction.done,
-                  onSubmit: (_) => _login(),
-                  autocorrect: false,
-                  autocapitalize: TextCapitalization.none,
-                  suffix: GestureDetector(
-                    onTap: () => setState(() => _obscure = !_obscure),
-                    child: Icon(
-                      _obscure
-                          ? CupertinoIcons.eye_slash_fill
-                          : CupertinoIcons.eye_fill,
-                      color: AppTheme.textTertiary,
-                      size: 18,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 14),
-
-                // Checkbox
-                _SaveLoginCheckbox(
-                  value: _saveLogin,
-                  hasFaceId: _hasFaceId,
-                  hasFingerprint: _hasFingerprint,
-                  onChanged: (v) => setState(() => _saveLogin = v),
-                  withAlpha: _withAlpha,
-                ),
-
-                // Fehleranzeige
-                AnimatedSize(
-                  duration: const Duration(milliseconds: 200),
-                  curve: Curves.easeOut,
-                  child: _error != null
-                      ? Padding(
-                          padding: const EdgeInsets.only(top: 16),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 14,
-                              vertical: 10,
-                            ),
-                            decoration: BoxDecoration(
-                              color: _withAlpha(AppTheme.danger, 0.1),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Row(
-                              children: [
-                                const Icon(
-                                  CupertinoIcons.exclamationmark_circle_fill,
-                                  color: AppTheme.danger,
-                                  size: 16,
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    _error!,
-                                    style: const TextStyle(
-                                      color: AppTheme.danger,
-                                      fontSize: 13,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        )
-                      : const SizedBox.shrink(),
-                ),
-                const SizedBox(height: 24),
-
-                // Login-Button
-                SizedBox(
-                  width: double.infinity,
-                  height: 52,
-                  child: ElevatedButton(
-                    onPressed: _loading ? null : _login,
-                    child: _loading
-                        ? const CupertinoActivityIndicator(color: Colors.white)
-                        : const Text('Anmelden'),
-                  ),
-                ),
-                const SizedBox(height: 32),
-              ],
-            ),
+            ],
           ),
         ),
       ),
     );
   }
 
-  Widget _buildLogo() {
-    return Center(
-      child: Container(
-        width: 72,
-        height: 72,
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [AppTheme.accent, AppTheme.accentSoft],
+  Widget _buildHeader() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 72,
+            height: 72,
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [AppTheme.accent, AppTheme.accentSoft],
+              ),
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: const Icon(
+              CupertinoIcons.book_fill,
+              color: Colors.white,
+              size: 32,
+            ),
           ),
-          borderRadius: BorderRadius.circular(18),
-        ),
-        child: const Icon(
-          CupertinoIcons.book_fill,
-          color: Colors.white,
-          size: 32,
-        ),
+          const SizedBox(height: 12),
+          const Text(
+            'POKYH',
+            style: TextStyle(
+              fontSize: 32,
+              fontWeight: FontWeight.w700,
+              color: AppTheme.textPrimary,
+              letterSpacing: -0.5,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            _currentPage == 0
+                ? 'Einmal drin, nie mehr ohne.'
+                : 'Manuelle Anmeldung',
+            style: TextStyle(
+              fontSize: 14,
+              color: AppTheme.textSecondary,
+              letterSpacing: 0.3,
+            ),
+          ),
+        ],
       ),
+    );
+  }
+
+  Widget _buildSavedAccountsPage() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      child: Column(
+        children: [
+          const SizedBox(height: 20),
+
+          // Saved accounts
+          if (_savedAccounts.isNotEmpty) ...[
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: Text(
+                'Gespeicherte Konten',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: AppTheme.textTertiary,
+                ),
+              ),
+            ),
+            for (final account in _savedAccounts)
+              _SavedAccountTile(
+                account: account,
+                biometricIcon: _bestBiometricIcon,
+                biometricLabel: _bestBiometricLabel,
+                hasFaceId: _hasFaceId,
+                hasFingerprint: _hasFingerprint,
+                loading: _loading,
+                failedAttempts: _failedAttempts[account.username] ?? 0,
+                maxAttempts: _kMaxBiometricAttempts,
+                isLockedOut: _isLockedOut(account.username),
+                onTap: () => _biometricLogin(account),
+                onRemove: () => _removeAccount(account),
+                withAlpha: _withAlpha,
+              ),
+            const SizedBox(height: 20),
+
+            // Divider and manual login button
+            _buildDividerWithText('oder'),
+            const SizedBox(height: 20),
+
+            // Anmelden Button
+            SizedBox(
+              width: double.infinity,
+              height: 52,
+              child: ElevatedButton(
+                onPressed: _goToManualLogin,
+                child: const Text('Manuell anmelden'),
+              ),
+            ),
+          ] else ...[
+            // No saved accounts - show manual login directly
+            const SizedBox(height: 20),
+            _buildManualLoginForm(),
+          ],
+
+          const SizedBox(height: 32),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildManualLoginPage() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      child: Column(
+        children: [
+          const SizedBox(height: 20),
+          _buildManualLoginForm(),
+          const SizedBox(height: 32),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildManualLoginForm() {
+    return Column(
+      children: [
+        // Eingabefelder
+        _buildField(
+          controller: _userCtrl,
+          placeholder: 'Username',
+          icon: CupertinoIcons.person_fill,
+          focusNode: _focusUser,
+          textAction: TextInputAction.next,
+          onSubmit: (_) => _focusPass.requestFocus(),
+          autocorrect: false,
+          autocapitalize: TextCapitalization.none,
+        ),
+        const SizedBox(height: 12),
+        _buildField(
+          controller: _passCtrl,
+          placeholder: 'Password',
+          icon: CupertinoIcons.lock_fill,
+          obscure: _obscure,
+          focusNode: _focusPass,
+          textAction: TextInputAction.done,
+          onSubmit: (_) => _login(),
+          autocorrect: false,
+          autocapitalize: TextCapitalization.none,
+          suffix: GestureDetector(
+            onTap: () => setState(() => _obscure = !_obscure),
+            child: Icon(
+              _obscure
+                  ? CupertinoIcons.eye_slash_fill
+                  : CupertinoIcons.eye_fill,
+              color: AppTheme.textTertiary,
+              size: 18,
+            ),
+          ),
+        ),
+        const SizedBox(height: 14),
+
+        // Checkbox
+        _SaveLoginCheckbox(
+          value: _saveLogin,
+          hasFaceId: _hasFaceId,
+          hasFingerprint: _hasFingerprint,
+          onChanged: (v) => setState(() => _saveLogin = v),
+          withAlpha: _withAlpha,
+        ),
+
+        // Fehleranzeige
+        AnimatedSize(
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOut,
+          child: _error != null
+              ? Padding(
+                  padding: const EdgeInsets.only(top: 16),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
+                      color: _withAlpha(AppTheme.danger, 0.1),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          CupertinoIcons.exclamationmark_circle_fill,
+                          color: AppTheme.danger,
+                          size: 16,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            _error!,
+                            style: const TextStyle(
+                              color: AppTheme.danger,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              : const SizedBox.shrink(),
+        ),
+        const SizedBox(height: 24),
+
+        // Login-Button
+        SizedBox(
+          width: double.infinity,
+          height: 52,
+          child: ElevatedButton(
+            onPressed: _loading ? null : _login,
+            child: _loading
+                ? const CupertinoActivityIndicator(color: Colors.white)
+                : const Text('Anmelden'),
+          ),
+        ),
+      ],
     );
   }
 
@@ -878,12 +933,6 @@ class _SavedAccountTile extends StatelessWidget {
                                 fontSize: 15,
                               ),
                             ),
-                            const SizedBox(height: 3),
-                            _AuthChainRow(
-                              hasFaceId: hasFaceId,
-                              hasFingerprint: hasFingerprint,
-                              withAlpha: withAlpha,
-                            ),
                           ],
                         ),
                       ),
@@ -965,83 +1014,6 @@ class _Avatar extends StatelessWidget {
               ),
             )
           : null,
-    );
-  }
-}
-
-class _AuthChainRow extends StatelessWidget {
-  final bool hasFaceId;
-  final bool hasFingerprint;
-  final Color Function(Color, double) withAlpha;
-
-  const _AuthChainRow({
-    required this.hasFaceId,
-    required this.hasFingerprint,
-    required this.withAlpha,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return const SizedBox.shrink();
-  }
-}
-
-class _Step extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final bool active;
-  final Color Function(Color, double) withAlpha;
-
-  const _Step({
-    required this.icon,
-    required this.label,
-    required this.active,
-    required this.withAlpha,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(
-          icon,
-          size: 11,
-          color: active
-              ? AppTheme.accent
-              : withAlpha(AppTheme.textTertiary, 0.45),
-        ),
-        const SizedBox(width: 2),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 10,
-            color: active
-                ? AppTheme.textSecondary
-                : withAlpha(AppTheme.textTertiary, 0.45),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _Arrow extends StatelessWidget {
-  final Color Function(Color, double) withAlpha;
-
-  const _Arrow({required this.withAlpha});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 3),
-      child: Text(
-        '→',
-        style: TextStyle(
-          fontSize: 10,
-          color: withAlpha(AppTheme.textTertiary, 0.35),
-        ),
-      ),
     );
   }
 }

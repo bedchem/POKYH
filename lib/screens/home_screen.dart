@@ -673,17 +673,9 @@ class _DashboardTabState extends State<_DashboardTab>
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(20, 16, 60, 0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    Text(
-                      '${weekdays[now.weekday - 1]}, ${now.day}. ${months[now.month - 1]}',
-                      style: const TextStyle(
-                        fontSize: 14,
-                        color: AppTheme.textSecondary,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
                     const Text(
                       'Home',
                       style: TextStyle(
@@ -693,12 +685,20 @@ class _DashboardTabState extends State<_DashboardTab>
                         letterSpacing: -0.5,
                       ),
                     ),
+                    const Spacer(),
+                    Text(
+                      '${weekdays[now.weekday - 1]}, ${now.day}. ${months[now.month - 1]}',
+                      textAlign: TextAlign.right,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        color: AppTheme.textSecondary,
+                      ),
+                    ),
                   ],
                 ),
               ),
             ),
 
-            const SliverToBoxAdapter(child: SizedBox(height: 20)),
             // ── Wochen-Übersicht (kompakt) ───────────────────────────────────
             if (!_loadingTimetable && _allWeek.isNotEmpty)
               SliverToBoxAdapter(
@@ -1033,49 +1033,53 @@ class _ExamBanner extends StatelessWidget {
         : CupertinoIcons.calendar_badge_plus;
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(color: color.withValues(alpha: 0.35), width: 1),
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 15, color: color),
-          const SizedBox(width: 8),
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Icon(icon, size: 22, color: color),
+          ),
+          const SizedBox(width: 14),
           Expanded(
-            child: RichText(
-              overflow: TextOverflow.ellipsis,
-              text: TextSpan(
-                children: [
-                  TextSpan(
-                    text: exam.isToday
-                        ? 'Prüfung heute: '
-                        : 'Nächste Prüfung: ',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                      color: color.withValues(alpha: 0.75),
-                    ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  exam.isToday ? 'Prüfung heute' : 'Nächste Prüfung',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: color.withValues(alpha: 0.85),
                   ),
-                  TextSpan(
-                    text: exam.entry.displayName,
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: color,
-                    ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  exam.entry.displayName,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: color,
                   ),
-                  TextSpan(
-                    text: '  ${exam.label}',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                      color: color.withValues(alpha: 0.65),
-                    ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  exam.label,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: color.withValues(alpha: 0.65),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ],
