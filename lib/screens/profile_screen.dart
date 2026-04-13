@@ -20,20 +20,11 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  // ── Settings State ────────────────────────────────────────────────────────
-  bool _compactTimetable = false;
-  bool _showCancelledLessons = true;
-  bool _highlightFreePeriods = true;
-  bool _subjectColors = true;
-  bool _autoRefresh = true;
-  bool _notifyChanges = false;
-  bool _notifyMorning = false;
-  String _reminderTime = '07:30';
-  String _language = 'de';
-  String _themeMode = 'system'; // 'light' | 'dark' | 'system'
-
-  // ── Cache State ───────────────────────────────────────────────────────────
   bool _clearingCache = false;
+
+  // Einstellungen (nur Theme & Sprache)
+  String _themeMode = 'system';   // 'light' | 'dark' | 'system'
+  String _language = 'de';        // 'de' | 'it' | 'en'
 
   @override
   void initState() {
@@ -41,21 +32,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _loadSettings();
   }
 
-  // ── Persistence ───────────────────────────────────────────────────────────
-
   Future<void> _loadSettings() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
-      _compactTimetable = prefs.getBool('compactTimetable') ?? false;
-      _showCancelledLessons = prefs.getBool('showCancelledLessons') ?? true;
-      _highlightFreePeriods = prefs.getBool('highlightFreePeriods') ?? true;
-      _subjectColors = prefs.getBool('subjectColors') ?? true;
-      _autoRefresh = prefs.getBool('autoRefresh') ?? true;
-      _notifyChanges = prefs.getBool('notifyChanges') ?? false;
-      _notifyMorning = prefs.getBool('notifyMorning') ?? false;
-      _reminderTime = prefs.getString('reminderTime') ?? '07:30';
-      _language = prefs.getString('language') ?? 'de';
       _themeMode = prefs.getString('themeMode') ?? 'system';
+      _language = prefs.getString('language') ?? 'de';
     });
   }
 
@@ -65,8 +46,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (value is String) await prefs.setString(key, value);
   }
 
-  // ── Actions ───────────────────────────────────────────────────────────────
-
+  // ──────────────────────────────────────────────────────────────────────────
+  // Logout
+  // ──────────────────────────────────────────────────────────────────────────
   void _confirmLogout() {
     showCupertinoDialog(
       context: context,
@@ -93,19 +75,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  // ──────────────────────────────────────────────────────────────────────────
+  // Cache leeren
+  // ──────────────────────────────────────────────────────────────────────────
   Future<void> _clearCache() async {
     setState(() => _clearingCache = true);
     try {
-      // Hinweis: Falls WebUntisService eine clearCache()-Methode besitzt,
-      // kann diese hier aufgerufen werden. Andernfalls nur SharedPreferences leeren.
-      // await widget.service.clearCache();
-
-      // Mensa-Cache aus SharedPreferences entfernen
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove('mensa_cache');
-      await Future.delayed(const Duration(milliseconds: 600)); // UX pause
+      await Future.delayed(const Duration(milliseconds: 400));
       if (!mounted) return;
-      _showToast('Cache geleert ✓');
+      _showToast('Cache geleert');
     } catch (_) {
       if (mounted) _showToast('Fehler beim Leeren');
     } finally {
@@ -132,6 +112,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _showToast('ID kopiert: $id');
   }
 
+  // ──────────────────────────────────────────────────────────────────────────
+  // Feedback per E‑Mail
+  // ──────────────────────────────────────────────────────────────────────────
   Future<void> _sendFeedback() async {
     final uri = Uri(
       scheme: 'mailto',
@@ -141,27 +124,61 @@ class _ProfileScreenState extends State<ProfileScreen> {
         'body': '\n\n---\nVersion: 1.0.0\nSchule: LBS Brixen',
       },
     );
-    // Verwende canLaunch / launch für Kompatibilität mit älteren url_launcher Versionen
-    if (await canLaunch(uri.toString())) {
-      await launch(uri.toString());
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri);
     } else {
-      _showToast('Mail-App nicht verfügbar');
+      _showToast('Mail‑App nicht verfügbar');
     }
   }
 
+  // ──────────────────────────────────────────────────────────────────────────
+  // GitHub öffnen
+  // ──────────────────────────────────────────────────────────────────────────
+  Future<void> _openGitHub() async {
+    final uri = Uri.parse('https://github.com/bedchem/POKYH');
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } else {
+      _showToast('Browser nicht verfügbar');
+    }
+  }
+
+  void _showAbout() {
+    showCupertinoDialog(
+      context: context,
+      builder: (ctx) => CupertinoAlertDialog(
+        title: const Text('POCKYH'),
+        content: const Text(
+          'Version 1.0.0\n\n'
+              'Die All‑in‑One Schul‑App für die LBS Brixen.\n\n'
+              '© 2025 – MIT Lizenz',
+        ),
+        actions: [
+          CupertinoDialogAction(
+            onPressed: _openGitHub,
+            child: const Text('GitHub'),
+          ),
+          CupertinoDialogAction(
+            isDefaultAction: true,
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // Theme‑Auswahl (CupertinoActionSheet – OS‑Style)
+  // ──────────────────────────────────────────────────────────────────────────
   void _showThemePicker() {
     showCupertinoModalPopup(
       context: context,
       builder: (ctx) => CupertinoActionSheet(
-        title: const Text('Design'),
+        title: const Text('Erscheinungsbild'),
         actions: [
           _themeAction(ctx, 'light', 'Hell', CupertinoIcons.sun_max),
-          _themeAction(
-            ctx,
-            'system',
-            'Automatisch (System)',
-            CupertinoIcons.circle_lefthalf_fill,
-          ),
+          _themeAction(ctx, 'system', 'Automatisch (System)', CupertinoIcons.circle_lefthalf_fill),
           _themeAction(ctx, 'dark', 'Dunkel', CupertinoIcons.moon),
         ],
         cancelButton: CupertinoActionSheetAction(
@@ -174,33 +191,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   CupertinoActionSheetAction _themeAction(
-    BuildContext ctx,
-    String value,
-    String label,
-    IconData icon,
-  ) {
+      BuildContext ctx,
+      String value,
+      String label,
+      IconData icon,
+      ) {
     return CupertinoActionSheetAction(
       onPressed: () {
         setState(() => _themeMode = value);
         _save('themeMode', value);
         Navigator.pop(ctx);
-        // TODO: notify ThemeProvider/Riverpod here
+        // Optional: Theme-Provider hier benachrichtigen
       },
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            icon,
-            size: 18,
-            color: _themeMode == value ? AppTheme.accent : AppTheme.textPrimary,
-          ),
+          Icon(icon, size: 18, color: _themeMode == value ? AppTheme.accent : AppTheme.textPrimary),
           const SizedBox(width: 8),
           Text(
             label,
             style: TextStyle(
-              color: _themeMode == value
-                  ? AppTheme.accent
-                  : AppTheme.textPrimary,
+              color: _themeMode == value ? AppTheme.accent : AppTheme.textPrimary,
             ),
           ),
         ],
@@ -208,11 +219,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  // ──────────────────────────────────────────────────────────────────────────
+  // Sprach‑Auswahl (CupertinoActionSheet – OS‑Style)
+  // ──────────────────────────────────────────────────────────────────────────
   void _showLanguagePicker() {
     showCupertinoModalPopup(
       context: context,
       builder: (ctx) => CupertinoActionSheet(
-        title: const Text('Sprache (Mensa-Menü)'),
+        title: const Text('Sprache (Mensa‑Menü)'),
         actions: [
           _langAction(ctx, 'de', 'Deutsch'),
           _langAction(ctx, 'it', 'Italiano'),
@@ -227,11 +241,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  CupertinoActionSheetAction _langAction(
-    BuildContext ctx,
-    String code,
-    String label,
-  ) {
+  CupertinoActionSheetAction _langAction(BuildContext ctx, String code, String label) {
     return CupertinoActionSheetAction(
       onPressed: () {
         setState(() => _language = code);
@@ -247,99 +257,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  void _showReminderTimePicker() {
-    final parts = _reminderTime.split(':');
-    int hour = int.tryParse(parts[0]) ?? 7;
-    int minute = int.tryParse(parts[1]) ?? 30;
-
-    showCupertinoModalPopup(
-      context: context,
-      builder: (ctx) => Container(
-        height: 300,
-        color: AppTheme.surface,
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  CupertinoButton(
-                    padding: EdgeInsets.zero,
-                    onPressed: () => Navigator.pop(ctx),
-                    child: const Text('Abbrechen'),
-                  ),
-                  const Text(
-                    'Erinnerungszeit',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      color: AppTheme.textPrimary,
-                    ),
-                  ),
-                  CupertinoButton(
-                    padding: EdgeInsets.zero,
-                    onPressed: () {
-                      final time =
-                          '${hour.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')}';
-                      setState(() {
-                        _reminderTime = time;
-                        _notifyMorning = true;
-                      });
-                      _save('reminderTime', time);
-                      _save('notifyMorning', true);
-                      Navigator.pop(ctx);
-                    },
-                    child: Text(
-                      'OK',
-                      style: TextStyle(
-                        color: AppTheme.accent,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Expanded(
-              child: CupertinoDatePicker(
-                mode: CupertinoDatePickerMode.time,
-                use24hFormat: true,
-                initialDateTime: DateTime(2000, 1, 1, hour, minute),
-                onDateTimeChanged: (dt) {
-                  hour = dt.hour;
-                  minute = dt.minute;
-                },
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+  // ──────────────────────────────────────────────────────────────────────────
+  // Hilfsfunktionen für Anzeigetexte
+  // ──────────────────────────────────────────────────────────────────────────
+  String _themeLabel() {
+    switch (_themeMode) {
+      case 'light': return 'Hell';
+      case 'dark': return 'Dunkel';
+      default: return 'System';
+    }
   }
 
-  void _showAbout() {
-    showCupertinoDialog(
-      context: context,
-      builder: (ctx) => CupertinoAlertDialog(
-        title: const Text('POCKYH'),
-        content: const Text(
-          'Version 1.0.0\n\nDie All-in-One Schul-App für die LBS Brixen.\n\n'
-          'Stundenplan, Noten, Mensa & mehr.\n\n'
-          '© 2025 – MIT Lizenz',
-        ),
-        actions: [
-          CupertinoDialogAction(
-            isDefaultAction: true,
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('OK'),
-          ),
-        ],
-      ),
-    );
+  String _languageLabel() {
+    switch (_language) {
+      case 'de': return 'Deutsch';
+      case 'it': return 'Italiano';
+      default: return 'English';
+    }
   }
 
-  // ── Build ─────────────────────────────────────────────────────────────────
-
+  // ──────────────────────────────────────────────────────────────────────────
+  // Build
+  // ──────────────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     final username = widget.service.username ?? 'Schüler';
@@ -349,7 +288,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       body: SafeArea(
         child: CustomScrollView(
           slivers: [
-            // ── Header ────────────────────────────────────────────────────
+            // Header
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
@@ -373,7 +312,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                     const SizedBox(width: 12),
                     const Text(
-                      'Profil & Einstellungen',
+                      'Profil',
                       style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.w600,
@@ -387,7 +326,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
             const SliverToBoxAdapter(child: SizedBox(height: 24)),
 
-            // ── Profile Card ───────────────────────────────────────────────
+            // Profilkarte
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -424,7 +363,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               ),
                             ),
                             const SizedBox(height: 3),
-                            _MetaRow(
+                            const _MetaRow(
                               icon: CupertinoIcons.building_2_fill,
                               text: 'LBS Brixen',
                             ),
@@ -441,26 +380,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             ],
                             const SizedBox(height: 6),
                             Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 3,
-                              ),
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                               decoration: BoxDecoration(
                                 color: AppTheme.success.withValues(alpha: 0.15),
                                 borderRadius: BorderRadius.circular(20),
                               ),
-                              child: Row(
+                              child: const Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Container(
-                                    width: 6,
-                                    height: 6,
-                                    decoration: BoxDecoration(
-                                      color: AppTheme.success,
-                                      shape: BoxShape.circle,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 5),
+                                  _StatusDot(),
+                                  SizedBox(width: 5),
                                   Text(
                                     'Verbunden',
                                     style: TextStyle(
@@ -483,212 +412,67 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
             const SliverToBoxAdapter(child: SizedBox(height: 24)),
 
-            // ── Design ────────────────────────────────────────────────────
-            SliverToBoxAdapter(
-              child: _Section(
-                title: 'Design',
-                icon: CupertinoIcons.paintbrush,
-                children: [
-                  _TapRow(
-                    title: 'Erscheinungsbild',
-                    subtitle: _themeModeLabel(_themeMode),
-                    icon: CupertinoIcons.circle_lefthalf_fill,
-                    onTap: _showThemePicker,
-                  ),
-                ],
-              ),
-            ),
-
-            // ── Stundenplan ───────────────────────────────────────────────
-            SliverToBoxAdapter(
-              child: _Section(
-                title: 'Stundenplan',
-                icon: CupertinoIcons.calendar,
-                children: [
-                  _ToggleRow(
-                    title: 'Kompakte Ansicht',
-                    subtitle: 'Kleinere Karten für mehr Übersicht',
-                    icon: CupertinoIcons.rectangle_compress_vertical,
-                    value: _compactTimetable,
-                    onChanged: (v) {
-                      setState(() => _compactTimetable = v);
-                      _save('compactTimetable', v);
-                    },
-                  ),
-                  _ToggleRow(
-                    title: 'Entfallene Stunden',
-                    subtitle: 'Abgesagte Stunden anzeigen',
-                    icon: CupertinoIcons.xmark_circle,
-                    value: _showCancelledLessons,
-                    onChanged: (v) {
-                      setState(() => _showCancelledLessons = v);
-                      _save('showCancelledLessons', v);
-                    },
-                  ),
-                  _ToggleRow(
-                    title: 'Freistunden hervorheben',
-                    subtitle: 'Lücken im Plan farbig markieren',
-                    icon: CupertinoIcons.waveform_path,
-                    value: _highlightFreePeriods,
-                    onChanged: (v) {
-                      setState(() => _highlightFreePeriods = v);
-                      _save('highlightFreePeriods', v);
-                    },
-                  ),
-                  _ToggleRow(
-                    title: 'Fachfarben',
-                    subtitle: 'Fächer farblich unterscheiden',
-                    icon: CupertinoIcons.color_filter,
-                    value: _subjectColors,
-                    onChanged: (v) {
-                      setState(() => _subjectColors = v);
-                      _save('subjectColors', v);
-                    },
-                  ),
-                ],
-              ),
-            ),
-
-            // ── Benachrichtigungen ─────────────────────────────────────────
-            SliverToBoxAdapter(
-              child: _Section(
-                title: 'Benachrichtigungen',
-                icon: CupertinoIcons.bell,
-                badge: 'NEU',
-                children: [
-                  _ToggleRow(
-                    title: 'Stundenplanänderungen',
-                    subtitle: 'Push bei Vertretung oder Ausfall',
-                    icon: CupertinoIcons.bell_fill,
-                    value: _notifyChanges,
-                    onChanged: (v) {
-                      setState(() => _notifyChanges = v);
-                      _save('notifyChanges', v);
-                      if (v) _showToast('Benachrichtigungen aktiviert');
-                    },
-                  ),
-                  _TapRow(
-                    title: 'Morgen-Erinnerung',
-                    subtitle: _notifyMorning
-                        ? 'Täglich um $_reminderTime Uhr'
-                        : 'Ausgeschaltet',
-                    icon: CupertinoIcons.clock,
-                    trailing: _notifyMorning
-                        ? Text(
-                            _reminderTime,
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: AppTheme.accent,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          )
-                        : null,
-                    onTap: _showReminderTimePicker,
-                  ),
-                ],
-              ),
-            ),
-
-            // ── Allgemein ─────────────────────────────────────────────────
-            SliverToBoxAdapter(
-              child: _Section(
-                title: 'Allgemein',
-                icon: CupertinoIcons.gear,
-                children: [
-                  _ToggleRow(
-                    title: 'Auto-Aktualisierung',
-                    subtitle: 'Daten beim Öffnen automatisch laden',
-                    icon: CupertinoIcons.arrow_2_circlepath,
-                    value: _autoRefresh,
-                    onChanged: (v) {
-                      setState(() => _autoRefresh = v);
-                      _save('autoRefresh', v);
-                    },
-                  ),
-                  _TapRow(
-                    title: 'Sprache (Mensa)',
-                    subtitle: _languageLabel(_language),
-                    icon: CupertinoIcons.globe,
-                    onTap: _showLanguagePicker,
-                  ),
-                  _TapRow(
-                    title: 'Feedback senden',
-                    subtitle: 'Bug melden oder Idee teilen',
-                    icon: CupertinoIcons.chat_bubble_text,
-                    onTap: _sendFeedback,
-                  ),
-                ],
-              ),
-            ),
-
-            // ── Info ───────────────────────────────────────────────────────
-            SliverToBoxAdapter(
-              child: _Section(
-                title: 'Info',
-                icon: CupertinoIcons.info_circle,
-                children: [
-                  _TapRow(
-                    title: 'App-Version',
-                    subtitle: 'POCKYH für LBS Brixen',
-                    icon: CupertinoIcons.app,
-                    trailing: const Text(
-                      '1.0.0',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: AppTheme.textTertiary,
-                      ),
-                    ),
-                    onTap: _showAbout,
-                  ),
-                  _TapRow(
-                    title: 'Über POCKYH',
-                    subtitle: 'Lizenz, Danksagungen',
-                    icon: CupertinoIcons.heart,
-                    onTap: _showAbout,
-                  ),
-                ],
-              ),
-            ),
-
-            const SliverToBoxAdapter(child: SizedBox(height: 8)),
-
-            // ── Cache & Daten ─────────────────────────────────────────────
+            // Einstellungen (Theme & Sprache)
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Row(
+                child: Column(
                   children: [
-                    Expanded(
-                      child: _ActionButton(
-                        label: _clearingCache
-                            ? 'Wird geleert…'
-                            : 'Cache leeren',
-                        icon: CupertinoIcons.trash,
-                        loading: _clearingCache,
-                        onTap: _clearingCache ? null : _clearCache,
-                      ),
+                    _ActionTile(
+                      icon: CupertinoIcons.circle_lefthalf_fill,
+                      title: 'Erscheinungsbild',
+                      subtitle: _themeLabel(),
+                      onTap: _showThemePicker,
                     ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: _ActionButton(
-                        label: 'Schule kopieren',
-                        icon: CupertinoIcons.doc_on_clipboard,
-                        onTap: () {
-                          Clipboard.setData(
-                            const ClipboardData(text: 'lbs-brixen'),
-                          );
-                          _showToast('lbs-brixen kopiert');
-                        },
-                      ),
+                    const SizedBox(height: 12),
+                    _ActionTile(
+                      icon: CupertinoIcons.globe,
+                      title: 'Sprache (Mensa)',
+                      subtitle: _languageLabel(),
+                      onTap: _showLanguagePicker,
                     ),
                   ],
                 ),
               ),
             ),
 
-            const SliverToBoxAdapter(child: SizedBox(height: 16)),
+            const SliverToBoxAdapter(child: SizedBox(height: 24)),
 
-            // ── Logout ────────────────────────────────────────────────────
+            // Weitere Aktionen
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Column(
+                  children: [
+                    _ActionTile(
+                      icon: CupertinoIcons.trash,
+                      title: 'Cache leeren',
+                      subtitle: 'Gespeicherte Mensa‑Daten entfernen',
+                      loading: _clearingCache,
+                      onTap: _clearingCache ? null : _clearCache,
+                    ),
+                    const SizedBox(height: 12),
+                    _ActionTile(
+                      icon: CupertinoIcons.chat_bubble_text,
+                      title: 'Feedback senden',
+                      subtitle: 'Idee oder Problem melden',
+                      onTap: _sendFeedback,
+                    ),
+                    const SizedBox(height: 12),
+                    _ActionTile(
+                      icon: CupertinoIcons.info_circle,
+                      title: 'Über POCKYH',
+                      subtitle: 'Version 1.0.0 · MIT Lizenz',
+                      onTap: _showAbout,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            const SliverToBoxAdapter(child: SizedBox(height: 24)),
+
+            // Abmelden Button
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -706,11 +490,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     child: const Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(
-                          CupertinoIcons.square_arrow_left,
-                          size: 17,
-                          color: AppTheme.danger,
-                        ),
+                        Icon(CupertinoIcons.square_arrow_left, size: 17, color: AppTheme.danger),
                         SizedBox(width: 8),
                         Text(
                           'Abmelden',
@@ -733,35 +513,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
     );
   }
-
-  // ── Helpers ───────────────────────────────────────────────────────────────
-
-  String _languageLabel(String code) {
-    switch (code) {
-      case 'de':
-        return 'Deutsch';
-      case 'it':
-        return 'Italiano';
-      case 'en':
-        return 'English';
-      default:
-        return code;
-    }
-  }
-
-  String _themeModeLabel(String mode) {
-    switch (mode) {
-      case 'light':
-        return 'Hell';
-      case 'dark':
-        return 'Dunkel';
-      default:
-        return 'Automatisch (System)';
-    }
-  }
 }
 
-// ── Profile Avatar ────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// Hilfs‑Widgets (unverändert, außer notwendiger Anpassungen)
+// ─────────────────────────────────────────────────────────────────────────────
 
 class _ProfileAvatar extends StatefulWidget {
   final WebUntisService service;
@@ -791,18 +547,11 @@ class _ProfileAvatarState extends State<_ProfileAvatar> {
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         color: AppTheme.accent.withValues(alpha: 0.15),
-        border: Border.all(
-          color: AppTheme.accent.withValues(alpha: 0.3),
-          width: 2,
-        ),
+        border: Border.all(color: AppTheme.accent.withValues(alpha: 0.3), width: 2),
       ),
       clipBehavior: Clip.antiAlias,
       child: bytes != null
-          ? Image.memory(
-              bytes,
-              fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => _fallback(),
-            )
+          ? Image.memory(bytes, fit: BoxFit.cover, errorBuilder: (_, __, ___) => _fallback())
           : _fallback(),
     );
   }
@@ -810,16 +559,10 @@ class _ProfileAvatarState extends State<_ProfileAvatar> {
   Widget _fallback() => Center(
     child: Text(
       (widget.service.username ?? '?')[0].toUpperCase(),
-      style: const TextStyle(
-        fontSize: 26,
-        fontWeight: FontWeight.w700,
-        color: AppTheme.accent,
-      ),
+      style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w700, color: AppTheme.accent),
     ),
   );
 }
-
-// ── Meta Row ──────────────────────────────────────────────────────────────────
 
 class _MetaRow extends StatelessWidget {
   final IconData icon;
@@ -831,269 +574,41 @@ class _MetaRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Icon(
-          icon,
-          size: 12,
-          color: AppTheme.textTertiary.withValues(alpha: 0.7),
-        ),
+        Icon(icon, size: 12, color: AppTheme.textTertiary.withValues(alpha: 0.7)),
         const SizedBox(width: 5),
-        Text(
-          text,
-          style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary),
-        ),
+        Text(text, style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary)),
         if (hint != null) ...[
           const SizedBox(width: 4),
-          Icon(
-            CupertinoIcons.doc_on_clipboard,
-            size: 10,
-            color: AppTheme.textTertiary,
-          ),
+          Icon(CupertinoIcons.doc_on_clipboard, size: 10, color: AppTheme.textTertiary),
         ],
       ],
     );
   }
 }
 
-// ── Settings Section ──────────────────────────────────────────────────────────
-
-class _Section extends StatelessWidget {
-  final String title;
-  final IconData icon;
-  final String? badge;
-  final List<Widget> children;
-
-  const _Section({
-    required this.title,
-    required this.icon,
-    required this.children,
-    this.badge,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(left: 4, bottom: 8),
-            child: Row(
-              children: [
-                Icon(icon, size: 13, color: AppTheme.textTertiary),
-                const SizedBox(width: 6),
-                Text(
-                  title.toUpperCase(),
-                  style: const TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: AppTheme.textTertiary,
-                    letterSpacing: 0.8,
-                  ),
-                ),
-                if (badge != null) ...[
-                  const SizedBox(width: 6),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 6,
-                      vertical: 1,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppTheme.warning.withValues(alpha: 0.20),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(
-                      badge!,
-                      style: TextStyle(
-                        fontSize: 9,
-                        fontWeight: FontWeight.w700,
-                        color: AppTheme.warning,
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-          Container(
-            decoration: BoxDecoration(
-              color: AppTheme.surface,
-              borderRadius: BorderRadius.circular(14),
-            ),
-            clipBehavior: Clip.antiAlias,
-            child: Column(
-              children: [
-                for (int i = 0; i < children.length; i++) ...[
-                  children[i],
-                  if (i < children.length - 1)
-                    Padding(
-                      padding: const EdgeInsets.only(left: 52),
-                      child: Container(
-                        height: 0.5,
-                        color: AppTheme.border.withValues(alpha: 0.3),
-                      ),
-                    ),
-                ],
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ── Toggle Row ────────────────────────────────────────────────────────────────
-
-class _ToggleRow extends StatelessWidget {
-  final String title;
-  final String subtitle;
-  final IconData icon;
-  final bool value;
-  final ValueChanged<bool> onChanged;
-
-  const _ToggleRow({
-    required this.title,
-    required this.subtitle,
-    required this.icon,
-    required this.value,
-    required this.onChanged,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-      child: Row(
-        children: [
-          _IconBox(icon: icon),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 15,
-                    color: AppTheme.textPrimary,
-                  ),
-                ),
-                Text(
-                  subtitle,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: AppTheme.textTertiary,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          CupertinoSwitch(
-            value: value,
-            activeTrackColor: AppTheme.accent,
-            onChanged: onChanged,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ── Tap Row ───────────────────────────────────────────────────────────────────
-
-class _TapRow extends StatelessWidget {
-  final String title;
-  final String subtitle;
-  final IconData icon;
-  final Widget? trailing;
-  final VoidCallback onTap;
-
-  const _TapRow({
-    required this.title,
-    required this.subtitle,
-    required this.icon,
-    required this.onTap,
-    this.trailing,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-        child: Row(
-          children: [
-            _IconBox(icon: icon),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      fontSize: 15,
-                      color: AppTheme.textPrimary,
-                    ),
-                  ),
-                  Text(
-                    subtitle,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: AppTheme.textTertiary,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            if (trailing != null) ...[trailing!, const SizedBox(width: 6)],
-            const Icon(
-              CupertinoIcons.chevron_right,
-              size: 14,
-              color: AppTheme.textTertiary,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ── Icon Box ──────────────────────────────────────────────────────────────────
-
-class _IconBox extends StatelessWidget {
-  final IconData icon;
-  const _IconBox({required this.icon});
-
+class _StatusDot extends StatelessWidget {
+  const _StatusDot();
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 30,
-      height: 30,
-      decoration: BoxDecoration(
-        color: AppTheme.accent.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(7),
-      ),
-      child: Icon(icon, size: 16, color: AppTheme.accent),
+      width: 6,
+      height: 6,
+      decoration: const BoxDecoration(color: AppTheme.success, shape: BoxShape.circle),
     );
   }
 }
 
-// ── Action Button ─────────────────────────────────────────────────────────────
-
-class _ActionButton extends StatelessWidget {
-  final String label;
+class _ActionTile extends StatelessWidget {
   final IconData icon;
+  final String title;
+  final String subtitle;
   final VoidCallback? onTap;
   final bool loading;
 
-  const _ActionButton({
-    required this.label,
+  const _ActionTile({
     required this.icon,
+    required this.title,
+    required this.subtitle,
     this.onTap,
     this.loading = false,
   });
@@ -1103,27 +618,37 @@ class _ActionButton extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12),
+        padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: AppTheme.surface,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppTheme.border.withValues(alpha: 0.3)),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppTheme.border.withValues(alpha: 0.2)),
         ),
         child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            if (loading)
-              const CupertinoActivityIndicator(radius: 7)
-            else
-              Icon(icon, size: 15, color: AppTheme.textSecondary),
-            const SizedBox(width: 7),
-            Text(
-              label,
-              style: const TextStyle(
-                fontSize: 13,
-                color: AppTheme.textSecondary,
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: AppTheme.accent.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: loading
+                  ? const CupertinoActivityIndicator()
+                  : Icon(icon, size: 18, color: AppTheme.accent),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title,
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: AppTheme.textPrimary)),
+                  Text(subtitle, style: const TextStyle(fontSize: 13, color: AppTheme.textTertiary)),
+                ],
               ),
             ),
+            const Icon(CupertinoIcons.chevron_right, size: 16, color: AppTheme.textTertiary),
           ],
         ),
       ),
