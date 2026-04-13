@@ -10,11 +10,11 @@
 
 <h1 align="center">
   <br>
-  POCKYH
+  POKYH
   <br>
 </h1>
 
-<h4 align="center">Die All-in-One Schul-App fuer die LBS Brixen &mdash; Stundenplan, Noten, Mensa & mehr.</h4>
+<h4 align="center">Die All-in-One Schul-App für die LBS Brixen &mdash; Stundenplan, Noten, Mensa & mehr.</h4>
 
 <p align="center">
   <a href="#-features">Features</a> &bull;
@@ -33,9 +33,9 @@
 
 <br>
 
-## Was ist POCKYH?
+## Was ist POKYH?
 
-**POCKYH** verbindet den WebUntis-Stundenplan, das Notensystem und den Mensa-Speiseplan der LBS Brixen in einer einzigen, nativ wirkenden App. Kein Browser-Gefummel mehr, kein Wechsel zwischen drei verschiedenen Seiten &mdash; alles an einem Ort, blitzschnell und offline-faehig.
+**POKYH** verbindet den WebUntis-Stundenplan, das Notensystem und den Mensa-Speiseplan der LBS Brixen in einer einzigen, nativ wirkenden App. Kein Browser-Gefummel mehr, kein Wechsel zwischen drei verschiedenen Seiten &mdash; alles an einem Ort, blitzschnell und offline-faehig.
 
 <br>
 
