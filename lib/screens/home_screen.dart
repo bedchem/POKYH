@@ -885,7 +885,7 @@ class _WeekOverviewCard extends StatelessWidget {
               );
               final hasExam = dayEntries.any((e) => e.isExam);
               final hasCancelled = dayEntries.any((e) => e.isCancelled);
-              final count = dayEntries.length;
+              final tagDesMonats = day.day;
 
               return Expanded(
                 child: Column(
@@ -930,7 +930,7 @@ class _WeekOverviewCard extends StatelessWidget {
                                     : AppTheme.warning,
                               )
                             : Text(
-                                count > 0 ? '$count' : '–',
+                                '$tagDesMonats',
                                 style: TextStyle(
                                   fontSize: 14,
                                   fontWeight: FontWeight.w700,
