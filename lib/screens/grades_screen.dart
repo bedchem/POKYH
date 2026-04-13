@@ -82,7 +82,7 @@ class _GradesScreenState extends State<GradesScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
+                  Text(
                     'Noten',
                     style: TextStyle(
                       fontSize: 34,
@@ -96,7 +96,7 @@ class _GradesScreenState extends State<GradesScreen> {
                       padding: const EdgeInsets.only(top: 4),
                       child: Text(
                         '${_subjects.length} Fächer · Schuljahr 2025/2026',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 14,
                           color: AppTheme.textSecondary,
                         ),
@@ -123,7 +123,7 @@ class _GradesScreenState extends State<GradesScreen> {
 
           // ── Content ──
           if (_loading)
-            const SliverFillRemaining(
+            SliverFillRemaining(
               hasScrollBody: false,
               child: Center(
                 child: Column(
@@ -157,7 +157,7 @@ class _GradesScreenState extends State<GradesScreen> {
                     const SizedBox(height: 10),
                     Text(
                       _error!,
-                      style: const TextStyle(color: AppTheme.textSecondary),
+                      style: TextStyle(color: AppTheme.textSecondary),
                     ),
                     const SizedBox(height: 14),
                     CupertinoButton(
@@ -179,7 +179,7 @@ class _GradesScreenState extends State<GradesScreen> {
               ),
             )
           else if (_subjects.isEmpty)
-            const SliverFillRemaining(
+            SliverFillRemaining(
               hasScrollBody: false,
               child: Center(
                 child: Text(
@@ -319,7 +319,7 @@ class _OverviewAndDistributionCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
+                      Text(
                         'Gesamtdurchschnitt',
                         style: TextStyle(
                           fontSize: 15,
@@ -377,7 +377,7 @@ class _OverviewAndDistributionCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
+                      Text(
                         'Notenverteilung',
                         style: TextStyle(
                           fontSize: 13,
@@ -546,7 +546,7 @@ class _StatPill extends StatelessWidget {
         ),
         Text(
           sub,
-          style: const TextStyle(fontSize: 10, color: AppTheme.textTertiary),
+          style: TextStyle(fontSize: 10, color: AppTheme.textTertiary),
         ),
       ],
     );
@@ -625,7 +625,7 @@ class _SubjectCardState extends State<_SubjectCard>
                       children: [
                         Text(
                           widget.subject.subjectName,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
                             color: AppTheme.textPrimary,
@@ -634,7 +634,7 @@ class _SubjectCardState extends State<_SubjectCard>
                         const SizedBox(height: 2),
                         Text(
                           '${widget.subject.teacherName} \u00b7 ${widget.subject.grades.length} Noten',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 13,
                             color: AppTheme.textSecondary,
                           ),
@@ -657,7 +657,7 @@ class _SubjectCardState extends State<_SubjectCard>
                         borderRadius: BorderRadius.circular(8),
                         border: Border.all(color: AppTheme.border),
                       ),
-                      child: const Row(
+                      child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(
@@ -665,7 +665,7 @@ class _SubjectCardState extends State<_SubjectCard>
                             size: 12,
                             color: AppTheme.textSecondary,
                           ),
-                          SizedBox(width: 4),
+                          const SizedBox(width: 4),
                           Text(
                             'Detail',
                             style: TextStyle(
@@ -707,7 +707,7 @@ class _SubjectCardState extends State<_SubjectCard>
                   AnimatedRotation(
                     turns: _expanded ? 0.5 : 0,
                     duration: const Duration(milliseconds: 250),
-                    child: const Icon(
+                    child: Icon(
                       CupertinoIcons.chevron_down,
                       size: 14,
                       color: AppTheme.textTertiary,
@@ -768,7 +768,7 @@ class _SubjectCardState extends State<_SubjectCard>
                                   g.examType.isNotEmpty
                                       ? g.examType
                                       : (g.text.isNotEmpty ? g.text : '\u2014'),
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontSize: 14,
                                     color: AppTheme.textSecondary,
                                   ),
@@ -776,10 +776,10 @@ class _SubjectCardState extends State<_SubjectCard>
                               ),
                               Text(
                                 g.dateFormatted,
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontSize: 12,
                                   color: AppTheme.textTertiary,
-                                  fontFeatures: [FontFeature.tabularFigures()],
+                                  fontFeatures: const [FontFeature.tabularFigures()],
                                 ),
                               ),
                             ],
@@ -879,7 +879,7 @@ class _SubjectDetailSheetState extends State<_SubjectDetailSheet> {
       maxChildSize: 0.95,
       minChildSize: 0.5,
       builder: (_, scrollCtrl) => Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           color: AppTheme.bg,
           borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
         ),
@@ -915,7 +915,7 @@ class _SubjectDetailSheetState extends State<_SubjectDetailSheet> {
                   Expanded(
                     child: Text(
                       widget.subject.subjectName,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.w700,
                         color: AppTheme.textPrimary,
@@ -983,7 +983,7 @@ class _SubjectDetailSheetState extends State<_SubjectDetailSheet> {
                       children: [
                         Row(
                           children: [
-                            const Expanded(
+                            Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
@@ -1010,7 +1010,7 @@ class _SubjectDetailSheetState extends State<_SubjectDetailSheet> {
                               children: [
                                 Container(width: 14, height: 2, color: color),
                                 const SizedBox(width: 4),
-                                const Text(
+                                Text(
                                   'Noten',
                                   style: TextStyle(
                                     fontSize: 10,
@@ -1024,7 +1024,7 @@ class _SubjectDetailSheetState extends State<_SubjectDetailSheet> {
                                   color: AppTheme.danger.withValues(alpha: 0.5),
                                 ),
                                 const SizedBox(width: 4),
-                                const Text(
+                                Text(
                                   'Trend',
                                   style: TextStyle(
                                     fontSize: 10,
@@ -1041,7 +1041,7 @@ class _SubjectDetailSheetState extends State<_SubjectDetailSheet> {
                                     ),
                                   ),
                                   const SizedBox(width: 4),
-                                  const Text(
+                                  Text(
                                     'Simulation',
                                     style: TextStyle(
                                       fontSize: 10,
@@ -1079,7 +1079,7 @@ class _SubjectDetailSheetState extends State<_SubjectDetailSheet> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
+                        Text(
                           'Mittelwert-Rechner',
                           style: TextStyle(
                             fontSize: 14,
@@ -1088,7 +1088,7 @@ class _SubjectDetailSheetState extends State<_SubjectDetailSheet> {
                           ),
                         ),
                         const SizedBox(height: 2),
-                        const Text(
+                        Text(
                           'Simuliere zukünftige Noten',
                           style: TextStyle(
                             fontSize: 11,
@@ -1154,7 +1154,7 @@ class _SubjectDetailSheetState extends State<_SubjectDetailSheet> {
                           children: [
                             // Real grades — tap to toggle out/in
                             if (widget.subject.grades.isNotEmpty) ...[
-                              const Text(
+                              Text(
                                 'Vorhandene Noten',
                                 style: TextStyle(
                                   fontSize: 11,
@@ -1254,7 +1254,7 @@ class _SubjectDetailSheetState extends State<_SubjectDetailSheet> {
                             ],
                             // Test grades (colored, tappable to remove)
                             if (_extraGrades.isNotEmpty) ...[
-                              const Text(
+                              Text(
                                 'Testnoten',
                                 style: TextStyle(
                                   fontSize: 11,
@@ -1327,11 +1327,11 @@ class _SubjectDetailSheetState extends State<_SubjectDetailSheet> {
                                     const TextInputType.numberWithOptions(
                                       decimal: true,
                                     ),
-                                style: const TextStyle(
+                                style: TextStyle(
                                   color: AppTheme.textPrimary,
                                   fontSize: 14,
                                 ),
-                                placeholderStyle: const TextStyle(
+                                placeholderStyle: TextStyle(
                                   color: AppTheme.textTertiary,
                                   fontSize: 14,
                                 ),
@@ -1418,7 +1418,7 @@ class _MiniStatCard extends StatelessWidget {
         children: [
           Text(
             label,
-            style: const TextStyle(fontSize: 10, color: AppTheme.textTertiary),
+            style: TextStyle(fontSize: 10, color: AppTheme.textTertiary),
           ),
           const SizedBox(height: 4),
           Text(

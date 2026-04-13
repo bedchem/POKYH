@@ -484,7 +484,7 @@ class _LoginScreenState extends State<LoginScreen>
                             color: AppTheme.surface,
                             borderRadius: BorderRadius.circular(10),
                           ),
-                          child: const Icon(
+                          child: Icon(
                             CupertinoIcons.back,
                             color: AppTheme.textPrimary,
                             size: 20,
@@ -529,7 +529,7 @@ class _LoginScreenState extends State<LoginScreen>
             ),
           ),
           const SizedBox(height: 12),
-          const Text(
+          Text(
             'POKYH',
             style: TextStyle(
               fontSize: 32,
@@ -773,7 +773,7 @@ class _LoginScreenState extends State<LoginScreen>
         textCapitalization: autocapitalize,
         textInputAction: textAction,
         onSubmitted: onSubmit,
-        style: const TextStyle(color: AppTheme.textPrimary, fontSize: 16),
+        style: TextStyle(color: AppTheme.textPrimary, fontSize: 16),
         decoration: InputDecoration(
           prefixIcon: Icon(icon, color: AppTheme.textTertiary, size: 18),
           suffixIcon: suffix != null
@@ -931,7 +931,7 @@ class _SavedAccountTile extends StatelessWidget {
                           children: [
                             Text(
                               account.username,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 color: AppTheme.textPrimary,
                                 fontWeight: FontWeight.w600,
                                 fontSize: 15,

@@ -6,9 +6,12 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../theme/app_theme.dart';
+
+const _kLastUpdatedVersionKey = 'last_updated_version';
 
 class UpdateService {
   static const _owner = 'bedchem';
@@ -40,6 +43,11 @@ class UpdateService {
       final remoteVersion = tagName.replaceFirst(RegExp(r'^v'), '');
       if (!_isNewer(remoteVersion, currentVersion)) return false;
 
+      // Skip if this version was already updated/triggered before.
+      final prefs = await SharedPreferences.getInstance();
+      final lastUpdated = prefs.getString(_kLastUpdatedVersionKey);
+      if (lastUpdated == remoteVersion) return false;
+
       final assets = data['assets'] as List<dynamic>?;
       if (assets == null || assets.isEmpty) return false;
 
@@ -67,7 +75,6 @@ class UpdateService {
         }
       }
 
-      // On Android we need an APK; on iOS we need either a plist or an IPA.
       if (Platform.isAndroid && downloadUrl == null) return false;
       if (Platform.isIOS && downloadUrl == null && plistUrl == null) return false;
 
@@ -112,7 +119,7 @@ class UpdateService {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Stateful update dialog – shows prompt → progress → install / error
+// Stateful update dialog – prompt → downloading/installing → done / error
 // ─────────────────────────────────────────────────────────────────────────────
 
 enum _Phase { prompt, downloading, installing, error }
@@ -146,6 +153,26 @@ class _UpdateDialogState extends State<_UpdateDialog> {
     super.dispose();
   }
 
+  // ── Save that this version was already triggered ─────────────────────────
+  Future<void> _markUpdated() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_kLastUpdatedVersionKey, widget.newVersion);
+    } catch (_) {}
+  }
+
+  // ── Helper: canLaunchUrl with timeout ────────────────────────────────────
+  Future<bool> _canLaunch(Uri uri) async {
+    try {
+      return await canLaunchUrl(uri).timeout(
+        const Duration(seconds: 3),
+        onTimeout: () => false,
+      );
+    } catch (_) {
+      return false;
+    }
+  }
+
   // ── Android: download APK → open with system installer ──────────────────
   Future<void> _installAndroid() async {
     if (widget.downloadUrl == null) return;
@@ -153,6 +180,7 @@ class _UpdateDialogState extends State<_UpdateDialog> {
 
     final client = http.Client();
     _httpClient = client;
+    File? downloadedFile;
 
     try {
       final request = http.Request('GET', Uri.parse(widget.downloadUrl!));
@@ -165,8 +193,8 @@ class _UpdateDialogState extends State<_UpdateDialog> {
 
       final totalBytes = streamedResponse.contentLength ?? 0;
       final dir = await getTemporaryDirectory();
-      final file = File('${dir.path}/${widget.fileName}');
-      final sink = file.openWrite();
+      downloadedFile = File('${dir.path}/${widget.fileName}');
+      final sink = downloadedFile.openWrite();
       var received = 0;
 
       await for (final chunk in streamedResponse.stream) {
@@ -181,12 +209,21 @@ class _UpdateDialogState extends State<_UpdateDialog> {
       if (!mounted) return;
       setState(() => _phase = _Phase.installing);
 
-      final result = await OpenFilex.open(file.path);
+      final result = await OpenFilex.open(downloadedFile.path);
       if (result.type != ResultType.done && mounted) {
         throw Exception(result.message);
       }
-      // After the system installer opens, dismiss the dialog.
+
+      await _markUpdated();
       if (mounted) Navigator.pop(context);
+
+      // Clean up APK after the installer has copied it.
+      final fileToClean = downloadedFile;
+      Future.delayed(const Duration(minutes: 2), () {
+        try {
+          fileToClean.deleteSync();
+        } catch (_) {}
+      });
     } catch (e) {
       if (mounted) {
         setState(() {
@@ -200,73 +237,84 @@ class _UpdateDialogState extends State<_UpdateDialog> {
     }
   }
 
-  // ── iOS: prefer itms-services OTA, fallback to direct IPA download ──────
+  // ── iOS: 4-tier fallback chain ──────────────────────────────────────────
+  // Tier 1: SideStore  (user's sideloader)
+  // Tier 2: AltStore   (alternative sideloader)
+  // Tier 3: itms-services (enterprise / ad-hoc manifest)
+  // Tier 4: Browser    (last resort)
   Future<void> _installIOS() async {
-    setState(() => _phase = _Phase.downloading);
-    try {
-      if (widget.plistUrl != null) {
-        // OTA install via itms-services (iOS handles download + install).
-        final encoded = Uri.encodeComponent(widget.plistUrl!);
-        final url =
-            Uri.parse('itms-services://?action=download-manifest&url=$encoded');
-        if (!await launchUrl(url)) {
-          throw Exception('itms-services konnte nicht geöffnet werden');
+    setState(() => _phase = _Phase.installing);
+    final url = widget.downloadUrl;
+
+    // Tier 1: SideStore
+    if (url != null) {
+      try {
+        final uri = Uri.parse(
+            'sidestore://install?url=${Uri.encodeComponent(url)}');
+        if (await _canLaunch(uri)) {
+          await launchUrl(uri);
+          await _markUpdated();
+          if (mounted) Navigator.pop(context);
+          return;
         }
+      } catch (_) {
+        // fall through to next tier
+      }
+    }
+
+    // Tier 2: AltStore
+    if (url != null) {
+      try {
+        final uri = Uri.parse(
+            'altstore://install?url=${Uri.encodeComponent(url)}');
+        if (await _canLaunch(uri)) {
+          await launchUrl(uri);
+          await _markUpdated();
+          if (mounted) Navigator.pop(context);
+          return;
+        }
+      } catch (_) {
+        // fall through
+      }
+    }
+
+    // Tier 3: itms-services (manifest.plist)
+    if (widget.plistUrl != null) {
+      try {
+        final encoded = Uri.encodeComponent(widget.plistUrl!);
+        final uri = Uri.parse(
+            'itms-services://?action=download-manifest&url=$encoded');
+        if (await launchUrl(uri)) {
+          await _markUpdated();
+          if (mounted) Navigator.pop(context);
+          return;
+        }
+      } catch (_) {
+        // fall through
+      }
+    }
+
+    // Tier 4: Browser fallback
+    if (url != null) {
+      try {
+        await launchUrl(
+          Uri.parse(url),
+          mode: LaunchMode.externalApplication,
+        );
+        await _markUpdated();
         if (mounted) Navigator.pop(context);
         return;
+      } catch (_) {
+        // fall through
       }
+    }
 
-      // No plist → download IPA ourselves, then open it.
-      if (widget.downloadUrl == null) {
-        throw Exception('Kein Download verfügbar');
-      }
-
-      final client = http.Client();
-      _httpClient = client;
-
-      try {
-        final request = http.Request('GET', Uri.parse(widget.downloadUrl!));
-        final streamedResponse =
-            await client.send(request).timeout(const Duration(minutes: 10));
-
-        if (streamedResponse.statusCode != 200) {
-          throw Exception('HTTP ${streamedResponse.statusCode}');
-        }
-
-        final totalBytes = streamedResponse.contentLength ?? 0;
-        final dir = await getTemporaryDirectory();
-        final file = File('${dir.path}/${widget.fileName}');
-        final sink = file.openWrite();
-        var received = 0;
-
-        await for (final chunk in streamedResponse.stream) {
-          sink.add(chunk);
-          received += chunk.length;
-          if (totalBytes > 0 && mounted) {
-            setState(() => _progress = received / totalBytes);
-          }
-        }
-        await sink.close();
-
-        if (!mounted) return;
-        setState(() => _phase = _Phase.installing);
-
-        final result = await OpenFilex.open(file.path);
-        if (result.type != ResultType.done && mounted) {
-          throw Exception(result.message);
-        }
-        if (mounted) Navigator.pop(context);
-      } finally {
-        _httpClient = null;
-        client.close();
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _phase = _Phase.error;
-          _errorMsg = e.toString();
-        });
-      }
+    // All tiers failed
+    if (mounted) {
+      setState(() {
+        _phase = _Phase.error;
+        _errorMsg = 'Update konnte nicht gestartet werden';
+      });
     }
   }
 
@@ -297,7 +345,8 @@ class _UpdateDialogState extends State<_UpdateDialog> {
     return AlertDialog(
       backgroundColor: AppTheme.surface,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      title: Text(_title(), style: const TextStyle(color: AppTheme.textPrimary)),
+      title:
+          Text(_title(), style: TextStyle(color: AppTheme.textPrimary)),
       content: _content(false),
       actions: _materialActions(),
     );
@@ -309,7 +358,7 @@ class _UpdateDialogState extends State<_UpdateDialog> {
         return [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Später',
+            child: Text('Später',
                 style: TextStyle(color: AppTheme.textTertiary)),
           ),
           TextButton(
@@ -325,8 +374,8 @@ class _UpdateDialogState extends State<_UpdateDialog> {
         return [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Schließen',
-                style: TextStyle(color: AppTheme.textTertiary)),
+            child: Text('Schließen',
+                style: TextStyle(color: AppTheme.textTertiary)), // non-const: runtime getter
           ),
           TextButton(
             onPressed: _retry,
@@ -366,7 +415,6 @@ class _UpdateDialogState extends State<_UpdateDialog> {
       case _Phase.downloading:
       case _Phase.installing:
         return [
-          // Empty placeholder so CupertinoAlertDialog renders correctly.
           CupertinoDialogAction(
             onPressed: null,
             child: Text(
@@ -398,7 +446,9 @@ class _UpdateDialogState extends State<_UpdateDialog> {
       case _Phase.downloading:
         return 'Wird heruntergeladen…';
       case _Phase.installing:
-        return 'Wird installiert…';
+        return Platform.isIOS
+            ? 'Wird übergeben…'
+            : 'Wird installiert…';
       case _Phase.error:
         return 'Update fehlgeschlagen';
     }
@@ -407,7 +457,7 @@ class _UpdateDialogState extends State<_UpdateDialog> {
   Widget _content(bool cupertino) {
     final secondaryStyle = cupertino
         ? null
-        : const TextStyle(color: AppTheme.textSecondary, fontSize: 14);
+        : TextStyle(color: AppTheme.textSecondary, fontSize: 14);
 
     switch (_phase) {
       case _Phase.prompt:
@@ -424,7 +474,8 @@ class _UpdateDialogState extends State<_UpdateDialog> {
               borderRadius: BorderRadius.circular(4),
               child: LinearProgressIndicator(
                 value: _progress > 0 ? _progress : null,
-                backgroundColor: cupertino ? CupertinoColors.systemGrey5 : AppTheme.border,
+                backgroundColor:
+                    cupertino ? CupertinoColors.systemGrey5 : AppTheme.border,
                 valueColor: AlwaysStoppedAnimation(
                   cupertino ? CupertinoColors.activeBlue : AppTheme.accent,
                 ),
@@ -449,10 +500,16 @@ class _UpdateDialogState extends State<_UpdateDialog> {
               const SizedBox(
                 width: 28,
                 height: 28,
-                child: CircularProgressIndicator(strokeWidth: 2.5, color: AppTheme.accent),
+                child: CircularProgressIndicator(
+                    strokeWidth: 2.5, color: AppTheme.accent),
               ),
             const SizedBox(height: 14),
-            Text('Update wird vorbereitet…', style: secondaryStyle ?? const TextStyle(fontSize: 14)),
+            Text(
+              Platform.isIOS
+                  ? 'Wird an SideStore übergeben…'
+                  : 'Update wird vorbereitet…',
+              style: secondaryStyle ?? const TextStyle(fontSize: 14),
+            ),
           ],
         );
       case _Phase.error:

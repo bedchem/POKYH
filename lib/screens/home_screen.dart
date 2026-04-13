@@ -210,7 +210,7 @@ class _SmallProfileAvatarState extends State<_SmallProfileAvatar> {
     );
   }
 
-  Widget _fallback() => const Center(
+  Widget _fallback() => Center(
     child: Icon(
       CupertinoIcons.person_fill,
       size: 16,
@@ -758,7 +758,7 @@ class _DashboardTabState extends State<_DashboardTab>
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    const Text(
+                    Text(
                       'Home',
                       style: TextStyle(
                         fontSize: 30,
@@ -771,7 +771,7 @@ class _DashboardTabState extends State<_DashboardTab>
                     Text(
                       '${weekdays[now.weekday - 1]}, ${now.day}. ${months[now.month - 1]}',
                       textAlign: TextAlign.right,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 12,
                         color: AppTheme.textSecondary,
                       ),
@@ -1059,7 +1059,7 @@ class _WeekOverviewCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 7),
-              const Text(
+              Text(
                 'Diese Woche',
                 style: TextStyle(
                   fontSize: 12,
@@ -1169,7 +1169,7 @@ class _WeekOverviewCard extends StatelessWidget {
               const Spacer(),
               Text(
                 '${allWeek.length} Std. diese Woche',
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 10,
                   color: AppTheme.textTertiary,
                 ),
@@ -1331,7 +1331,7 @@ class _TimeInfoCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   label,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w500,
                     color: AppTheme.textSecondary,
@@ -1354,7 +1354,7 @@ class _TimeInfoCard extends StatelessWidget {
           const SizedBox(height: 2),
           Text(
             sub,
-            style: const TextStyle(fontSize: 10, color: AppTheme.textSecondary),
+            style: TextStyle(fontSize: 10, color: AppTheme.textSecondary),
           ),
         ],
       ),
@@ -1414,7 +1414,7 @@ class _MensaPreviewCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 7),
-                const Text(
+                Text(
                   'Mensa',
                   style: TextStyle(
                     fontSize: 12,
@@ -1434,7 +1434,7 @@ class _MensaPreviewCard extends StatelessWidget {
               const SizedBox(height: 5),
               Text(
                 dish!,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
                   color: AppTheme.textPrimary,
@@ -1521,7 +1521,7 @@ class _RecentGradesCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 7),
-              const Expanded(
+              Expanded(
                 child: Text(
                   'Letzte Noten',
                   style: TextStyle(
@@ -1537,7 +1537,7 @@ class _RecentGradesCard extends StatelessWidget {
           if (loading)
             const CupertinoActivityIndicator(radius: 8)
           else if (grades.isEmpty)
-            const Text(
+            Text(
               'Noch keine Noten',
               style: TextStyle(fontSize: 11, color: AppTheme.textSecondary),
             )
@@ -1581,7 +1581,7 @@ class _GradeRow extends StatelessWidget {
           Expanded(
             child: Text(
               grade.subject,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.w500,
                 color: AppTheme.textPrimary,
@@ -1593,7 +1593,7 @@ class _GradeRow extends StatelessWidget {
           const SizedBox(width: 3),
           Text(
             dateStr,
-            style: const TextStyle(fontSize: 9, color: AppTheme.textTertiary),
+            style: TextStyle(fontSize: 9, color: AppTheme.textTertiary),
           ),
           const SizedBox(width: 4),
           Container(
@@ -1639,7 +1639,7 @@ class _WeekLegendDot extends StatelessWidget {
         const SizedBox(width: 4),
         Text(
           label,
-          style: const TextStyle(fontSize: 10, color: AppTheme.textTertiary),
+          style: TextStyle(fontSize: 10, color: AppTheme.textTertiary),
         ),
       ],
     );
@@ -1674,7 +1674,7 @@ class _ErrorCard extends StatelessWidget {
           Text(
             message,
             textAlign: TextAlign.center,
-            style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12),
+            style: TextStyle(color: AppTheme.textSecondary, fontSize: 12),
           ),
           const SizedBox(height: 12),
           CupertinoButton(

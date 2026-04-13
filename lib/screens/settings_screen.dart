@@ -1,4 +1,5 @@
 import 'package:flutter/cupertino.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import '../config/app_config.dart';
 import '../l10n/app_localizations.dart';
 import '../services/dish_service.dart';
@@ -574,12 +575,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           value: 'ClassByte',
                         ),
                         _separator(context),
-                        _buildInfoRow(
-                          context,
-                          icon: CupertinoIcons.number,
-                          iconColor: CupertinoColors.systemIndigo,
-                          label: l.get('version'),
-                          value: '1.0.0',
+                        FutureBuilder<PackageInfo>(
+                          future: PackageInfo.fromPlatform(),
+                          builder: (context, snapshot) => _buildInfoRow(
+                            context,
+                            icon: CupertinoIcons.number,
+                            iconColor: CupertinoColors.systemIndigo,
+                            label: l.get('version'),
+                            value: snapshot.data?.version ?? '…',
+                          ),
                         ),
                       ],
                     ),

@@ -1,72 +1,98 @@
 import 'package:flutter/material.dart';
 
 class AppTheme {
-  // ── Palette ──────────────────────────────────────────────────────────────
-  static const Color bg = Color(0xFF000000);
-  static const Color surface = Color(0xFF1C1C1E);
-  static const Color card = Color(0xFF2C2C2E);
-  static const Color cardAlt = Color(0xFF1C1C1E);
-  static const Color border = Color(0xFF38383A);
-  static const Color separator = Color(0xFF48484A);
+  // ── Runtime brightness (set by MaterialApp.builder) ─────────────────────
+  static Brightness currentBrightness = Brightness.dark;
+  static final themeNotifier = ValueNotifier<ThemeMode>(ThemeMode.dark);
 
-  static const Color accent = Color(0xFF0A84FF);     // iOS Blue
-  static const Color accentSoft = Color(0xFF5E5CE6);  // iOS Indigo
-  static const Color tint = Color(0xFF30D158);         // iOS Green
+  static bool get _isDark => currentBrightness == Brightness.dark;
 
-  static const Color textPrimary = Color(0xFFFFFFFF);
-  static const Color textSecondary = Color(0xFF98989D);
-  static const Color textTertiary = Color(0xFF636366);
+  // ── Adaptive palette ────────────────────────────────────────────────────
+  static Color get bg            => _isDark ? const Color(0xFF000000) : const Color(0xFFF2F2F7);
+  static Color get surface       => _isDark ? const Color(0xFF1C1C1E) : const Color(0xFFFFFFFF);
+  static Color get card          => _isDark ? const Color(0xFF2C2C2E) : const Color(0xFFF2F2F7);
+  static Color get cardAlt       => _isDark ? const Color(0xFF1C1C1E) : const Color(0xFFE5E5EA);
+  static Color get border        => _isDark ? const Color(0xFF38383A) : const Color(0xFFD1D1D6);
+  static Color get separator     => _isDark ? const Color(0xFF48484A) : const Color(0xFFC6C6C8);
+  static Color get textPrimary   => _isDark ? const Color(0xFFFFFFFF) : const Color(0xFF000000);
+  static Color get textSecondary => _isDark ? const Color(0xFF98989D) : const Color(0xFF8E8E93);
+  static Color get textTertiary  => _isDark ? const Color(0xFF636366) : const Color(0xFFAEAEB2);
 
-  static const Color success = Color(0xFF30D158);
-  static const Color warning = Color(0xFFFFD60A);
-  static const Color danger = Color(0xFFFF453A);
-  static const Color orange = Color(0xFFFF9F0A);
+  // ── Fixed colors (same in both themes) ──────────────────────────────────
+  static const Color accent     = Color(0xFF0A84FF);
+  static const Color accentSoft = Color(0xFF5E5CE6);
+  static const Color tint       = Color(0xFF30D158);
+  static const Color success    = Color(0xFF30D158);
+  static const Color warning    = Color(0xFFFFD60A);
+  static const Color danger     = Color(0xFFFF453A);
+  static const Color orange     = Color(0xFFFF9F0A);
 
-  // ── Lesson colors (pastel, iOS-inspired) ────────────────────────────────
-// ── Lesson colors ────────────────────────────────────────────────────────
-static const Map<String, Color> _subjectColorMap = {
-  'D':         Color(0xFF5AA0E8), // Stahlblau
-  'M':         Color(0xFF4ED87A), // Salbeigrün
-  'IT':        Color(0xFFD4855A), // Terrakotta
-  'Bew.Sport': Color(0xFFAA8EE0), // Lavendel
-  'ENGL':      Color(0xFF3DC4CE), // Türkis
-  'R':         Color(0xFFE8B84A), // Amber
-  'M5-M7':     Color(0xFFE08899), // Altrosa
-  'M8':        Color(0xFFE89E6E), // Lachs
-  'Re-Wiku':   Color(0xFF6AB87A), // Moosgrün
-};
+  // ── Lesson colors ──────────────────────────────────────────────────────
+  static const Map<String, Color> _subjectColorMap = {
+    'D':         Color(0xFF5AA0E8),
+    'M':         Color(0xFF4ED87A),
+    'IT':        Color(0xFFD4855A),
+    'Bew.Sport': Color(0xFFAA8EE0),
+    'ENGL':      Color(0xFF3DC4CE),
+    'R':         Color(0xFFE8B84A),
+    'M5-M7':     Color(0xFFE08899),
+    'M8':        Color(0xFFE89E6E),
+    'Re-Wiku':   Color(0xFF6AB87A),
+  };
 
-static Color colorForSubject(String name) {
-  if (name.isEmpty) return const Color.fromARGB(255, 48, 137, 209);
-  return _subjectColorMap[name] ?? const Color(0xFF7A7A8A);
-}
-  // ── Theme ───────────────────────────────────────────────────────────────
+  static Color colorForSubject(String name) {
+    if (name.isEmpty) return const Color.fromARGB(255, 48, 137, 209);
+    return _subjectColorMap[name] ?? const Color(0xFF7A7A8A);
+  }
+
+  // ── ThemeData ──────────────────────────────────────────────────────────
   static ThemeData dark() {
+    return _build(Brightness.dark);
+  }
+
+  static ThemeData light() {
+    return _build(Brightness.light);
+  }
+
+  static ThemeData _build(Brightness brightness) {
+    final isDark = brightness == Brightness.dark;
+    final bgColor      = isDark ? const Color(0xFF000000) : const Color(0xFFF2F2F7);
+    final surfaceColor = isDark ? const Color(0xFF1C1C1E) : const Color(0xFFFFFFFF);
+    final cardColor    = isDark ? const Color(0xFF2C2C2E) : const Color(0xFFF2F2F7);
+    final txtPrimary   = isDark ? const Color(0xFFFFFFFF) : const Color(0xFF000000);
+    final txtSecondary = isDark ? const Color(0xFF98989D) : const Color(0xFF8E8E93);
+    final txtTertiary  = isDark ? const Color(0xFF636366) : const Color(0xFFAEAEB2);
+
     return ThemeData(
-      brightness: Brightness.dark,
-      scaffoldBackgroundColor: bg,
+      brightness: brightness,
+      scaffoldBackgroundColor: bgColor,
       fontFamily: '.SF Pro Text',
-      colorScheme: const ColorScheme.dark(
+      colorScheme: ColorScheme(
+        brightness: brightness,
         primary: accent,
-        surface: surface,
         onPrimary: Colors.white,
-        onSurface: textPrimary,
+        secondary: accentSoft,
+        onSecondary: Colors.white,
+        surface: surfaceColor,
+        onSurface: txtPrimary,
+        error: danger,
+        onError: Colors.white,
       ),
-      appBarTheme: const AppBarTheme(
-        backgroundColor: bg,
+      appBarTheme: AppBarTheme(
+        backgroundColor: bgColor,
         elevation: 0,
         scrolledUnderElevation: 0,
         titleTextStyle: TextStyle(
-          color: textPrimary,
+          color: txtPrimary,
           fontSize: 17,
           fontWeight: FontWeight.w600,
           letterSpacing: -0.4,
         ),
-        iconTheme: IconThemeData(color: accent),
+        iconTheme: const IconThemeData(color: accent),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: card,
+        fillColor: cardColor,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide.none,
@@ -79,8 +105,8 @@ static Color colorForSubject(String name) {
           borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: accent, width: 1),
         ),
-        labelStyle: const TextStyle(color: textSecondary, fontSize: 15),
-        hintStyle: const TextStyle(color: textTertiary, fontSize: 15),
+        labelStyle: TextStyle(color: txtSecondary, fontSize: 15),
+        hintStyle: TextStyle(color: txtTertiary, fontSize: 15),
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
@@ -97,13 +123,13 @@ static Color colorForSubject(String name) {
           ),
         ),
       ),
-      bottomNavigationBarTheme: const BottomNavigationBarThemeData(
-        backgroundColor: Color(0xFF1C1C1E),
+      bottomNavigationBarTheme: BottomNavigationBarThemeData(
+        backgroundColor: surfaceColor,
         selectedItemColor: accent,
-        unselectedItemColor: textTertiary,
+        unselectedItemColor: txtTertiary,
         type: BottomNavigationBarType.fixed,
-        selectedLabelStyle: TextStyle(fontSize: 10, fontWeight: FontWeight.w500),
-        unselectedLabelStyle: TextStyle(fontSize: 10, fontWeight: FontWeight.w400),
+        selectedLabelStyle: const TextStyle(fontSize: 10, fontWeight: FontWeight.w500),
+        unselectedLabelStyle: const TextStyle(fontSize: 10, fontWeight: FontWeight.w400),
       ),
     );
   }

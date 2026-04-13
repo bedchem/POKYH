@@ -101,7 +101,7 @@ class _MensaScreenState extends State<MensaScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
+                    Text(
                       'Mensa',
                       style: TextStyle(
                         fontSize: 34,
@@ -115,7 +115,7 @@ class _MensaScreenState extends State<MensaScreen> {
                         padding: const EdgeInsets.only(top: 4),
                         child: Text(
                           '${_upcomingDays.length} Tage verfügbar',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 14,
                             color: AppTheme.textSecondary,
                           ),
@@ -130,7 +130,7 @@ class _MensaScreenState extends State<MensaScreen> {
 
             // ── Content ──
             if (_loading)
-              const SliverFillRemaining(
+              SliverFillRemaining(
                 hasScrollBody: false,
                 child: Center(
                   child: Column(
@@ -163,7 +163,7 @@ class _MensaScreenState extends State<MensaScreen> {
                           color: AppTheme.textTertiary.withValues(alpha: 0.1),
                           shape: BoxShape.circle,
                         ),
-                        child: const Icon(
+                        child: Icon(
                           CupertinoIcons.wifi_slash,
                           color: AppTheme.textTertiary,
                           size: 26,
@@ -172,7 +172,7 @@ class _MensaScreenState extends State<MensaScreen> {
                       const SizedBox(height: 16),
                       Text(
                         _error!,
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: AppTheme.textSecondary,
                           fontSize: 15,
                         ),
@@ -197,7 +197,7 @@ class _MensaScreenState extends State<MensaScreen> {
                 ),
               )
             else if (_dishes.isEmpty)
-              const SliverFillRemaining(
+              SliverFillRemaining(
                 hasScrollBody: false,
                 child: Center(
                   child: Column(
@@ -401,7 +401,7 @@ class _DishCard extends StatelessWidget {
                       fit: BoxFit.cover,
                       errorBuilder: (_, _, _) => Container(
                         color: AppTheme.card,
-                        child: const Center(
+                        child: Center(
                           child: Icon(
                             CupertinoIcons.photo,
                             color: AppTheme.textTertiary,
@@ -464,7 +464,7 @@ class _DishCard extends StatelessWidget {
                       Expanded(
                         child: Text(
                           dish.name('de'),
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 17,
                             fontWeight: FontWeight.w600,
                             color: AppTheme.textPrimary,
@@ -484,7 +484,7 @@ class _DishCard extends StatelessWidget {
                     const SizedBox(height: 4),
                     Text(
                       dish.category,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 13,
                         color: AppTheme.textSecondary,
                       ),
@@ -558,7 +558,7 @@ class _DishDetailSheet extends StatelessWidget {
 
     return Container(
       constraints: BoxConstraints(maxHeight: screenHeight * 0.88),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: AppTheme.bg,
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -596,7 +596,7 @@ class _DishDetailSheet extends StatelessWidget {
                           fit: BoxFit.cover,
                           errorBuilder: (_, _, _) => Container(
                             color: AppTheme.card,
-                            child: const Center(
+                            child: Center(
                               child: Icon(
                                 CupertinoIcons.photo,
                                 color: AppTheme.textTertiary,
@@ -635,7 +635,7 @@ class _DishDetailSheet extends StatelessWidget {
                   // ── Title ──
                   Text(
                     dish.name('de'),
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 26,
                       fontWeight: FontWeight.w700,
                       color: AppTheme.textPrimary,
@@ -647,7 +647,7 @@ class _DishDetailSheet extends StatelessWidget {
                     const SizedBox(height: 4),
                     Text(
                       dish.category,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 15,
                         color: AppTheme.textSecondary,
                       ),
@@ -667,7 +667,7 @@ class _DishDetailSheet extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Row(
+                          Row(
                             children: [
                               Icon(
                                 CupertinoIcons.text_quote,
@@ -688,7 +688,7 @@ class _DishDetailSheet extends StatelessWidget {
                           const SizedBox(height: 8),
                           Text(
                             dish.description('de'),
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 15,
                               color: AppTheme.textPrimary,
                               height: 1.4,
@@ -702,7 +702,7 @@ class _DishDetailSheet extends StatelessWidget {
                   // ── Nutrition Section ──
                   if (dish.hasNutrition) ...[
                     const SizedBox(height: 20),
-                    const Text(
+                    Text(
                       'Nährwerte',
                       style: TextStyle(
                         fontSize: 20,
@@ -765,7 +765,7 @@ class _DishDetailSheet extends StatelessWidget {
                   // ── Allergens ──
                   if (dish.allergens.isNotEmpty) ...[
                     const SizedBox(height: 20),
-                    const Text(
+                    Text(
                       'Allergene',
                       style: TextStyle(
                         fontSize: 20,
@@ -828,7 +828,7 @@ class _DishDetailSheet extends StatelessWidget {
                             color: AppTheme.accent.withValues(alpha: 0.7),
                           ),
                           const SizedBox(width: 10),
-                          const Text(
+                          Text(
                             'Preis',
                             style: TextStyle(
                               fontSize: 15,
@@ -916,7 +916,7 @@ class _NutritionCard extends StatelessWidget {
           const SizedBox(height: 2),
           Text(
             label,
-            style: const TextStyle(fontSize: 12, color: AppTheme.textTertiary),
+            style: TextStyle(fontSize: 12, color: AppTheme.textTertiary),
           ),
         ],
       ),
@@ -955,7 +955,7 @@ class _NutritionBar extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'Makroverteilung',
             style: TextStyle(
               fontSize: 13,
@@ -1043,7 +1043,7 @@ class _MacroLegend extends StatelessWidget {
         const SizedBox(width: 5),
         Text(
           '$label $value',
-          style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary),
+          style: TextStyle(fontSize: 11, color: AppTheme.textSecondary),
         ),
       ],
     );

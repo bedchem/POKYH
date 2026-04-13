@@ -428,7 +428,7 @@ class TimetableScreenState extends State<TimetableScreen> {
         children: [
           Row(
             children: [
-              const Text(
+              Text(
                 'Stundenplan',
                 style: TextStyle(
                   fontSize: 34,
@@ -478,7 +478,7 @@ class TimetableScreenState extends State<TimetableScreen> {
                 child: Text(
                   '${weekStart.day}. ${_months[weekStart.month - 1]} – '
                   '${weekEnd.day}. ${_months[weekEnd.month - 1]} ${weekEnd.year}',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w500,
                     color: AppTheme.textSecondary,
@@ -487,7 +487,7 @@ class TimetableScreenState extends State<TimetableScreen> {
               ),
               Text(
                 'KW ${_weekNumber(weekStart)}',
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
                   color: AppTheme.textTertiary,
@@ -523,7 +523,7 @@ class _WeekPage extends StatelessWidget {
     final loadState = data?.state ?? _LoadState.loading;
 
     if (loadState == _LoadState.loading) {
-      return const Center(
+      return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -553,7 +553,7 @@ class _WeekPage extends StatelessWidget {
               const SizedBox(height: 10),
               Text(
                 data?.error ?? 'Unbekannter Fehler',
-                style: const TextStyle(color: AppTheme.textSecondary),
+                style: TextStyle(color: AppTheme.textSecondary),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 14),
@@ -606,7 +606,7 @@ class _WeekPage extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 22),
-          const Text(
+          Text(
             'Ferien',
             style: TextStyle(
               fontSize: 30,
@@ -616,14 +616,14 @@ class _WeekPage extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 6),
-          const Text(
+          Text(
             'In dieser Woche ist kein Unterricht.',
             style: TextStyle(fontSize: 15, color: AppTheme.textSecondary),
           ),
           const SizedBox(height: 4),
           Text(
             'KW ${state._weekNumber(state._mondayForOffset(offset))} · Genieße die Zeit! ☀️',
-            style: const TextStyle(fontSize: 13, color: AppTheme.textTertiary),
+            style: TextStyle(fontSize: 13, color: AppTheme.textTertiary),
           ),
         ],
       ),
@@ -699,7 +699,10 @@ class _WeekPage extends StatelessWidget {
                 final isHoliday = state._isSingleHolidayDay(offset, i);
                 return Expanded(
                   child: GestureDetector(
-                    onTap: () => state.setState(() => state._selectedDay = i),
+                    onTap: () {
+                      // ignore: invalid_use_of_protected_member
+                      state.setState(() => state._selectedDay = i);
+                    },
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 200),
                       margin: const EdgeInsets.symmetric(horizontal: 2),
@@ -1091,7 +1094,7 @@ class _SlotContent extends StatelessWidget {
                   const SizedBox(height: 0),
                   Text(
                     entry.teacherName,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 10,
                       color: AppTheme.textTertiary,
                     ),
@@ -1103,7 +1106,7 @@ class _SlotContent extends StatelessWidget {
                   const SizedBox(height: 0),
                   Text(
                     entry.roomName,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 10,
                       color: AppTheme.textTertiary,
                     ),
@@ -1148,7 +1151,7 @@ class _DetailSheet extends StatelessWidget {
     final lessonNr = service.getLessonNumber(entry.startTime);
 
     return Container(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: AppTheme.surface,
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -1198,7 +1201,7 @@ class _DetailSheet extends StatelessWidget {
                   children: [
                     Text(
                       entry.displayName,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.w700,
                         color: AppTheme.textPrimary,
@@ -1210,7 +1213,7 @@ class _DetailSheet extends StatelessWidget {
                         entry.subjectName != entry.subjectLong)
                       Text(
                         entry.subjectLong,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 13,
                           color: AppTheme.textSecondary,
                         ),
@@ -1273,7 +1276,7 @@ class _DetailSheet extends StatelessWidget {
                   color: AppTheme.accent,
                 ),
                 const SizedBox(width: 6),
-                const Text(
+                Text(
                   'Notiz',
                   style: TextStyle(
                     fontSize: 13,
@@ -1293,7 +1296,7 @@ class _DetailSheet extends StatelessWidget {
               ),
               child: Text(
                 entry.lessonText,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 14,
                   color: AppTheme.textPrimary,
                   height: 1.4,
@@ -1316,7 +1319,7 @@ class _DetailSheet extends StatelessWidget {
                   color: AppTheme.colorForSubject(replacement!.subjectName),
                 ),
                 const SizedBox(width: 6),
-                const Text(
+                Text(
                   'Ersatz / Vertretung',
                   style: TextStyle(
                     fontSize: 13,
@@ -1357,7 +1360,7 @@ class _DetailSheet extends StatelessWidget {
                       Expanded(
                         child: Text(
                           replacement!.displayName,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w700,
                             color: AppTheme.textPrimary,
@@ -1390,7 +1393,7 @@ class _DetailSheet extends StatelessWidget {
                     const SizedBox(height: 8),
                     Text(
                       replacement!.lessonText,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 13,
                         color: AppTheme.textSecondary,
                       ),
@@ -1504,7 +1507,7 @@ class _TimeLabel extends StatelessWidget {
             if (lessonNr != null)
               Text(
                 lessonNr!,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w700,
                   color: AppTheme.textTertiary,
@@ -1512,7 +1515,7 @@ class _TimeLabel extends StatelessWidget {
               ),
             Text(
               '$h:$m',
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 10,
                 color: AppTheme.textTertiary,
                 fontFeatures: [FontFeature.tabularFigures()],

@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'firebase_options.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'firebase_options.dart';
 import 'services/webuntis_service.dart';
 import 'services/update_service.dart';
 import 'screens/login_screen.dart';
@@ -14,19 +15,62 @@ final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
+  // Load saved theme preference before first frame.
+  final prefs = await SharedPreferences.getInstance();
+  final saved = prefs.getString('themeMode') ?? 'system';
+  AppTheme.themeNotifier.value = _themeModeFrom(saved);
+
   runApp(const PockyhApp());
 }
 
-class PockyhApp extends StatelessWidget {
+ThemeMode _themeModeFrom(String value) {
+  switch (value) {
+    case 'light':
+      return ThemeMode.light;
+    case 'dark':
+      return ThemeMode.dark;
+    default:
+      return ThemeMode.system;
+  }
+}
+
+class PockyhApp extends StatefulWidget {
   const PockyhApp({super.key});
+
+  @override
+  State<PockyhApp> createState() => _PockyhAppState();
+}
+
+class _PockyhAppState extends State<PockyhApp> {
+  @override
+  void initState() {
+    super.initState();
+    AppTheme.themeNotifier.addListener(_onThemeChanged);
+  }
+
+  @override
+  void dispose() {
+    AppTheme.themeNotifier.removeListener(_onThemeChanged);
+    super.dispose();
+  }
+
+  void _onThemeChanged() => setState(() {});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'POKYH',
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.dark(),
+      theme: AppTheme.light(),
+      darkTheme: AppTheme.dark(),
+      themeMode: AppTheme.themeNotifier.value,
       navigatorKey: navigatorKey,
+      builder: (context, child) {
+        // Sync static brightness so AppTheme color getters work everywhere.
+        AppTheme.currentBrightness = Theme.of(context).brightness;
+        return child!;
+      },
       home: const SplashScreen(),
     );
   }
@@ -69,7 +113,6 @@ class _SplashScreenState extends State<SplashScreen>
     if (!mounted) return;
 
     if (restored) {
-      // Pre-fetch profile image in background
       service.fetchProfileImage();
     }
 
@@ -87,7 +130,6 @@ class _SplashScreenState extends State<SplashScreen>
       ),
     );
 
-    // Run update check after navigation, non-blocking.
     _checkForUpdate();
   }
 
@@ -100,9 +142,7 @@ class _SplashScreenState extends State<SplashScreen>
         ctx,
         currentVersion: info.version,
       );
-    } catch (_) {
-      // Never crash on update check.
-    }
+    } catch (_) {}
   }
 
   @override
@@ -137,7 +177,7 @@ class _SplashScreenState extends State<SplashScreen>
                 ),
               ),
               const SizedBox(height: 20),
-              const Text(
+              Text(
                 'POKYH',
                 style: TextStyle(
                   fontSize: 28,
