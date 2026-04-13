@@ -2,7 +2,9 @@ import 'dart:convert';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import '../services/webuntis_service.dart';
 import '../theme/app_theme.dart';
 import 'timetable_screen.dart' show TimetableScreen, TimetableScreenState;
@@ -35,7 +37,6 @@ class _HomeScreenState extends State<HomeScreen> {
         onExamTap: (exam) {
           if (exam == null) return;
           setState(() => _tab = 1);
-          // Calculate week offset and day index for the exam
           final now = DateTime.now();
           final examDate = DateTime(
             int.parse(exam.entry.date.toString().substring(0, 4)),
@@ -49,7 +50,6 @@ class _HomeScreenState extends State<HomeScreen> {
           ).subtract(Duration(days: now.weekday - 1));
           final weekOffset = examDate.difference(thisMonday).inDays ~/ 7;
           final dayIndex = examDate.weekday - 1;
-          // Wait for tab switch, then jump and show detail
           Future.delayed(const Duration(milliseconds: 120), () {
             final timetableState = _timetableKey.currentState;
             if (timetableState != null) {
@@ -101,8 +101,8 @@ class _HomeScreenState extends State<HomeScreen> {
         children: [
           IndexedStack(index: _tab, children: _screens),
           Positioned(
-            top: MediaQuery.of(context).padding.top + 14,
-            right: 20,
+            top: MediaQuery.of(context).padding.top + 12,
+            right: 16,
             child: GestureDetector(
               onTap: _openProfile,
               child: _SmallProfileAvatar(service: widget.service),
@@ -123,7 +123,7 @@ class _HomeScreenState extends State<HomeScreen> {
         child: SafeArea(
           top: false,
           child: Padding(
-            padding: const EdgeInsets.only(top: 6, bottom: 2),
+            padding: const EdgeInsets.only(top: 5, bottom: 2),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
@@ -185,8 +185,8 @@ class _SmallProfileAvatarState extends State<_SmallProfileAvatar> {
   Widget build(BuildContext context) {
     final bytes = widget.service.profileImageBytes;
     return Container(
-      width: 36,
-      height: 36,
+      width: 32,
+      height: 32,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         color: AppTheme.surface,
@@ -194,7 +194,7 @@ class _SmallProfileAvatarState extends State<_SmallProfileAvatar> {
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.2),
-            blurRadius: 8,
+            blurRadius: 7,
             offset: const Offset(0, 2),
           ),
         ],
@@ -213,7 +213,7 @@ class _SmallProfileAvatarState extends State<_SmallProfileAvatar> {
   Widget _fallback() => const Center(
     child: Icon(
       CupertinoIcons.person_fill,
-      size: 18,
+      size: 16,
       color: AppTheme.textSecondary,
     ),
   );
@@ -240,20 +240,20 @@ class _TabItem extends StatelessWidget {
       behavior: HitTestBehavior.opaque,
       onTap: onTap,
       child: SizedBox(
-        width: 72,
+        width: 68,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
               icon,
-              size: 22,
+              size: 20,
               color: active ? AppTheme.accent : AppTheme.textTertiary,
             ),
             const SizedBox(height: 2),
             Text(
               label,
               style: TextStyle(
-                fontSize: 10,
+                fontSize: 9,
                 fontWeight: active ? FontWeight.w600 : FontWeight.w400,
                 color: active ? AppTheme.accent : AppTheme.textTertiary,
               ),
@@ -282,19 +282,6 @@ class _NextExam {
   });
 }
 
-class _Break {
-  final String startTime;
-  final String endTime;
-  final int durationMins;
-  final int minsUntil;
-  const _Break({
-    required this.startTime,
-    required this.endTime,
-    required this.durationMins,
-    required this.minsUntil,
-  });
-}
-
 class _RecentGrade {
   final String subject;
   final double value;
@@ -306,6 +293,35 @@ class _RecentGrade {
     required this.date,
     required this.type,
   });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  CARD SECTION ENUM + PERSISTENCE
+// ═══════════════════════════════════════════════════════════════════════════════
+
+enum _CardSection { weekOverview, examBanner, infoRow, mensa }
+
+const _kCardOrderKey = 'dashboard_card_order_v1';
+
+final _defaultOrder = [
+  _CardSection.weekOverview,
+  _CardSection.examBanner,
+  _CardSection.infoRow,
+  _CardSection.mensa,
+];
+
+List<_CardSection> _orderFromStrings(List<String> saved) {
+  try {
+    final result = saved
+        .map((s) => _CardSection.values.firstWhere((e) => e.name == s))
+        .toList();
+    for (final s in _CardSection.values) {
+      if (!result.contains(s)) result.add(s);
+    }
+    return result;
+  } catch (_) {
+    return List.from(_defaultOrder);
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -342,7 +358,8 @@ class _DashboardTabState extends State<_DashboardTab>
   bool _loadingMensa = true;
 
   late AnimationController _fadeController;
-  late Animation<double> _fadeAnimation;
+
+  List<_CardSection> _cardOrder = List.from(_defaultOrder);
 
   @override
   void initState() {
@@ -351,17 +368,33 @@ class _DashboardTabState extends State<_DashboardTab>
       duration: const Duration(milliseconds: 600),
       vsync: this,
     );
-    _fadeAnimation = CurvedAnimation(
-      parent: _fadeController,
-      curve: Curves.easeOut,
-    );
-    _load();
+    _loadCardOrder().then((_) => _load());
   }
 
   @override
   void dispose() {
     _fadeController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadCardOrder() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final saved = prefs.getStringList(_kCardOrderKey);
+      if (saved != null && saved.isNotEmpty && mounted) {
+        setState(() => _cardOrder = _orderFromStrings(saved));
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _saveCardOrder() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setStringList(
+        _kCardOrderKey,
+        _cardOrder.map((e) => e.name).toList(),
+      );
+    } catch (_) {}
   }
 
   Future<void> _load() async {
@@ -455,7 +488,6 @@ class _DashboardTabState extends State<_DashboardTab>
       }
 
       final json = jsonDecode(response.body);
-
       List<dynamic> dishes = [];
       if (json is Map) {
         final menu = json['menu'];
@@ -471,7 +503,6 @@ class _DashboardTabState extends State<_DashboardTab>
       }
 
       final todayDishes = dishes.where((d) => d['date'] == todayStr).toList();
-
       if (!mounted) return;
 
       if (todayDishes.isEmpty) {
@@ -497,9 +528,7 @@ class _DashboardTabState extends State<_DashboardTab>
 
       String? category;
       final catField = main['category'];
-      if (catField is String && catField.isNotEmpty) {
-        category = catField;
-      }
+      if (catField is String && catField.isNotEmpty) category = catField;
 
       setState(() {
         _mensaToday = name;
@@ -517,29 +546,6 @@ class _DashboardTabState extends State<_DashboardTab>
     '${d.year}${d.month.toString().padLeft(2, '0')}${d.day.toString().padLeft(2, '0')}',
   );
 
-  bool _isCurrentLesson(TimetableEntry e, DateTime now) {
-    final nowMins = now.hour * 60 + now.minute;
-    final s = (e.startTime ~/ 100) * 60 + (e.startTime % 100);
-    final en = (e.endTime ~/ 100) * 60 + (e.endTime % 100);
-    return nowMins >= s && nowMins < en;
-  }
-
-  TimetableEntry? _getNextLesson(DateTime now) {
-    final nowMins = now.hour * 60 + now.minute;
-    for (final e in _today) {
-      final startMins = (e.startTime ~/ 100) * 60 + (e.startTime % 100);
-      if (startMins > nowMins) return e;
-    }
-    return null;
-  }
-
-  TimetableEntry? _getCurrentLesson(DateTime now) {
-    for (final e in _today) {
-      if (_isCurrentLesson(e, now)) return e;
-    }
-    return null;
-  }
-
   String? _getSchoolEnd() {
     if (_today.isEmpty) return null;
     final last = _today.last;
@@ -551,33 +557,10 @@ class _DashboardTabState extends State<_DashboardTab>
   int? _minsUntilEnd(DateTime now) {
     if (_today.isEmpty) return null;
     final last = _today.last;
-    final endH = last.endTime ~/ 100;
-    final endM = last.endTime % 100;
-    final endMins = endH * 60 + endM;
+    final endMins = (last.endTime ~/ 100) * 60 + (last.endTime % 100);
     final nowMins = now.hour * 60 + now.minute;
     if (endMins <= nowMins) return null;
     return endMins - nowMins;
-  }
-
-  _Break? _getNextBreak(DateTime now) {
-    final nowMins = now.hour * 60 + now.minute;
-    for (int i = 0; i < _today.length - 1; i++) {
-      final curr = _today[i];
-      final next = _today[i + 1];
-      final currEndMins = (curr.endTime ~/ 100) * 60 + (curr.endTime % 100);
-      final nextStartMins =
-          (next.startTime ~/ 100) * 60 + (next.startTime % 100);
-      final gap = nextStartMins - currEndMins;
-      if (gap >= 5 && currEndMins > nowMins) {
-        return _Break(
-          startTime: curr.endFormatted,
-          endTime: next.startFormatted,
-          durationMins: gap,
-          minsUntil: currEndMins - nowMins,
-        );
-      }
-    }
-    return null;
   }
 
   _NextExam? _getNextExam(DateTime now) {
@@ -616,15 +599,116 @@ class _DashboardTabState extends State<_DashboardTab>
     );
   }
 
-  int _lessonsRemaining(DateTime now) {
-    final nowMins = now.hour * 60 + now.minute;
-    return _today.where((e) {
-      final startMins = (e.startTime ~/ 100) * 60 + (e.startTime % 100);
-      return startMins > nowMins;
-    }).length;
+  // ── Card content builders ──────────────────────────────────────────────────
+
+  Widget? _cardContent(_CardSection section, DateTime now) {
+    final nextExam = _loadingTimetable ? null : _getNextExam(now);
+    final schoolEnd = _getSchoolEnd();
+    final minsUntilEnd = _minsUntilEnd(now);
+
+    switch (section) {
+      case _CardSection.weekOverview:
+        if (_loadingTimetable && _allWeek.isEmpty) {
+          return const _LoadingCard();
+        }
+        if (_allWeek.isEmpty) return null;
+        return _WeekOverviewCard(
+          allWeek: _allWeek,
+          now: now,
+          service: widget.service,
+        );
+
+      case _CardSection.examBanner:
+        if (_loadingTimetable && _allWeek.isEmpty) return null;
+        if (_errorTimetable != null) return null;
+        return GestureDetector(
+          onTap: () => widget.onExamTap?.call(nextExam),
+          child: _ExamBanner(nextExam: nextExam),
+        );
+
+      case _CardSection.infoRow:
+        if (_loadingTimetable && _today.isEmpty) return const _LoadingCard();
+        if (_errorTimetable != null) {
+          return _ErrorCard(message: _errorTimetable!, onRetry: _load);
+        }
+        if (_today.isEmpty) return null;
+        return IntrinsicHeight(
+          child: Row(
+            children: [
+              Expanded(
+                child: _TimeInfoCard(
+                  icon: CupertinoIcons.flag_fill,
+                  label: 'Schulende',
+                  value: schoolEnd ?? '—',
+                  sub: minsUntilEnd != null
+                      ? 'noch ${_fmtDuration(minsUntilEnd)}'
+                      : 'vorbei',
+                  color: minsUntilEnd != null
+                      ? AppTheme.accent
+                      : AppTheme.textTertiary,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _RecentGradesCard(
+                  grades: _recentGrades,
+                  average: _weekAverage,
+                  loading: _loadingGrades,
+                ),
+              ),
+            ],
+          ),
+        );
+
+      case _CardSection.mensa:
+        return GestureDetector(
+          onTap: widget.onMensaTap,
+          child: _MensaPreviewCard(
+            dish: _mensaToday,
+            category: _mensaCategory,
+            loading: _loadingMensa,
+          ),
+        );
+    }
   }
 
-  // ── Build ──────────────────────────────────────────────────────────────────
+  void _onReorder(int oldIndex, int newIndex) {
+    HapticFeedback.lightImpact();
+    setState(() {
+      // Get the visible list to map indices correctly
+      final now = DateTime.now();
+      final visible = _cardOrder
+          .where((s) => _cardContent(s, now) != null)
+          .toList();
+
+      final movedSection = visible[oldIndex];
+
+      // Remove from full order
+      _cardOrder.remove(movedSection);
+
+      // Find insertion point in full order
+      // newIndex refers to position in the visible list after removal
+      final newVisible = _cardOrder
+          .where((s) => _cardContent(s, now) != null)
+          .toList();
+
+      if (newIndex >= newVisible.length) {
+        // Insert after last visible item
+        final lastVisible = newVisible.isNotEmpty ? newVisible.last : null;
+        if (lastVisible == null) {
+          _cardOrder.add(movedSection);
+        } else {
+          final insertAfter = _cardOrder.lastIndexOf(lastVisible);
+          _cardOrder.insert(insertAfter + 1, movedSection);
+        }
+      } else {
+        final targetSection = newVisible[newIndex];
+        final insertAt = _cardOrder.indexOf(targetSection);
+        _cardOrder.insert(insertAt, movedSection);
+      }
+    });
+    _saveCardOrder();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -653,13 +737,11 @@ class _DashboardTabState extends State<_DashboardTab>
       'Dezember',
     ];
 
-    final currentLesson = _loadingTimetable ? null : _getCurrentLesson(now);
-    final nextLesson = _loadingTimetable ? null : _getNextLesson(now);
-    final schoolEnd = _getSchoolEnd();
-    final minsUntilEnd = _minsUntilEnd(now);
-    final nextBreak = _getNextBreak(now);
-    final nextExam = _loadingTimetable ? null : _getNextExam(now);
-    final remaining = _loadingTimetable ? 0 : _lessonsRemaining(now);
+    // Build the visible list of (section, widget) pairs
+    final visibleCards = _cardOrder
+        .map((s) => (section: s, content: _cardContent(s, now)))
+        .where((pair) => pair.content != null)
+        .toList();
 
     return SafeArea(
       child: RefreshIndicator(
@@ -669,17 +751,17 @@ class _DashboardTabState extends State<_DashboardTab>
         child: CustomScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           slivers: [
-            // ── Header ──────────────────────────────────────────────────────
+            // Header
             SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 16, 60, 0),
+                padding: const EdgeInsets.fromLTRB(16, 14, 52, 0),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     const Text(
                       'Home',
                       style: TextStyle(
-                        fontSize: 34,
+                        fontSize: 30,
                         fontWeight: FontWeight.w700,
                         color: AppTheme.textPrimary,
                         letterSpacing: -0.5,
@@ -690,7 +772,7 @@ class _DashboardTabState extends State<_DashboardTab>
                       '${weekdays[now.weekday - 1]}, ${now.day}. ${months[now.month - 1]}',
                       textAlign: TextAlign.right,
                       style: const TextStyle(
-                        fontSize: 14,
+                        fontSize: 12,
                         color: AppTheme.textSecondary,
                       ),
                     ),
@@ -699,100 +781,25 @@ class _DashboardTabState extends State<_DashboardTab>
               ),
             ),
 
-            // ── Wochen-Übersicht (kompakt) ───────────────────────────────────
-            if (!_loadingTimetable && _allWeek.isNotEmpty)
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-                  child: _WeekOverviewCard(
-                    allWeek: _allWeek,
-                    now: now,
-                    service: widget.service,
-                  ),
-                ),
-              ),
-            const SliverToBoxAdapter(child: SizedBox(height: 12)),
-            // ── Nächste Prüfung Banner ───────────────────────────────────────
-            if (!_loadingTimetable && _errorTimetable == null)
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-                  child: GestureDetector(
-                    onTap: () => widget.onExamTap?.call(nextExam),
-                    child: _ExamBanner(nextExam: nextExam),
-                  ),
-                ),
-              ),
+            const SliverToBoxAdapter(child: SizedBox(height: 10)),
 
-            // ── Schulende + Noten (side by side) ────────────────────────────
-            if (!_loadingTimetable &&
-                _errorTimetable == null &&
-                _today.isNotEmpty)
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-                  child: IntrinsicHeight(
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: _TimeInfoCard(
-                            icon: CupertinoIcons.flag_fill,
-                            label: 'Schulende',
-                            value: schoolEnd ?? '—',
-                            sub: minsUntilEnd != null
-                                ? 'noch ${_fmtDuration(minsUntilEnd)}'
-                                : 'vorbei',
-                            color: minsUntilEnd != null
-                                ? AppTheme.accent
-                                : AppTheme.textTertiary,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _RecentGradesCard(
-                            grades: _recentGrades,
-                            average: _weekAverage,
-                            loading: _loadingGrades,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-
-            // ── Loader / Fehler ──────────────────────────────────────────────
-            if (_loadingTimetable)
-              const SliverToBoxAdapter(
-                child: Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                  child: Center(child: CupertinoActivityIndicator(radius: 14)),
-                ),
-              )
-            else if (_errorTimetable != null)
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: _ErrorCard(message: _errorTimetable!, onRetry: _load),
-                ),
-              ),
-
-            // ── Mensa Card (clickable, fullwidth) ────────────────────────────
+            // Reorderable card list
             SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
-                child: GestureDetector(
-                  onTap: widget.onMensaTap,
-                  child: _MensaPreviewCard(
-                    dish: _mensaToday,
-                    category: _mensaCategory,
-                    loading: _loadingMensa,
-                  ),
-                ),
+              child: _CardReorderList(
+                cards: visibleCards
+                    .map(
+                      (p) => _CardEntry(
+                        key: ValueKey(p.section.name),
+                        section: p.section,
+                        child: p.content!,
+                      ),
+                    )
+                    .toList(),
+                onReorder: _onReorder,
               ),
             ),
 
-            const SliverToBoxAdapter(child: SizedBox(height: 32)),
+            const SliverToBoxAdapter(child: SizedBox(height: 24)),
           ],
         ),
       ),
@@ -806,8 +813,202 @@ class _DashboardTabState extends State<_DashboardTab>
     return m == 0 ? '${h}h' : '${h}h ${m}min';
   }
 }
+
 // ═══════════════════════════════════════════════════════════════════════════════
-//  WEEK OVERVIEW CARD  –  compact dot-grid showing the week at a glance
+//  CARD ENTRY MODEL
+// ═══════════════════════════════════════════════════════════════════════════════
+
+class _CardEntry {
+  final Key key;
+  final _CardSection section;
+  final Widget child;
+  const _CardEntry({
+    required this.key,
+    required this.section,
+    required this.child,
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  CARD REORDER LIST  –  robust drag with correct index math
+// ═══════════════════════════════════════════════════════════════════════════════
+
+class _CardReorderList extends StatefulWidget {
+  final List<_CardEntry> cards;
+  final void Function(int oldIndex, int newIndex) onReorder;
+
+  const _CardReorderList({required this.cards, required this.onReorder});
+
+  @override
+  State<_CardReorderList> createState() => _CardReorderListState();
+}
+
+class _CardReorderListState extends State<_CardReorderList> {
+  int? _draggingIndex;
+  int? _hoverIndex;
+
+  void _startDrag(int index) {
+    HapticFeedback.mediumImpact();
+    setState(() {
+      _draggingIndex = index;
+      _hoverIndex = null;
+    });
+  }
+
+  void _endDrag() {
+    setState(() {
+      _draggingIndex = null;
+      _hoverIndex = null;
+    });
+  }
+
+  void _updateHover(int index) {
+    if (_hoverIndex != index) {
+      setState(() => _hoverIndex = index);
+    }
+  }
+
+  void _clearHover() {
+    if (_hoverIndex != null) {
+      setState(() => _hoverIndex = null);
+    }
+  }
+
+  void _drop(int fromIndex, int toIndex) {
+    _endDrag();
+    if (fromIndex != toIndex) {
+      widget.onReorder(fromIndex, toIndex);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+
+    return Column(
+      children: List.generate(widget.cards.length, (index) {
+        final entry = widget.cards[index];
+        final isDraggingThis = _draggingIndex == index;
+        final isHoveredTarget =
+            _hoverIndex == index &&
+            _draggingIndex != null &&
+            _draggingIndex != index;
+
+        return Padding(
+          key: entry.key,
+          padding: EdgeInsets.fromLTRB(16, 0, 16, 10),
+          child: LongPressDraggable<int>(
+            data: index,
+            delay: const Duration(milliseconds: 380),
+            hapticFeedbackOnStart: true,
+            onDragStarted: () => _startDrag(index),
+            onDragEnd: (_) => _endDrag(),
+            onDraggableCanceled: (_, __) => _endDrag(),
+            // Ghost following finger
+            feedback: Material(
+              color: Colors.transparent,
+              child: SizedBox(
+                width: screenWidth - 32,
+                child: Transform.scale(
+                  scale: 1.04,
+                  alignment: Alignment.topCenter,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(14),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.28),
+                          blurRadius: 22,
+                          spreadRadius: 1,
+                          offset: const Offset(0, 10),
+                        ),
+                      ],
+                    ),
+                    child: Opacity(opacity: 0.93, child: entry.child),
+                  ),
+                ),
+              ),
+            ),
+            // Slot left behind while dragging
+            childWhenDragging: AnimatedContainer(
+              duration: const Duration(milliseconds: 220),
+              height: 56,
+              decoration: BoxDecoration(
+                color: AppTheme.accent.withValues(alpha: 0.07),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: AppTheme.accent.withValues(alpha: 0.28),
+                  width: 1.5,
+                ),
+              ),
+            ),
+            child: DragTarget<int>(
+              onWillAcceptWithDetails: (details) {
+                if (details.data == index) return false;
+                _updateHover(index);
+                return true;
+              },
+              onLeave: (_) => _clearHover(),
+              onAcceptWithDetails: (details) => _drop(details.data, index),
+              builder: (context, candidateData, _) {
+                final isTarget = candidateData.isNotEmpty;
+                return AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  curve: Curves.easeOut,
+                  transform: Matrix4.identity()
+                    ..scale(isDraggingThis ? 0.96 : 1.0),
+                  transformAlignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(14),
+                    border: isTarget
+                        ? Border.all(
+                            color: AppTheme.accent.withValues(alpha: 0.65),
+                            width: 2,
+                          )
+                        : null,
+                    boxShadow: isTarget
+                        ? [
+                            BoxShadow(
+                              color: AppTheme.accent.withValues(alpha: 0.18),
+                              blurRadius: 14,
+                              spreadRadius: 2,
+                            ),
+                          ]
+                        : null,
+                  ),
+                  child: entry.child,
+                );
+              },
+            ),
+          ),
+        );
+      }),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  LOADING CARD PLACEHOLDER
+// ═══════════════════════════════════════════════════════════════════════════════
+
+class _LoadingCard extends StatelessWidget {
+  const _LoadingCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 20),
+      decoration: BoxDecoration(
+        color: AppTheme.surface,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: const Center(child: CupertinoActivityIndicator(radius: 12)),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  WEEK OVERVIEW CARD
 // ═══════════════════════════════════════════════════════════════════════════════
 
 class _WeekOverviewCard extends StatelessWidget {
@@ -832,10 +1033,10 @@ class _WeekOverviewCard extends StatelessWidget {
     final monday = now.subtract(Duration(days: now.weekday - 1));
 
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(13),
       decoration: BoxDecoration(
         color: AppTheme.surface,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(14),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -843,32 +1044,32 @@ class _WeekOverviewCard extends StatelessWidget {
           Row(
             children: [
               Container(
-                width: 28,
-                height: 28,
+                width: 24,
+                height: 24,
                 decoration: BoxDecoration(
                   color: AppTheme.tint.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(7),
                 ),
                 child: const Center(
                   child: Icon(
                     CupertinoIcons.calendar,
-                    size: 14,
+                    size: 12,
                     color: AppTheme.tint,
                   ),
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 7),
               const Text(
                 'Diese Woche',
                 style: TextStyle(
-                  fontSize: 13,
+                  fontSize: 12,
                   fontWeight: FontWeight.w600,
                   color: AppTheme.textSecondary,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 12),
           Row(
             children: List.generate(5, (i) {
               final day = monday.add(Duration(days: i));
@@ -885,7 +1086,6 @@ class _WeekOverviewCard extends StatelessWidget {
               );
               final hasExam = dayEntries.any((e) => e.isExam);
               final hasCancelled = dayEntries.any((e) => e.isCancelled);
-              final tagDesMonats = day.day;
 
               return Expanded(
                 child: Column(
@@ -893,17 +1093,17 @@ class _WeekOverviewCard extends StatelessWidget {
                     Text(
                       _dayLabels[i],
                       style: TextStyle(
-                        fontSize: 11,
+                        fontSize: 10,
                         fontWeight: FontWeight.w600,
                         color: isToday
                             ? AppTheme.accent
                             : AppTheme.textTertiary,
                       ),
                     ),
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 5),
                     Container(
-                      width: 36,
-                      height: 36,
+                      width: 32,
+                      height: 32,
                       decoration: BoxDecoration(
                         color: isToday
                             ? AppTheme.accent
@@ -924,15 +1124,15 @@ class _WeekOverviewCard extends StatelessWidget {
                         child: hasExam
                             ? Icon(
                                 CupertinoIcons.doc_text_fill,
-                                size: 14,
+                                size: 12,
                                 color: isToday
                                     ? Colors.white
                                     : AppTheme.warning,
                               )
                             : Text(
-                                '$tagDesMonats',
+                                '${day.day}',
                                 style: TextStyle(
-                                  fontSize: 14,
+                                  fontSize: 12,
                                   fontWeight: FontWeight.w700,
                                   color: isToday
                                       ? Colors.white
@@ -943,36 +1143,34 @@ class _WeekOverviewCard extends StatelessWidget {
                               ),
                       ),
                     ),
-                    const SizedBox(height: 5),
-                    // Cancellation indicator dots
+                    const SizedBox(height: 4),
                     if (hasCancelled && !hasExam)
                       Container(
-                        width: 5,
-                        height: 5,
+                        width: 4,
+                        height: 4,
                         decoration: BoxDecoration(
                           color: AppTheme.danger.withValues(alpha: 0.6),
                           shape: BoxShape.circle,
                         ),
                       )
                     else
-                      const SizedBox(height: 5),
+                      const SizedBox(height: 4),
                   ],
                 ),
               );
             }),
           ),
-          const SizedBox(height: 12),
-          // Legend
+          const SizedBox(height: 10),
           Row(
             children: [
               _WeekLegendDot(color: AppTheme.warning, label: 'Prüfung'),
-              const SizedBox(width: 14),
+              const SizedBox(width: 12),
               _WeekLegendDot(color: AppTheme.danger, label: 'Entfall'),
               const Spacer(),
               Text(
                 '${allWeek.length} Std. diese Woche',
                 style: const TextStyle(
-                  fontSize: 11,
+                  fontSize: 10,
                   color: AppTheme.textTertiary,
                 ),
               ),
@@ -985,7 +1183,7 @@ class _WeekOverviewCard extends StatelessWidget {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-//  EXAM BANNER  –  shows the next upcoming exam, not just today
+//  EXAM BANNER
 // ═══════════════════════════════════════════════════════════════════════════════
 
 class _ExamBanner extends StatelessWidget {
@@ -996,10 +1194,10 @@ class _ExamBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     if (nextExam == null) {
       return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
         decoration: BoxDecoration(
           color: AppTheme.success.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(10),
           border: Border.all(
             color: AppTheme.success.withValues(alpha: 0.22),
             width: 1,
@@ -1009,14 +1207,14 @@ class _ExamBanner extends StatelessWidget {
           children: [
             Icon(
               CupertinoIcons.checkmark_seal_fill,
-              size: 14,
+              size: 13,
               color: AppTheme.success,
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: 7),
             const Text(
               'Keine Prüfung diese Woche',
               style: TextStyle(
-                fontSize: 13,
+                fontSize: 12,
                 fontWeight: FontWeight.w600,
                 color: AppTheme.success,
               ),
@@ -1033,10 +1231,10 @@ class _ExamBanner extends StatelessWidget {
         : CupertinoIcons.calendar_badge_plus;
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 14),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(color: color.withValues(alpha: 0.35), width: 1),
       ),
       child: Row(
@@ -1044,9 +1242,9 @@ class _ExamBanner extends StatelessWidget {
         children: [
           Padding(
             padding: const EdgeInsets.only(top: 2),
-            child: Icon(icon, size: 22, color: color),
+            child: Icon(icon, size: 19, color: color),
           ),
-          const SizedBox(width: 14),
+          const SizedBox(width: 11),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1054,27 +1252,27 @@ class _ExamBanner extends StatelessWidget {
                 Text(
                   exam.isToday ? 'Prüfung heute' : 'Nächste Prüfung',
                   style: TextStyle(
-                    fontSize: 13,
+                    fontSize: 11,
                     fontWeight: FontWeight.w600,
                     color: color.withValues(alpha: 0.85),
                   ),
                 ),
-                const SizedBox(height: 6),
+                const SizedBox(height: 5),
                 Text(
                   exam.entry.displayName,
                   style: TextStyle(
-                    fontSize: 16,
+                    fontSize: 14,
                     fontWeight: FontWeight.w700,
                     color: color,
                   ),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 3),
                 Text(
                   exam.label,
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: 11,
                     fontWeight: FontWeight.w500,
                     color: color.withValues(alpha: 0.65),
                   ),
@@ -1110,10 +1308,10 @@ class _TimeInfoCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: AppTheme.surface,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(13),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1121,20 +1319,20 @@ class _TimeInfoCard extends StatelessWidget {
           Row(
             children: [
               Container(
-                width: 26,
-                height: 26,
+                width: 22,
+                height: 22,
                 decoration: BoxDecoration(
                   color: color.withValues(alpha: 0.13),
-                  borderRadius: BorderRadius.circular(7),
+                  borderRadius: BorderRadius.circular(6),
                 ),
-                child: Center(child: Icon(icon, size: 13, color: color)),
+                child: Center(child: Icon(icon, size: 11, color: color)),
               ),
-              const SizedBox(width: 7),
+              const SizedBox(width: 6),
               Expanded(
                 child: Text(
                   label,
                   style: const TextStyle(
-                    fontSize: 12,
+                    fontSize: 11,
                     fontWeight: FontWeight.w500,
                     color: AppTheme.textSecondary,
                   ),
@@ -1143,11 +1341,11 @@ class _TimeInfoCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 8),
           Text(
             value,
             style: TextStyle(
-              fontSize: 20,
+              fontSize: 18,
               fontWeight: FontWeight.w700,
               color: color,
               fontFeatures: const [FontFeature.tabularFigures()],
@@ -1156,7 +1354,7 @@ class _TimeInfoCard extends StatelessWidget {
           const SizedBox(height: 2),
           Text(
             sub,
-            style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary),
+            style: const TextStyle(fontSize: 10, color: AppTheme.textSecondary),
           ),
         ],
       ),
@@ -1165,7 +1363,7 @@ class _TimeInfoCard extends StatelessWidget {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-//  MENSA PREVIEW CARD  –  rich, food-themed, beautiful
+//  MENSA PREVIEW CARD
 // ═══════════════════════════════════════════════════════════════════════════════
 
 class _MensaPreviewCard extends StatelessWidget {
@@ -1181,7 +1379,7 @@ class _MensaPreviewCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(13),
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
@@ -1193,103 +1391,95 @@ class _MensaPreviewCard extends StatelessWidget {
         border: Border.all(color: _kOrange.withValues(alpha: 0.25), width: 1),
       ),
       clipBehavior: Clip.antiAlias,
-      child: Stack(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(14),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
               children: [
-                // Header row
-                Row(
-                  children: [
-                    Container(
-                      width: 28,
-                      height: 28,
-                      decoration: BoxDecoration(
-                        color: _kOrange.withValues(alpha: 0.22),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Center(
-                        child: Icon(
-                          CupertinoIcons.flame_fill,
-                          size: 14,
-                          color: _kOrange,
-                        ),
-                      ),
+                Container(
+                  width: 24,
+                  height: 24,
+                  decoration: BoxDecoration(
+                    color: _kOrange.withValues(alpha: 0.22),
+                    borderRadius: BorderRadius.circular(7),
+                  ),
+                  child: const Center(
+                    child: Icon(
+                      CupertinoIcons.flame_fill,
+                      size: 12,
+                      color: _kOrange,
                     ),
-                    const SizedBox(width: 8),
-                    const Text(
-                      'Mensa',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: AppTheme.textSecondary,
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
-                const SizedBox(height: 12),
-
-                if (loading)
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 8),
-                    child: CupertinoActivityIndicator(radius: 9),
-                  )
-                else if (dish != null) ...[
-                  const SizedBox(height: 7),
-                  // Dish name
-                  Text(
-                    dish!,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                      color: AppTheme.textPrimary,
-                      height: 1.3,
-                    ),
-                    maxLines: 3,
-                    overflow: TextOverflow.ellipsis,
+                const SizedBox(width: 7),
+                const Text(
+                  'Mensa',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.textSecondary,
                   ),
-                  const SizedBox(height: 10),
-                  // "Mehr" hint
-                  Row(
-                    children: [
-                      const Text(
-                        'Zum Menü',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: _kOrange,
-                        ),
-                      ),
-                      const SizedBox(width: 3),
-                      Icon(
-                        CupertinoIcons.arrow_right,
-                        size: 10,
-                        color: _kOrange.withValues(alpha: 0.8),
-                      ),
-                    ],
-                  ),
-                ] else
-                  Text(
-                    'Heute nichts\nverfügbar',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: AppTheme.textSecondary,
-                      height: 1.4,
-                    ),
-                  ),
+                ),
               ],
             ),
-          ),
-        ],
+            const SizedBox(height: 10),
+            if (loading)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 6),
+                child: CupertinoActivityIndicator(radius: 8),
+              )
+            else if (dish != null) ...[
+              const SizedBox(height: 5),
+              Text(
+                dish!,
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: AppTheme.textPrimary,
+                  height: 1.3,
+                ),
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  const Text(
+                    'Zum Menü',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      color: _kOrange,
+                    ),
+                  ),
+                  const SizedBox(width: 3),
+                  Icon(
+                    CupertinoIcons.arrow_right,
+                    size: 9,
+                    color: _kOrange.withValues(alpha: 0.8),
+                  ),
+                ],
+              ),
+            ] else
+              Text(
+                'Heute nichts\nverfügbar',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: AppTheme.textSecondary,
+                  height: 1.4,
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-//  RECENT GRADES CARD  –  with overall average indicator
+//  RECENT GRADES CARD
 // ═══════════════════════════════════════════════════════════════════════════════
 
 class _RecentGradesCard extends StatelessWidget {
@@ -1302,26 +1492,13 @@ class _RecentGradesCard extends StatelessWidget {
     this.average,
   });
 
-  Color _avgColor(double v) {
-    if (v >= 9) return AppTheme.success;
-    if (v >= 6.5) return const Color(0xFF86EFAC);
-    if (v >= 6) return AppTheme.warning;
-    if (v >= 4) return const Color(0xFFFF9F0A);
-    return AppTheme.danger;
-  }
-
-  String _fmtAvg(double v) {
-    if (v % 1 == 0) return v.toInt().toString();
-    return v.toStringAsFixed(1);
-  }
-
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: AppTheme.surface,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(13),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1329,41 +1506,40 @@ class _RecentGradesCard extends StatelessWidget {
           Row(
             children: [
               Container(
-                width: 28,
-                height: 28,
+                width: 24,
+                height: 24,
                 decoration: BoxDecoration(
                   color: AppTheme.accent.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(7),
                 ),
                 child: const Center(
                   child: Icon(
                     CupertinoIcons.chart_bar_fill,
-                    size: 14,
+                    size: 12,
                     color: AppTheme.accent,
                   ),
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 7),
               const Expanded(
                 child: Text(
                   'Letzte Noten',
                   style: TextStyle(
-                    fontSize: 13,
+                    fontSize: 12,
                     fontWeight: FontWeight.w600,
                     color: AppTheme.textSecondary,
                   ),
                 ),
               ),
-              // Average badge
             ],
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 8),
           if (loading)
-            const CupertinoActivityIndicator(radius: 9)
+            const CupertinoActivityIndicator(radius: 8)
           else if (grades.isEmpty)
             const Text(
               'Noch keine Noten',
-              style: TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+              style: TextStyle(fontSize: 11, color: AppTheme.textSecondary),
             )
           else
             Column(children: grades.map((g) => _GradeRow(grade: g)).toList()),
@@ -1397,17 +1573,16 @@ class _GradeRow extends StatelessWidget {
     final dateStr = d.length == 8
         ? '${d.substring(6)}.${d.substring(4, 6)}'
         : '';
-    final valStr = _fmtValue(grade.value);
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 7),
+      padding: const EdgeInsets.only(bottom: 6),
       child: Row(
         children: [
           Expanded(
             child: Text(
               grade.subject,
               style: const TextStyle(
-                fontSize: 13,
+                fontSize: 11,
                 fontWeight: FontWeight.w500,
                 color: AppTheme.textPrimary,
               ),
@@ -1415,25 +1590,25 @@ class _GradeRow extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
             ),
           ),
-          const SizedBox(width: 4),
+          const SizedBox(width: 3),
           Text(
             dateStr,
-            style: const TextStyle(fontSize: 10, color: AppTheme.textTertiary),
+            style: const TextStyle(fontSize: 9, color: AppTheme.textTertiary),
           ),
-          const SizedBox(width: 5),
+          const SizedBox(width: 4),
           Container(
-            constraints: const BoxConstraints(minWidth: 32),
-            height: 24,
-            padding: const EdgeInsets.symmetric(horizontal: 6),
+            constraints: const BoxConstraints(minWidth: 28),
+            height: 20,
+            padding: const EdgeInsets.symmetric(horizontal: 5),
             decoration: BoxDecoration(
               color: color.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(6),
+              borderRadius: BorderRadius.circular(5),
             ),
             child: Center(
               child: Text(
-                valStr,
+                _fmtValue(grade.value),
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: 11,
                   fontWeight: FontWeight.w700,
                   color: color,
                 ),
@@ -1457,154 +1632,16 @@ class _WeekLegendDot extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         Container(
-          width: 7,
-          height: 7,
+          width: 6,
+          height: 6,
           decoration: BoxDecoration(color: color, shape: BoxShape.circle),
         ),
-        const SizedBox(width: 5),
+        const SizedBox(width: 4),
         Text(
           label,
-          style: const TextStyle(fontSize: 11, color: AppTheme.textTertiary),
+          style: const TextStyle(fontSize: 10, color: AppTheme.textTertiary),
         ),
       ],
-    );
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-//  NOW / NEXT CARD
-// ═══════════════════════════════════════════════════════════════════════════════
-
-class _NowNextCard extends StatelessWidget {
-  final TimetableEntry? current;
-  final TimetableEntry? next;
-  final WebUntisService service;
-  const _NowNextCard({this.current, this.next, required this.service});
-
-  @override
-  Widget build(BuildContext context) {
-    final entry = current ?? next!;
-    final isCurrent = current != null;
-    final color = entry.isCancelled
-        ? AppTheme.danger
-        : AppTheme.colorForSubject(entry.subjectName);
-    final nr = service.getLessonNumber(entry.startTime);
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: isCurrent
-              ? [
-                  AppTheme.accent.withValues(alpha: 0.15),
-                  AppTheme.accent.withValues(alpha: 0.05),
-                ]
-              : [AppTheme.surface, AppTheme.surface],
-        ),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isCurrent
-              ? AppTheme.accent.withValues(alpha: 0.3)
-              : AppTheme.border.withValues(alpha: 0.2),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: isCurrent
-                      ? AppTheme.accent.withValues(alpha: 0.2)
-                      : AppTheme.textTertiary.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Text(
-                  isCurrent ? 'Jetzt' : 'Als Nächstes',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: isCurrent ? AppTheme.accent : AppTheme.textSecondary,
-                  ),
-                ),
-              ),
-              const Spacer(),
-              Text(
-                '${entry.startFormatted} – ${entry.endFormatted}',
-                style: TextStyle(
-                  fontSize: 13,
-                  color: isCurrent ? AppTheme.accent : AppTheme.textSecondary,
-                  fontFeatures: const [FontFeature.tabularFigures()],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              Container(
-                width: 4,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: color,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      entry.displayName,
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
-                        color: AppTheme.textPrimary,
-                      ),
-                    ),
-                    if (entry.teacherName.isNotEmpty ||
-                        entry.roomName.isNotEmpty)
-                      Text(
-                        [
-                          entry.teacherName,
-                          entry.roomName,
-                        ].where((s) => s.isNotEmpty).join(' · '),
-                        style: const TextStyle(
-                          fontSize: 13,
-                          color: AppTheme.textSecondary,
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-              if (nr != null)
-                Container(
-                  width: 32,
-                  height: 32,
-                  decoration: BoxDecoration(
-                    color: color.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Center(
-                    child: Text(
-                      nr,
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                        color: color,
-                      ),
-                    ),
-                  ),
-                ),
-            ],
-          ),
-        ],
-      ),
     );
   }
 }
@@ -1621,34 +1658,34 @@ class _ErrorCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppTheme.surface,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
         children: [
           const Icon(
             CupertinoIcons.exclamationmark_triangle_fill,
             color: AppTheme.danger,
-            size: 28,
+            size: 24,
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 8),
           Text(
             message,
             textAlign: TextAlign.center,
-            style: const TextStyle(color: AppTheme.textSecondary, fontSize: 14),
+            style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12),
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 12),
           CupertinoButton(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
             color: AppTheme.accent,
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(9),
             minimumSize: Size.zero,
             onPressed: onRetry,
             child: const Text(
               'Erneut versuchen',
-              style: TextStyle(fontSize: 14),
+              style: TextStyle(fontSize: 13),
             ),
           ),
         ],

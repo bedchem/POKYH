@@ -266,7 +266,6 @@ class _OverviewAndDistributionCard extends StatelessWidget {
     final totalGrades = subjects.fold<int>(0, (s, e) => s + e.grades.length);
     final positive = subjects.fold<int>(0, (s, e) => s + e.positiveCount);
     final negative = subjects.fold<int>(0, (s, e) => s + e.negativeCount);
-    final dist = _buildDistribution();
     final groupedDist = _buildGroupedDistribution();
     final sortedEntries = (groupedDist.entries.toList()
       ..sort((a, b) => b.key.compareTo(a.key)));
