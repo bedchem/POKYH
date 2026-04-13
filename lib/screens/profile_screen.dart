@@ -9,7 +9,11 @@ import '../theme/app_theme.dart';
 class ProfileScreen extends StatefulWidget {
   final WebUntisService service;
   final VoidCallback onLogout;
-  const ProfileScreen({super.key, required this.service, required this.onLogout});
+  const ProfileScreen({
+    super.key,
+    required this.service,
+    required this.onLogout,
+  });
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
@@ -42,22 +46,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _loadSettings() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
-      _compactTimetable       = prefs.getBool('compactTimetable') ?? false;
-      _showCancelledLessons   = prefs.getBool('showCancelledLessons') ?? true;
-      _highlightFreePeriods   = prefs.getBool('highlightFreePeriods') ?? true;
-      _subjectColors          = prefs.getBool('subjectColors') ?? true;
-      _autoRefresh            = prefs.getBool('autoRefresh') ?? true;
-      _notifyChanges          = prefs.getBool('notifyChanges') ?? false;
-      _notifyMorning          = prefs.getBool('notifyMorning') ?? false;
-      _reminderTime           = prefs.getString('reminderTime') ?? '07:30';
-      _language               = prefs.getString('language') ?? 'de';
-      _themeMode              = prefs.getString('themeMode') ?? 'system';
+      _compactTimetable = prefs.getBool('compactTimetable') ?? false;
+      _showCancelledLessons = prefs.getBool('showCancelledLessons') ?? true;
+      _highlightFreePeriods = prefs.getBool('highlightFreePeriods') ?? true;
+      _subjectColors = prefs.getBool('subjectColors') ?? true;
+      _autoRefresh = prefs.getBool('autoRefresh') ?? true;
+      _notifyChanges = prefs.getBool('notifyChanges') ?? false;
+      _notifyMorning = prefs.getBool('notifyMorning') ?? false;
+      _reminderTime = prefs.getString('reminderTime') ?? '07:30';
+      _language = prefs.getString('language') ?? 'de';
+      _themeMode = prefs.getString('themeMode') ?? 'system';
     });
   }
 
   Future<void> _save(String key, dynamic value) async {
     final prefs = await SharedPreferences.getInstance();
-    if (value is bool)   await prefs.setBool(key, value);
+    if (value is bool) await prefs.setBool(key, value);
     if (value is String) await prefs.setString(key, value);
   }
 
@@ -151,9 +155,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
       builder: (ctx) => CupertinoActionSheet(
         title: const Text('Design'),
         actions: [
-          _themeAction(ctx, 'light',  'Hell',   CupertinoIcons.sun_max),
-          _themeAction(ctx, 'system', 'Automatisch (System)', CupertinoIcons.circle_lefthalf_fill),
-          _themeAction(ctx, 'dark',   'Dunkel', CupertinoIcons.moon),
+          _themeAction(ctx, 'light', 'Hell', CupertinoIcons.sun_max),
+          _themeAction(
+            ctx,
+            'system',
+            'Automatisch (System)',
+            CupertinoIcons.circle_lefthalf_fill,
+          ),
+          _themeAction(ctx, 'dark', 'Dunkel', CupertinoIcons.moon),
         ],
         cancelButton: CupertinoActionSheetAction(
           isDefaultAction: true,
@@ -165,7 +174,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   CupertinoActionSheetAction _themeAction(
-      BuildContext ctx, String value, String label, IconData icon) {
+    BuildContext ctx,
+    String value,
+    String label,
+    IconData icon,
+  ) {
     return CupertinoActionSheetAction(
       onPressed: () {
         setState(() => _themeMode = value);
@@ -176,12 +189,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(icon, size: 18,
-              color: _themeMode == value ? AppTheme.accent : AppTheme.textPrimary),
+          Icon(
+            icon,
+            size: 18,
+            color: _themeMode == value ? AppTheme.accent : AppTheme.textPrimary,
+          ),
           const SizedBox(width: 8),
-          Text(label,
-              style: TextStyle(
-                  color: _themeMode == value ? AppTheme.accent : AppTheme.textPrimary)),
+          Text(
+            label,
+            style: TextStyle(
+              color: _themeMode == value
+                  ? AppTheme.accent
+                  : AppTheme.textPrimary,
+            ),
+          ),
         ],
       ),
     );
@@ -206,22 +227,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  CupertinoActionSheetAction _langAction(BuildContext ctx, String code, String label) {
+  CupertinoActionSheetAction _langAction(
+    BuildContext ctx,
+    String code,
+    String label,
+  ) {
     return CupertinoActionSheetAction(
       onPressed: () {
         setState(() => _language = code);
         _save('language', code);
         Navigator.pop(ctx);
       },
-      child: Text(label,
-          style: TextStyle(
-              color: _language == code ? AppTheme.accent : AppTheme.textPrimary)),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: _language == code ? AppTheme.accent : AppTheme.textPrimary,
+        ),
+      ),
     );
   }
 
   void _showReminderTimePicker() {
     final parts = _reminderTime.split(':');
-    int hour   = int.tryParse(parts[0]) ?? 7;
+    int hour = int.tryParse(parts[0]) ?? 7;
     int minute = int.tryParse(parts[1]) ?? 30;
 
     showCupertinoModalPopup(
@@ -241,9 +269,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     onPressed: () => Navigator.pop(ctx),
                     child: const Text('Abbrechen'),
                   ),
-                  const Text('Erinnerungszeit',
-                      style: TextStyle(fontWeight: FontWeight.w600,
-                          color: AppTheme.textPrimary)),
+                  const Text(
+                    'Erinnerungszeit',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: AppTheme.textPrimary,
+                    ),
+                  ),
                   CupertinoButton(
                     padding: EdgeInsets.zero,
                     onPressed: () {
@@ -257,9 +289,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       _save('notifyMorning', true);
                       Navigator.pop(ctx);
                     },
-                    child: Text('OK',
-                        style: TextStyle(
-                            color: AppTheme.accent, fontWeight: FontWeight.w600)),
+                    child: Text(
+                      'OK',
+                      style: TextStyle(
+                        color: AppTheme.accent,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -270,7 +306,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 use24hFormat: true,
                 initialDateTime: DateTime(2000, 1, 1, hour, minute),
                 onDateTimeChanged: (dt) {
-                  hour   = dt.hour;
+                  hour = dt.hour;
                   minute = dt.minute;
                 },
               ),
@@ -288,8 +324,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
         title: const Text('POCKYH'),
         content: const Text(
           'Version 1.0.0\n\nDie All-in-One Schul-App für die LBS Brixen.\n\n'
-              'Stundenplan, Noten, Mensa & mehr.\n\n'
-              '© 2025 – MIT Lizenz',
+          'Stundenplan, Noten, Mensa & mehr.\n\n'
+          '© 2025 – MIT Lizenz',
         ),
         actions: [
           CupertinoDialogAction(
@@ -313,7 +349,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       body: SafeArea(
         child: CustomScrollView(
           slivers: [
-
             // ── Header ────────────────────────────────────────────────────
             SliverToBoxAdapter(
               child: Padding(
@@ -323,20 +358,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     GestureDetector(
                       onTap: () => Navigator.pop(context),
                       child: Container(
-                        width: 34, height: 34,
+                        width: 34,
+                        height: 34,
                         decoration: BoxDecoration(
                           color: AppTheme.surface,
                           borderRadius: BorderRadius.circular(10),
                         ),
-                        child: const Icon(CupertinoIcons.chevron_left,
-                            size: 16, color: AppTheme.textSecondary),
+                        child: const Icon(
+                          CupertinoIcons.chevron_left,
+                          size: 16,
+                          color: AppTheme.textSecondary,
+                        ),
                       ),
                     ),
                     const SizedBox(width: 12),
-                    const Text('Profil & Einstellungen',
-                        style: TextStyle(fontSize: 20,
-                            fontWeight: FontWeight.w600,
-                            color: AppTheme.textPrimary)),
+                    const Text(
+                      'Profil & Einstellungen',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.textPrimary,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -360,7 +403,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ],
                     ),
                     borderRadius: BorderRadius.circular(18),
-                    border: Border.all(color: AppTheme.accent.withValues(alpha: 0.15)),
+                    border: Border.all(
+                      color: AppTheme.accent.withValues(alpha: 0.15),
+                    ),
                   ),
                   child: Row(
                     children: [
@@ -370,14 +415,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(username,
-                                style: const TextStyle(fontSize: 20,
-                                    fontWeight: FontWeight.w700,
-                                    color: AppTheme.textPrimary)),
+                            Text(
+                              username,
+                              style: const TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.w700,
+                                color: AppTheme.textPrimary,
+                              ),
+                            ),
                             const SizedBox(height: 3),
                             _MetaRow(
-                                icon: CupertinoIcons.building_2_fill,
-                                text: 'LBS Brixen'),
+                              icon: CupertinoIcons.building_2_fill,
+                              text: 'LBS Brixen',
+                            ),
                             if (widget.service.studentId != null) ...[
                               const SizedBox(height: 2),
                               GestureDetector(
@@ -392,7 +442,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             const SizedBox(height: 6),
                             Container(
                               padding: const EdgeInsets.symmetric(
-                                  horizontal: 8, vertical: 3),
+                                horizontal: 8,
+                                vertical: 3,
+                              ),
                               decoration: BoxDecoration(
                                 color: AppTheme.success.withValues(alpha: 0.15),
                                 borderRadius: BorderRadius.circular(20),
@@ -401,18 +453,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   Container(
-                                    width: 6, height: 6,
+                                    width: 6,
+                                    height: 6,
                                     decoration: BoxDecoration(
                                       color: AppTheme.success,
                                       shape: BoxShape.circle,
                                     ),
                                   ),
                                   const SizedBox(width: 5),
-                                  Text('Verbunden',
-                                      style: TextStyle(
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.w500,
-                                          color: AppTheme.success)),
+                                  Text(
+                                    'Verbunden',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w500,
+                                      color: AppTheme.success,
+                                    ),
+                                  ),
                                 ],
                               ),
                             ),
@@ -518,11 +574,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         : 'Ausgeschaltet',
                     icon: CupertinoIcons.clock,
                     trailing: _notifyMorning
-                        ? Text(_reminderTime,
-                        style: TextStyle(
-                            fontSize: 13,
-                            color: AppTheme.accent,
-                            fontWeight: FontWeight.w500))
+                        ? Text(
+                            _reminderTime,
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: AppTheme.accent,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          )
                         : null,
                     onTap: _showReminderTimePicker,
                   ),
@@ -572,9 +631,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     title: 'App-Version',
                     subtitle: 'POCKYH für LBS Brixen',
                     icon: CupertinoIcons.app,
-                    trailing: const Text('1.0.0',
-                        style: TextStyle(fontSize: 13,
-                            color: AppTheme.textTertiary)),
+                    trailing: const Text(
+                      '1.0.0',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: AppTheme.textTertiary,
+                      ),
+                    ),
                     onTap: _showAbout,
                   ),
                   _TapRow(
@@ -597,7 +660,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   children: [
                     Expanded(
                       child: _ActionButton(
-                        label: _clearingCache ? 'Wird geleert…' : 'Cache leeren',
+                        label: _clearingCache
+                            ? 'Wird geleert…'
+                            : 'Cache leeren',
                         icon: CupertinoIcons.trash,
                         loading: _clearingCache,
                         onTap: _clearingCache ? null : _clearCache,
@@ -610,7 +675,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         icon: CupertinoIcons.doc_on_clipboard,
                         onTap: () {
                           Clipboard.setData(
-                              const ClipboardData(text: 'lbs-brixen'));
+                            const ClipboardData(text: 'lbs-brixen'),
+                          );
                           _showToast('lbs-brixen kopiert');
                         },
                       ),
@@ -634,18 +700,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       color: AppTheme.danger.withValues(alpha: 0.08),
                       borderRadius: BorderRadius.circular(14),
                       border: Border.all(
-                          color: AppTheme.danger.withValues(alpha: 0.20)),
+                        color: AppTheme.danger.withValues(alpha: 0.20),
+                      ),
                     ),
                     child: const Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(CupertinoIcons.square_arrow_left,
-                            size: 17, color: AppTheme.danger),
+                        Icon(
+                          CupertinoIcons.square_arrow_left,
+                          size: 17,
+                          color: AppTheme.danger,
+                        ),
                         SizedBox(width: 8),
-                        Text('Abmelden',
-                            style: TextStyle(fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                                color: AppTheme.danger)),
+                        Text(
+                          'Abmelden',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: AppTheme.danger,
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -664,18 +738,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   String _languageLabel(String code) {
     switch (code) {
-      case 'de': return 'Deutsch';
-      case 'it': return 'Italiano';
-      case 'en': return 'English';
-      default:   return code;
+      case 'de':
+        return 'Deutsch';
+      case 'it':
+        return 'Italiano';
+      case 'en':
+        return 'English';
+      default:
+        return code;
     }
   }
 
   String _themeModeLabel(String mode) {
     switch (mode) {
-      case 'light':  return 'Hell';
-      case 'dark':   return 'Dunkel';
-      default:       return 'Automatisch (System)';
+      case 'light':
+        return 'Hell';
+      case 'dark':
+        return 'Dunkel';
+      default:
+        return 'Automatisch (System)';
     }
   }
 }
@@ -705,17 +786,23 @@ class _ProfileAvatarState extends State<_ProfileAvatar> {
   Widget build(BuildContext context) {
     final bytes = widget.service.profileImageBytes;
     return Container(
-      width: 64, height: 64,
+      width: 64,
+      height: 64,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         color: AppTheme.accent.withValues(alpha: 0.15),
         border: Border.all(
-            color: AppTheme.accent.withValues(alpha: 0.3), width: 2),
+          color: AppTheme.accent.withValues(alpha: 0.3),
+          width: 2,
+        ),
       ),
       clipBehavior: Clip.antiAlias,
       child: bytes != null
-          ? Image.memory(bytes, fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => _fallback())
+          ? Image.memory(
+              bytes,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => _fallback(),
+            )
           : _fallback(),
     );
   }
@@ -724,9 +811,10 @@ class _ProfileAvatarState extends State<_ProfileAvatar> {
     child: Text(
       (widget.service.username ?? '?')[0].toUpperCase(),
       style: const TextStyle(
-          fontSize: 26,
-          fontWeight: FontWeight.w700,
-          color: AppTheme.accent),
+        fontSize: 26,
+        fontWeight: FontWeight.w700,
+        color: AppTheme.accent,
+      ),
     ),
   );
 }
@@ -743,14 +831,23 @@ class _MetaRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Icon(icon, size: 12, color: AppTheme.textTertiary.withValues(alpha: 0.7)),
+        Icon(
+          icon,
+          size: 12,
+          color: AppTheme.textTertiary.withValues(alpha: 0.7),
+        ),
         const SizedBox(width: 5),
-        Text(text,
-            style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary)),
+        Text(
+          text,
+          style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary),
+        ),
         if (hint != null) ...[
           const SizedBox(width: 4),
-          Icon(CupertinoIcons.doc_on_clipboard,
-              size: 10, color: AppTheme.textTertiary),
+          Icon(
+            CupertinoIcons.doc_on_clipboard,
+            size: 10,
+            color: AppTheme.textTertiary,
+          ),
         ],
       ],
     );
@@ -785,26 +882,35 @@ class _Section extends StatelessWidget {
               children: [
                 Icon(icon, size: 13, color: AppTheme.textTertiary),
                 const SizedBox(width: 6),
-                Text(title.toUpperCase(),
-                    style: const TextStyle(fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: AppTheme.textTertiary,
-                        letterSpacing: 0.8)),
+                Text(
+                  title.toUpperCase(),
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.textTertiary,
+                    letterSpacing: 0.8,
+                  ),
+                ),
                 if (badge != null) ...[
                   const SizedBox(width: 6),
                   Container(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 6, vertical: 1),
+                      horizontal: 6,
+                      vertical: 1,
+                    ),
                     decoration: BoxDecoration(
                       color: AppTheme.warning.withValues(alpha: 0.20),
                       borderRadius: BorderRadius.circular(4),
                     ),
-                    child: Text(badge!,
-                        style: TextStyle(
-                            fontSize: 9,
-                            fontWeight: FontWeight.w700,
-                            color: AppTheme.warning,
-                            letterSpacing: 0.5)),
+                    child: Text(
+                      badge!,
+                      style: TextStyle(
+                        fontSize: 9,
+                        fontWeight: FontWeight.w700,
+                        color: AppTheme.warning,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
                   ),
                 ],
               ],
@@ -824,8 +930,9 @@ class _Section extends StatelessWidget {
                     Padding(
                       padding: const EdgeInsets.only(left: 52),
                       child: Container(
-                          height: 0.5,
-                          color: AppTheme.border.withValues(alpha: 0.3)),
+                        height: 0.5,
+                        color: AppTheme.border.withValues(alpha: 0.3),
+                      ),
                     ),
                 ],
               ],
@@ -866,12 +973,20 @@ class _ToggleRow extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title,
-                    style: const TextStyle(
-                        fontSize: 15, color: AppTheme.textPrimary)),
-                Text(subtitle,
-                    style: const TextStyle(
-                        fontSize: 12, color: AppTheme.textTertiary)),
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    color: AppTheme.textPrimary,
+                  ),
+                ),
+                Text(
+                  subtitle,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: AppTheme.textTertiary,
+                  ),
+                ),
               ],
             ),
           ),
@@ -918,18 +1033,29 @@ class _TapRow extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title,
-                      style: const TextStyle(
-                          fontSize: 15, color: AppTheme.textPrimary)),
-                  Text(subtitle,
-                      style: const TextStyle(
-                          fontSize: 12, color: AppTheme.textTertiary)),
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      color: AppTheme.textPrimary,
+                    ),
+                  ),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: AppTheme.textTertiary,
+                    ),
+                  ),
                 ],
               ),
             ),
             if (trailing != null) ...[trailing!, const SizedBox(width: 6)],
-            const Icon(CupertinoIcons.chevron_right,
-                size: 14, color: AppTheme.textTertiary),
+            const Icon(
+              CupertinoIcons.chevron_right,
+              size: 14,
+              color: AppTheme.textTertiary,
+            ),
           ],
         ),
       ),
@@ -946,7 +1072,8 @@ class _IconBox extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 30, height: 30,
+      width: 30,
+      height: 30,
       decoration: BoxDecoration(
         color: AppTheme.accent.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(7),
@@ -990,9 +1117,13 @@ class _ActionButton extends StatelessWidget {
             else
               Icon(icon, size: 15, color: AppTheme.textSecondary),
             const SizedBox(width: 7),
-            Text(label,
-                style: const TextStyle(
-                    fontSize: 13, color: AppTheme.textSecondary)),
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 13,
+                color: AppTheme.textSecondary,
+              ),
+            ),
           ],
         ),
       ),

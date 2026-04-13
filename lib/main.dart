@@ -9,9 +9,7 @@ import 'theme/app_theme.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   runApp(const PockyhApp());
 }
 
@@ -102,10 +100,7 @@ class _SplashScreenState extends State<SplashScreen>
                   gradient: LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
-                    colors: [
-                      AppTheme.accent,
-                      AppTheme.accentSoft,
-                    ],
+                    colors: [AppTheme.accent, AppTheme.accentSoft],
                   ),
                   borderRadius: BorderRadius.circular(20),
                 ),
