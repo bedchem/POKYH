@@ -996,10 +996,7 @@ class _MergedCell extends StatelessWidget {
           color: AppTheme.surface,
           borderRadius: BorderRadius.circular(6),
           border: isNow
-              ? Border.all(
-                  color: AppTheme.accent.withValues(alpha: 0.7),
-                  width: 1.5,
-                )
+              ? null
               : entry.isExam
               ? Border.all(
                   color: AppTheme.warning.withValues(alpha: 0.5),
