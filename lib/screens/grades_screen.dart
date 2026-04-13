@@ -61,9 +61,12 @@ class _GradesScreenState extends State<GradesScreen> {
   }
 
   double? get _totalAverage {
-    final avgs = _subjects.map((s) => s.average).whereType<double>().toList();
-    if (avgs.isEmpty) return null;
-    return avgs.reduce((a, b) => a + b) / avgs.length;
+    final allGrades = _subjects
+        .expand((s) => s.grades)
+        .map((g) => g.markDisplayValue)
+        .toList();
+    if (allGrades.isEmpty) return null;
+    return allGrades.reduce((a, b) => a + b) / allGrades.length;
   }
 
   @override
@@ -299,7 +302,7 @@ class _OverviewAndDistributionCard extends StatelessWidget {
                     ),
                     child: Center(
                       child: Text(
-                        average!.toStringAsFixed(1),
+                        average!.toStringAsFixed(2),
                         style: TextStyle(
                           fontSize: 22,
                           fontWeight: FontWeight.w700,
