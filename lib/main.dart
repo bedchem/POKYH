@@ -2,10 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'services/webuntis_service.dart';
+import 'services/update_service.dart';
 import 'screens/login_screen.dart';
 import 'screens/home_screen.dart';
 import 'theme/app_theme.dart';
+
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -22,6 +26,7 @@ class PockyhApp extends StatelessWidget {
       title: 'POKYH',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.dark(),
+      navigatorKey: navigatorKey,
       home: const SplashScreen(),
     );
   }
@@ -81,6 +86,23 @@ class _SplashScreenState extends State<SplashScreen>
         transitionDuration: const Duration(milliseconds: 400),
       ),
     );
+
+    // Run update check after navigation, non-blocking.
+    _checkForUpdate();
+  }
+
+  Future<void> _checkForUpdate() async {
+    try {
+      final info = await PackageInfo.fromPlatform();
+      final ctx = navigatorKey.currentContext;
+      if (ctx == null) return;
+      await UpdateService.checkForUpdate(
+        ctx,
+        currentVersion: info.version,
+      );
+    } catch (_) {
+      // Never crash on update check.
+    }
   }
 
   @override
