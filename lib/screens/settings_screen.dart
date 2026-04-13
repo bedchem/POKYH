@@ -88,9 +88,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
       builder: (ctx) => CupertinoActionSheet(
         title: Text(l.get('appearance')),
         actions: [
-          _themeAction(ctx, l, AppThemeMode.system, CupertinoIcons.circle_lefthalf_fill, l.get('theme_system')),
-          _themeAction(ctx, l, AppThemeMode.light, CupertinoIcons.sun_max_fill, l.get('theme_light')),
-          _themeAction(ctx, l, AppThemeMode.dark, CupertinoIcons.moon_fill, l.get('theme_dark')),
+          _themeAction(
+            ctx,
+            l,
+            AppThemeMode.system,
+            CupertinoIcons.circle_lefthalf_fill,
+            l.get('theme_system'),
+          ),
+          _themeAction(
+            ctx,
+            l,
+            AppThemeMode.light,
+            CupertinoIcons.sun_max_fill,
+            l.get('theme_light'),
+          ),
+          _themeAction(
+            ctx,
+            l,
+            AppThemeMode.dark,
+            CupertinoIcons.moon_fill,
+            l.get('theme_dark'),
+          ),
         ],
         cancelButton: CupertinoActionSheetAction(
           onPressed: () => Navigator.pop(ctx),
@@ -116,18 +134,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(icon, size: 20, color: isSelected ? CupertinoColors.activeBlue : CupertinoColors.secondaryLabel),
+          Icon(
+            icon,
+            size: 20,
+            color: isSelected
+                ? CupertinoColors.activeBlue
+                : CupertinoColors.secondaryLabel,
+          ),
           const SizedBox(width: 10),
           Text(
             label,
             style: TextStyle(
               fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
-              color: isSelected ? CupertinoColors.activeBlue : CupertinoColors.label.resolveFrom(ctx),
+              color: isSelected
+                  ? CupertinoColors.activeBlue
+                  : CupertinoColors.label.resolveFrom(ctx),
             ),
           ),
           if (isSelected) ...[
             const SizedBox(width: 8),
-            const Icon(CupertinoIcons.checkmark_alt, size: 18, color: CupertinoColors.activeBlue),
+            const Icon(
+              CupertinoIcons.checkmark_alt,
+              size: 18,
+              color: CupertinoColors.activeBlue,
+            ),
           ],
         ],
       ),
@@ -256,7 +286,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                     l.get('language'),
                                     style: TextStyle(
                                       fontSize: 17,
-                                      color: CupertinoColors.label.resolveFrom(context),
+                                      color: CupertinoColors.label.resolveFrom(
+                                        context,
+                                      ),
                                     ),
                                   ),
                                 ),
@@ -272,7 +304,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                 Icon(
                                   CupertinoIcons.chevron_down,
                                   size: 14,
-                                  color: CupertinoColors.systemGrey3.resolveFrom(context),
+                                  color: CupertinoColors.systemGrey3
+                                      .resolveFrom(context),
                                 ),
                               ],
                             ),
@@ -292,9 +325,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                 Icon(
                                   _settings.themeMode == AppThemeMode.dark
                                       ? CupertinoIcons.moon_fill
-                                      : _settings.themeMode == AppThemeMode.light
-                                          ? CupertinoIcons.sun_max_fill
-                                          : CupertinoIcons.circle_lefthalf_fill,
+                                      : _settings.themeMode ==
+                                            AppThemeMode.light
+                                      ? CupertinoIcons.sun_max_fill
+                                      : CupertinoIcons.circle_lefthalf_fill,
                                   size: 22,
                                   color: CupertinoColors.systemIndigo,
                                 ),
@@ -304,7 +338,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                     l.get('appearance'),
                                     style: TextStyle(
                                       fontSize: 17,
-                                      color: CupertinoColors.label.resolveFrom(context),
+                                      color: CupertinoColors.label.resolveFrom(
+                                        context,
+                                      ),
                                     ),
                                   ),
                                 ),
@@ -320,7 +356,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                 Icon(
                                   CupertinoIcons.chevron_down,
                                   size: 14,
-                                  color: CupertinoColors.systemGrey3.resolveFrom(context),
+                                  color: CupertinoColors.systemGrey3
+                                      .resolveFrom(context),
                                 ),
                               ],
                             ),
@@ -349,8 +386,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           title: l.get('daily_reminder'),
                           subtitle: l.get('daily_reminder_desc'),
                           value: _settings.dailyReminder,
-                          onChanged: (v) =>
-                              _update(() {
+                          onChanged: (v) => _update(() {
                             _settings.dailyReminder = v;
                             _handleDailyReminderToggle(v);
                           }),
@@ -488,8 +524,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                     l.get('clear_cache'),
                                     style: TextStyle(
                                       fontSize: 17,
-                                      color: CupertinoColors.label
-                                          .resolveFrom(context),
+                                      color: CupertinoColors.label.resolveFrom(
+                                        context,
+                                      ),
                                     ),
                                   ),
                                   const SizedBox(height: 2),
@@ -507,7 +544,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             Icon(
                               CupertinoIcons.chevron_right,
                               size: 14,
-                              color: CupertinoColors.systemGrey3.resolveFrom(context),
+                              color: CupertinoColors.systemGrey3.resolveFrom(
+                                context,
+                              ),
                             ),
                           ],
                         ),
@@ -555,7 +594,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         Icon(
                           CupertinoIcons.book,
                           size: 28,
-                          color: CupertinoColors.systemGrey3.resolveFrom(context),
+                          color: CupertinoColors.systemGrey3.resolveFrom(
+                            context,
+                          ),
                         ),
                         const SizedBox(height: 6),
                         Text(
@@ -563,7 +604,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           style: TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w600,
-                            color: CupertinoColors.tertiaryLabel.resolveFrom(context),
+                            color: CupertinoColors.tertiaryLabel.resolveFrom(
+                              context,
+                            ),
                           ),
                         ),
                         const SizedBox(height: 2),
@@ -571,7 +614,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           'Made with Flutter',
                           style: TextStyle(
                             fontSize: 12,
-                            color: CupertinoColors.quaternaryLabel.resolveFrom(context),
+                            color: CupertinoColors.quaternaryLabel.resolveFrom(
+                              context,
+                            ),
                           ),
                         ),
                       ],
@@ -645,17 +690,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     subtitle,
                     style: TextStyle(
                       fontSize: 13,
-                      color: CupertinoColors.secondaryLabel.resolveFrom(context),
+                      color: CupertinoColors.secondaryLabel.resolveFrom(
+                        context,
+                      ),
                     ),
                   ),
                 ],
               ],
             ),
           ),
-          CupertinoSwitch(
-            value: value,
-            onChanged: onChanged,
-          ),
+          CupertinoSwitch(value: value, onChanged: onChanged),
         ],
       ),
     );

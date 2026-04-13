@@ -139,8 +139,9 @@ class _DetailScreenState extends State<DetailScreen>
                                     style: TextStyle(
                                       fontSize: 15,
                                       fontWeight: FontWeight.w600,
-                                      color: CupertinoColors.label
-                                          .resolveFrom(context),
+                                      color: CupertinoColors.label.resolveFrom(
+                                        context,
+                                      ),
                                     ),
                                   ),
                                 ],
@@ -193,8 +194,9 @@ class _DetailScreenState extends State<DetailScreen>
                               style: TextStyle(
                                 fontSize: 18,
                                 fontWeight: FontWeight.w600,
-                                color:
-                                    CupertinoColors.label.resolveFrom(context),
+                                color: CupertinoColors.label.resolveFrom(
+                                  context,
+                                ),
                               ),
                             ),
                             const SizedBox(height: 8),
@@ -203,14 +205,16 @@ class _DetailScreenState extends State<DetailScreen>
                               style: TextStyle(
                                 fontSize: 16,
                                 height: 1.5,
-                                color:
-                                    CupertinoColors.label.resolveFrom(context),
+                                color: CupertinoColors.label.resolveFrom(
+                                  context,
+                                ),
                               ),
                             ),
                           ],
 
                           // Allergens
-                          if (dish.allergens.isNotEmpty && widget.settings.showAllergens) ...[
+                          if (dish.allergens.isNotEmpty &&
+                              widget.settings.showAllergens) ...[
                             const SizedBox(height: 24),
                             Row(
                               children: [
@@ -225,8 +229,9 @@ class _DetailScreenState extends State<DetailScreen>
                                   style: TextStyle(
                                     fontSize: 18,
                                     fontWeight: FontWeight.w600,
-                                    color: CupertinoColors.label
-                                        .resolveFrom(context),
+                                    color: CupertinoColors.label.resolveFrom(
+                                      context,
+                                    ),
                                   ),
                                 ),
                               ],
@@ -242,8 +247,9 @@ class _DetailScreenState extends State<DetailScreen>
                                     vertical: 6,
                                   ),
                                   decoration: BoxDecoration(
-                                    color: CupertinoColors.systemRed
-                                        .withValues(alpha: 0.1),
+                                    color: CupertinoColors.systemRed.withValues(
+                                      alpha: 0.1,
+                                    ),
                                     borderRadius: BorderRadius.circular(12),
                                     border: Border.all(
                                       color: CupertinoColors.systemRed
@@ -329,9 +335,7 @@ class _DetailScreenState extends State<DetailScreen>
           child: _buildMetadataPill(
             context,
             icon: CupertinoIcons.drop,
-            value: dish.fat > 0
-                ? '${dish.fat.toStringAsFixed(1)}g'
-                : 'n/a',
+            value: dish.fat > 0 ? '${dish.fat.toStringAsFixed(1)}g' : 'n/a',
             unit: l.get('fat'),
             isBold: true,
           ),

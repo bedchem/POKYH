@@ -9,7 +9,11 @@ class CalendarScreen extends StatefulWidget {
   final List<Dish> dishes;
   final AppSettings settings;
 
-  const CalendarScreen({super.key, required this.dishes, required this.settings});
+  const CalendarScreen({
+    super.key,
+    required this.dishes,
+    required this.settings,
+  });
 
   @override
   State<CalendarScreen> createState() => _CalendarScreenState();
@@ -76,7 +80,11 @@ class _CalendarScreenState extends State<CalendarScreen>
   void _goToPrevious() {
     _fadeController.reverse().then((_) {
       setState(() {
-        _currentMonth = DateTime(_currentMonth.year, _currentMonth.month - 1, 1);
+        _currentMonth = DateTime(
+          _currentMonth.year,
+          _currentMonth.month - 1,
+          1,
+        );
         _selectedDate = null;
       });
       _fadeController.forward();
@@ -86,7 +94,11 @@ class _CalendarScreenState extends State<CalendarScreen>
   void _goToNext() {
     _fadeController.reverse().then((_) {
       setState(() {
-        _currentMonth = DateTime(_currentMonth.year, _currentMonth.month + 1, 1);
+        _currentMonth = DateTime(
+          _currentMonth.year,
+          _currentMonth.month + 1,
+          1,
+        );
         _selectedDate = null;
       });
       _fadeController.forward();
@@ -139,7 +151,8 @@ class _CalendarScreenState extends State<CalendarScreen>
                   _buildMonthHeader(context, l),
                   _buildWeekdayHeaders(context, l),
                   _buildCalendarGrid(context, l),
-                  if (_selectedDate != null) _buildSelectedDayDetail(context, l),
+                  if (_selectedDate != null)
+                    _buildSelectedDayDetail(context, l),
                 ],
               ),
             ),
@@ -263,14 +276,11 @@ class _CalendarScreenState extends State<CalendarScreen>
           color: isSelected
               ? CupertinoColors.activeBlue
               : hasDishes
-                  ? CupertinoColors.systemBackground.resolveFrom(context)
-                  : null,
+              ? CupertinoColors.systemBackground.resolveFrom(context)
+              : null,
           borderRadius: BorderRadius.circular(12),
           border: isToday && !isSelected
-              ? Border.all(
-                  color: CupertinoColors.activeBlue,
-                  width: 2,
-                )
+              ? Border.all(color: CupertinoColors.activeBlue, width: 2)
               : null,
           boxShadow: isSelected
               ? [
@@ -289,12 +299,14 @@ class _CalendarScreenState extends State<CalendarScreen>
               '${date.day}',
               style: TextStyle(
                 fontSize: 16,
-                fontWeight: isToday || isSelected ? FontWeight.w700 : FontWeight.w500,
+                fontWeight: isToday || isSelected
+                    ? FontWeight.w700
+                    : FontWeight.w500,
                 color: isSelected
                     ? CupertinoColors.white
                     : isWeekend
-                        ? CupertinoColors.tertiaryLabel.resolveFrom(context)
-                        : CupertinoColors.label.resolveFrom(context),
+                    ? CupertinoColors.tertiaryLabel.resolveFrom(context)
+                    : CupertinoColors.label.resolveFrom(context),
               ),
             ),
             const SizedBox(height: 3),
@@ -414,7 +426,9 @@ class _CalendarScreenState extends State<CalendarScreen>
                       l.get('no_dish_planned'),
                       style: TextStyle(
                         fontSize: 15,
-                        color: CupertinoColors.tertiaryLabel.resolveFrom(context),
+                        color: CupertinoColors.tertiaryLabel.resolveFrom(
+                          context,
+                        ),
                       ),
                     ),
                   ],
@@ -433,7 +447,12 @@ class _CalendarScreenState extends State<CalendarScreen>
     );
   }
 
-  Widget _buildDishCard(BuildContext context, Dish dish, bool isLast, String lang) {
+  Widget _buildDishCard(
+    BuildContext context,
+    Dish dish,
+    bool isLast,
+    String lang,
+  ) {
     return GestureDetector(
       onTap: () {
         Navigator.of(context).push(
@@ -479,18 +498,24 @@ class _CalendarScreenState extends State<CalendarScreen>
                                   );
                                 },
                                 errorBuilder: (_, _, _) => Container(
-                                  color:
-                                      CupertinoColors.systemGrey5.resolveFrom(context),
-                                  child: const Icon(CupertinoIcons.photo, size: 32),
+                                  color: CupertinoColors.systemGrey5
+                                      .resolveFrom(context),
+                                  child: const Icon(
+                                    CupertinoIcons.photo,
+                                    size: 32,
+                                  ),
                                 ),
                               )
                             : Container(
-                                color: CupertinoColors.systemGrey5.resolveFrom(context),
+                                color: CupertinoColors.systemGrey5.resolveFrom(
+                                  context,
+                                ),
                                 child: Center(
                                   child: Icon(
                                     CupertinoIcons.square_favorites_alt,
                                     size: 32,
-                                    color: CupertinoColors.systemGrey3.resolveFrom(context),
+                                    color: CupertinoColors.systemGrey3
+                                        .resolveFrom(context),
                                   ),
                                 ),
                               ),
@@ -584,14 +609,18 @@ class _CalendarScreenState extends State<CalendarScreen>
                     Icon(
                       CupertinoIcons.tag,
                       size: 13,
-                      color: CupertinoColors.secondaryLabel.resolveFrom(context),
+                      color: CupertinoColors.secondaryLabel.resolveFrom(
+                        context,
+                      ),
                     ),
                     const SizedBox(width: 5),
                     Text(
                       dish.category,
                       style: TextStyle(
                         fontSize: 14,
-                        color: CupertinoColors.secondaryLabel.resolveFrom(context),
+                        color: CupertinoColors.secondaryLabel.resolveFrom(
+                          context,
+                        ),
                       ),
                     ),
                   ],
@@ -600,14 +629,18 @@ class _CalendarScreenState extends State<CalendarScreen>
                     Icon(
                       CupertinoIcons.flame,
                       size: 13,
-                      color: CupertinoColors.secondaryLabel.resolveFrom(context),
+                      color: CupertinoColors.secondaryLabel.resolveFrom(
+                        context,
+                      ),
                     ),
                     const SizedBox(width: 3),
                     Text(
                       '${dish.calories} kcal',
                       style: TextStyle(
                         fontSize: 14,
-                        color: CupertinoColors.secondaryLabel.resolveFrom(context),
+                        color: CupertinoColors.secondaryLabel.resolveFrom(
+                          context,
+                        ),
                       ),
                     ),
                     const SizedBox(width: 12),
