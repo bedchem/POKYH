@@ -110,10 +110,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
         context: context,
         builder: (ctx) => AlertDialog(
           backgroundColor: AppTheme.surface,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: Text('Abmelden', style: TextStyle(color: AppTheme.textPrimary)),
-          content: Text('Möchtest du dich wirklich abmelden?',
-              style: TextStyle(color: AppTheme.textSecondary)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: Text(
+            'Abmelden',
+            style: TextStyle(color: AppTheme.textPrimary),
+          ),
+          content: Text(
+            'Möchtest du dich wirklich abmelden?',
+            style: TextStyle(color: AppTheme.textSecondary),
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
@@ -125,7 +132,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 Navigator.pop(context);
                 widget.onLogout();
               },
-              child: const Text('Abmelden', style: TextStyle(color: AppTheme.danger)),
+              child: const Text(
+                'Abmelden',
+                style: TextStyle(color: AppTheme.danger),
+              ),
             ),
           ],
         ),
@@ -227,8 +237,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
           title: const Text('POCKYH'),
           content: Text(
             'Version $_appVersion\n\n'
-                'Die All‑in‑One Schul‑App für die LBS Brixen.\n\n'
-                '© 2025 – MIT Lizenz',
+            'Die All‑in‑One Schul‑App für die LBS Brixen.\n\n'
+            '© 2025 – MIT Lizenz',
           ),
           actions: [
             CupertinoDialogAction(
@@ -248,19 +258,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
         context: context,
         builder: (ctx) => AlertDialog(
           backgroundColor: AppTheme.surface,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
           title: Text('POCKYH', style: TextStyle(color: AppTheme.textPrimary)),
           content: Text(
             'Version $_appVersion\n\n'
-                'Die All‑in‑One Schul‑App für die LBS Brixen.\n\n'
-                '© 2025 – MIT Lizenz',
+            'Die All‑in‑One Schul‑App für die LBS Brixen.\n\n'
+            '© 2025 – MIT Lizenz',
             style: TextStyle(color: AppTheme.textSecondary),
           ),
           actions: [
-            TextButton(
-              onPressed: _openGitHub,
-              child: const Text('GitHub'),
-            ),
+            TextButton(onPressed: _openGitHub, child: const Text('GitHub')),
             TextButton(
               onPressed: () => Navigator.pop(ctx),
               child: const Text('OK'),
@@ -282,7 +291,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
           title: const Text('Erscheinungsbild'),
           actions: [
             _cupertinoThemeAction(ctx, 'light', 'Hell', CupertinoIcons.sun_max),
-            _cupertinoThemeAction(ctx, 'system', 'Automatisch (System)', CupertinoIcons.circle_lefthalf_fill),
+            _cupertinoThemeAction(
+              ctx,
+              'system',
+              'Automatisch (System)',
+              CupertinoIcons.circle_lefthalf_fill,
+            ),
             _cupertinoThemeAction(ctx, 'dark', 'Dunkel', CupertinoIcons.moon),
           ],
           cancelButton: CupertinoActionSheetAction(
@@ -305,13 +319,33 @@ class _ProfileScreenState extends State<ProfileScreen> {
             children: [
               Padding(
                 padding: const EdgeInsets.all(16),
-                child: Text('Erscheinungsbild',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: AppTheme.textPrimary)),
-
+                child: Text(
+                  'Erscheinungsbild',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.textPrimary,
+                  ),
+                ),
               ),
-              _materialThemeAction(ctx, 'light', 'Hell', Icons.light_mode_outlined),
-              _materialThemeAction(ctx, 'system', 'Automatisch (System)', Icons.brightness_auto_outlined),
-              _materialThemeAction(ctx, 'dark', 'Dunkel', Icons.dark_mode_outlined),
+              _materialThemeAction(
+                ctx,
+                'light',
+                'Hell',
+                Icons.light_mode_outlined,
+              ),
+              _materialThemeAction(
+                ctx,
+                'system',
+                'Automatisch (System)',
+                Icons.brightness_auto_outlined,
+              ),
+              _materialThemeAction(
+                ctx,
+                'dark',
+                'Dunkel',
+                Icons.dark_mode_outlined,
+              ),
               const SizedBox(height: 8),
             ],
           ),
@@ -321,7 +355,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   CupertinoActionSheetAction _cupertinoThemeAction(
-      BuildContext ctx, String value, String label, IconData icon) {
+    BuildContext ctx,
+    String value,
+    String label,
+    IconData icon,
+  ) {
     return CupertinoActionSheetAction(
       onPressed: () {
         _applyTheme(value);
@@ -330,12 +368,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(icon, size: 18, color: _themeMode == value ? AppTheme.accent : AppTheme.textPrimary),
+          Icon(
+            icon,
+            size: 18,
+            color: _themeMode == value ? AppTheme.accent : AppTheme.textPrimary,
+          ),
           const SizedBox(width: 8),
           Text(
             label,
             style: TextStyle(
-              color: _themeMode == value ? AppTheme.accent : AppTheme.textPrimary,
+              color: _themeMode == value
+                  ? AppTheme.accent
+                  : AppTheme.textPrimary,
             ),
           ),
         ],
@@ -343,12 +387,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _materialThemeAction(BuildContext ctx, String value, String label, IconData icon) {
+  Widget _materialThemeAction(
+    BuildContext ctx,
+    String value,
+    String label,
+    IconData icon,
+  ) {
     final selected = _themeMode == value;
     return ListTile(
-      leading: Icon(icon, color: selected ? AppTheme.accent : AppTheme.textSecondary),
-      title: Text(label, style: TextStyle(color: selected ? AppTheme.accent : AppTheme.textPrimary)),
-      trailing: selected ? Icon(Icons.check, color: AppTheme.accent, size: 20) : null,
+      leading: Icon(
+        icon,
+        color: selected ? AppTheme.accent : AppTheme.textSecondary,
+      ),
+      title: Text(
+        label,
+        style: TextStyle(
+          color: selected ? AppTheme.accent : AppTheme.textPrimary,
+        ),
+      ),
+      trailing: selected
+          ? Icon(Icons.check, color: AppTheme.accent, size: 20)
+          : null,
       onTap: () {
         _applyTheme(value);
         Navigator.pop(ctx);
@@ -390,8 +449,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
             children: [
               Padding(
                 padding: const EdgeInsets.all(16),
-                child: Text('Sprache (Mensa‑Menü)',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: AppTheme.textPrimary)),
+                child: Text(
+                  'Sprache (Mensa‑Menü)',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.textPrimary,
+                  ),
+                ),
               ),
               _materialLangAction(ctx, 'de', 'Deutsch'),
               _materialLangAction(ctx, 'it', 'Italiano'),
@@ -404,7 +469,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  CupertinoActionSheetAction _cupertinoLangAction(BuildContext ctx, String code, String label) {
+  CupertinoActionSheetAction _cupertinoLangAction(
+    BuildContext ctx,
+    String code,
+    String label,
+  ) {
     return CupertinoActionSheetAction(
       onPressed: () {
         setState(() => _language = code);
@@ -423,8 +492,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget _materialLangAction(BuildContext ctx, String code, String label) {
     final selected = _language == code;
     return ListTile(
-      title: Text(label, style: TextStyle(color: selected ? AppTheme.accent : AppTheme.textPrimary)),
-      trailing: selected ? Icon(Icons.check, color: AppTheme.accent, size: 20) : null,
+      title: Text(
+        label,
+        style: TextStyle(
+          color: selected ? AppTheme.accent : AppTheme.textPrimary,
+        ),
+      ),
+      trailing: selected
+          ? Icon(Icons.check, color: AppTheme.accent, size: 20)
+          : null,
       onTap: () {
         setState(() => _language = code);
         _save('language', code);
@@ -438,17 +514,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
   // ──────────────────────────────────────────────────────────────────────────
   String _themeLabel() {
     switch (_themeMode) {
-      case 'light': return 'Hell';
-      case 'dark': return 'Dunkel';
-      default: return 'System';
+      case 'light':
+        return 'Hell';
+      case 'dark':
+        return 'Dunkel';
+      default:
+        return 'System';
     }
   }
 
   String _languageLabel() {
     switch (_language) {
-      case 'de': return 'Deutsch';
-      case 'it': return 'Italiano';
-      default: return 'English';
+      case 'de':
+        return 'Deutsch';
+      case 'it':
+        return 'Italiano';
+      default:
+        return 'English';
     }
   }
 
@@ -500,7 +582,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           borderRadius: BorderRadius.circular(10),
                         ),
                         child: Icon(
-                          _isIOS ? CupertinoIcons.chevron_left : Icons.arrow_back,
+                          _isIOS
+                              ? CupertinoIcons.chevron_left
+                              : Icons.arrow_back,
                           size: 16,
                           color: AppTheme.textSecondary,
                         ),
@@ -560,7 +644,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             ),
                             const SizedBox(height: 3),
                             _MetaRow(
-                              icon: _isIOS ? CupertinoIcons.building_2_fill : Icons.school_outlined,
+                              icon: _isIOS
+                                  ? CupertinoIcons.building_2_fill
+                                  : Icons.school_outlined,
                               text: 'LBS Brixen',
                             ),
                             if (widget.service.studentId != null) ...[
@@ -568,7 +654,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               GestureDetector(
                                 onTap: _copyUserId,
                                 child: _MetaRow(
-                                  icon: _isIOS ? CupertinoIcons.number : Icons.tag,
+                                  icon: _isIOS
+                                      ? CupertinoIcons.number
+                                      : Icons.tag,
                                   text: 'ID: ${widget.service.studentId}',
                                   hint: 'Tippen zum Kopieren',
                                 ),
@@ -576,7 +664,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             ],
                             const SizedBox(height: 6),
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 3,
+                              ),
                               decoration: BoxDecoration(
                                 color: AppTheme.success.withValues(alpha: 0.15),
                                 borderRadius: BorderRadius.circular(20),
@@ -616,7 +707,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 child: Column(
                   children: [
                     _ActionTile(
-                      icon: _isIOS ? CupertinoIcons.circle_lefthalf_fill : Icons.brightness_auto_outlined,
+                      icon: _isIOS
+                          ? CupertinoIcons.circle_lefthalf_fill
+                          : Icons.brightness_auto_outlined,
                       title: 'Erscheinungsbild',
                       subtitle: _themeLabel(),
                       onTap: _showThemePicker,
@@ -643,7 +736,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 child: Column(
                   children: [
                     _ActionTile(
-                      icon: _isIOS ? CupertinoIcons.arrow_down_circle : Icons.system_update_outlined,
+                      icon: _isIOS
+                          ? CupertinoIcons.arrow_down_circle
+                          : Icons.system_update_outlined,
                       title: 'Nach Updates suchen',
                       subtitle: _appVersion.isNotEmpty
                           ? 'Installiert: v$_appVersion'
@@ -653,7 +748,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                     const SizedBox(height: 10),
                     _ActionTile(
-                      icon: _isIOS ? CupertinoIcons.trash : Icons.delete_outline,
+                      icon: _isIOS
+                          ? CupertinoIcons.trash
+                          : Icons.delete_outline,
                       title: 'Cache leeren',
                       subtitle: 'Gespeicherte Mensa‑Daten entfernen',
                       loading: _clearingCache,
@@ -674,14 +771,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 child: Column(
                   children: [
                     _ActionTile(
-                      icon: _isIOS ? CupertinoIcons.chat_bubble_text : Icons.feedback_outlined,
+                      icon: _isIOS
+                          ? CupertinoIcons.chat_bubble_text
+                          : Icons.feedback_outlined,
                       title: 'Feedback senden',
                       subtitle: 'Idee oder Problem melden',
                       onTap: _sendFeedback,
                     ),
                     const SizedBox(height: 10),
                     _ActionTile(
-                      icon: _isIOS ? CupertinoIcons.info_circle : Icons.info_outline,
+                      icon: _isIOS
+                          ? CupertinoIcons.info_circle
+                          : Icons.info_outline,
                       title: 'Über POCKYH',
                       subtitle: _appVersion.isNotEmpty
                           ? 'Version $_appVersion · MIT Lizenz'
@@ -714,7 +815,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Icon(
-                          _isIOS ? CupertinoIcons.square_arrow_left : Icons.logout,
+                          _isIOS
+                              ? CupertinoIcons.square_arrow_left
+                              : Icons.logout,
                           size: 17,
                           color: AppTheme.danger,
                         ),
@@ -774,11 +877,18 @@ class _ProfileAvatarState extends State<_ProfileAvatar> {
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         color: AppTheme.accent.withValues(alpha: 0.15),
-        border: Border.all(color: AppTheme.accent.withValues(alpha: 0.3), width: 2),
+        border: Border.all(
+          color: AppTheme.accent.withValues(alpha: 0.3),
+          width: 2,
+        ),
       ),
       clipBehavior: Clip.antiAlias,
       child: bytes != null
-          ? Image.memory(bytes, fit: BoxFit.cover, errorBuilder: (_, _, _) => _fallback())
+          ? Image.memory(
+              bytes,
+              fit: BoxFit.cover,
+              errorBuilder: (_, _, _) => _fallback(),
+            )
           : _fallback(),
     );
   }
@@ -786,7 +896,11 @@ class _ProfileAvatarState extends State<_ProfileAvatar> {
   Widget _fallback() => Center(
     child: Text(
       (widget.service.username ?? '?')[0].toUpperCase(),
-      style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w700, color: AppTheme.accent),
+      style: const TextStyle(
+        fontSize: 26,
+        fontWeight: FontWeight.w700,
+        color: AppTheme.accent,
+      ),
     ),
   );
 }
@@ -801,9 +915,16 @@ class _MetaRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Icon(icon, size: 12, color: AppTheme.textTertiary.withValues(alpha: 0.7)),
+        Icon(
+          icon,
+          size: 12,
+          color: AppTheme.textTertiary.withValues(alpha: 0.7),
+        ),
         const SizedBox(width: 5),
-        Text(text, style: TextStyle(fontSize: 13, color: AppTheme.textSecondary)),
+        Text(
+          text,
+          style: TextStyle(fontSize: 13, color: AppTheme.textSecondary),
+        ),
         if (hint != null) ...[
           const SizedBox(width: 4),
           Icon(
@@ -824,7 +945,10 @@ class _StatusDot extends StatelessWidget {
     return Container(
       width: 6,
       height: 6,
-      decoration: const BoxDecoration(color: AppTheme.success, shape: BoxShape.circle),
+      decoration: const BoxDecoration(
+        color: AppTheme.success,
+        shape: BoxShape.circle,
+      ),
     );
   }
 }
@@ -866,11 +990,14 @@ class _ActionTile extends StatelessWidget {
               ),
               child: loading
                   ? (_isIOS
-                      ? const CupertinoActivityIndicator()
-                      : const Padding(
-                          padding: EdgeInsets.all(8),
-                          child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.accent),
-                        ))
+                        ? const CupertinoActivityIndicator()
+                        : const Padding(
+                            padding: EdgeInsets.all(8),
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: AppTheme.accent,
+                            ),
+                          ))
                   : Icon(icon, size: 18, color: AppTheme.accent),
             ),
             const SizedBox(width: 14),
@@ -878,9 +1005,21 @@ class _ActionTile extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title,
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: AppTheme.textPrimary)),
-                  Text(subtitle, style: TextStyle(fontSize: 13, color: AppTheme.textTertiary)),
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                      color: AppTheme.textPrimary,
+                    ),
+                  ),
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: AppTheme.textTertiary,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -915,7 +1054,9 @@ class _ToastOverlayState extends State<_ToastOverlay>
   void initState() {
     super.initState();
     _ctrl = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 300));
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+    );
     _opacity = CurvedAnimation(parent: _ctrl, curve: Curves.easeOut);
     _ctrl.forward();
     Future.delayed(const Duration(milliseconds: 1400), () {
