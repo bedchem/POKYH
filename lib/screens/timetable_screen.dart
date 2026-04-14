@@ -37,16 +37,18 @@ class _WeekData {
   });
 }
 
+// ── Day status (for full-day cancelled / replacement columns) ─────────────────
+
+enum _DayStatus { cancelled, replacement }
+
 // ── Root screen ───────────────────────────────────────────────────────────────
 
 class TimetableScreen extends StatefulWidget {
-  // Public API: allow parent to open a detail sheet for a given entry
   static TimetableScreenState? of(BuildContext context) {
     final state = context.findAncestorStateOfType<TimetableScreenState>();
     return state;
   }
 
-  // Helper to create a GlobalKey for TimetableScreen
   static GlobalKey<TimetableScreenState> createKey() =>
       GlobalKey<TimetableScreenState>();
   final WebUntisService service;
@@ -57,12 +59,10 @@ class TimetableScreen extends StatefulWidget {
 }
 
 class TimetableScreenState extends State<TimetableScreen> {
-  // Public: Show detail sheet for a given entry (optionally with replacement)
   void showDetail(TimetableEntry entry, [TimetableEntry? replacement]) {
     _showDetail(entry, replacement);
   }
 
-  // Public: Jump to a specific week offset and day, then optionally show detail
   void jumpToWeekAndDay({
     required int weekOffset,
     int? dayIndex,
@@ -79,25 +79,19 @@ class TimetableScreenState extends State<TimetableScreen> {
       curve: Curves.easeInOutCubic,
     );
     if (entry != null) {
-      // Wait for animation, then show detail
       Future.delayed(const Duration(milliseconds: 420), () {
         if (mounted) showDetail(entry, replacement);
       });
     }
   }
 
-  // PageView uses a virtual index; _kBase is page 0 in week-offset space.
   static const int _kBase = 500;
 
   late final PageController _pageController;
 
-  // offset → _WeekData cache
   final Map<int, _WeekData> _cache = {};
 
-  // The current week offset (0 = this week)
   int _currentOffset = 0;
-
-  // Which day tab is selected (-1 = none)
   int _selectedDay = -1;
 
   static const _dayLabels = ['Mo', 'Di', 'Mi', 'Do', 'Fr'];
@@ -137,7 +131,6 @@ class TimetableScreenState extends State<TimetableScreen> {
 
     _pageController = PageController(initialPage: _kBase);
 
-    // Pre-load current + neighbours
     _ensureLoaded(_currentOffset - 1);
     _ensureLoaded(_currentOffset);
     _ensureLoaded(_currentOffset + 1);
@@ -153,7 +146,6 @@ class TimetableScreenState extends State<TimetableScreen> {
 
   DateTime _mondayForOffset(int offset) {
     final now = DateTime.now();
-    // Strip time → pure date, avoids day-bleeding around midnight
     final today = DateTime(now.year, now.month, now.day);
     final thisMonday = today.subtract(Duration(days: today.weekday - 1));
     return thisMonday.add(Duration(days: offset * 7));
@@ -228,23 +220,19 @@ class TimetableScreenState extends State<TimetableScreen> {
     final now = DateTime.now();
     setState(() {
       _currentOffset = offset;
-      // Highlight today only on the current week — nowhere else
       _selectedDay = (offset == 0 && now.weekday <= 5) ? now.weekday - 1 : -1;
     });
-    // Pre-load neighbours
     _ensureLoaded(offset - 1);
     _ensureLoaded(offset);
     _ensureLoaded(offset + 1);
-    // Evict far-away pages to save memory (keep ±3)
     _cache.removeWhere((k, _) => (k - offset).abs() > 3);
   }
 
   void _goToToday() {
     final now = DateTime.now();
     setState(() => _selectedDay = (now.weekday <= 5) ? now.weekday - 1 : -1);
-    final targetPage = _kBase; // offset 0 = this week
     _pageController.animateToPage(
-      targetPage,
+      _kBase,
       duration: const Duration(milliseconds: 400),
       curve: Curves.easeInOutCubic,
     );
@@ -258,7 +246,9 @@ class TimetableScreenState extends State<TimetableScreen> {
       '${date.year}${date.month.toString().padLeft(2, '0')}${date.day.toString().padLeft(2, '0')}',
     );
     final entries = _cache[offset]?.entries ?? [];
-    return entries.where((e) => e.date == dateInt).toList();
+    final result = entries.where((e) => e.date == dateInt).toList();
+
+    return result;
   }
 
   bool _isHolidayWeek(int offset) {
@@ -275,6 +265,28 @@ class TimetableScreenState extends State<TimetableScreen> {
       if (i != dayIndex && _forDay(offset, i).isNotEmpty) return true;
     }
     return false;
+  }
+
+  /// Returns true if every entry for this day is cancelled (and none are active).
+  bool _isDayAllCancelled(int offset, int dayIndex) {
+    final entries = _forDay(offset, dayIndex);
+    if (entries.isEmpty) return false;
+    final hasCancelled = entries.any((e) => e.isCancelled);
+    final hasActive = entries.any((e) => !e.isCancelled);
+    return hasCancelled && !hasActive;
+  }
+
+  /// Returns true if every entry for this day is cancelled (replaced) and there are also active entries.
+  bool _isDayAllReplacement(int offset, int dayIndex) {
+    final entries = _forDay(offset, dayIndex);
+    if (entries.isEmpty) return false;
+
+    final total = entries.length;
+    final replaced = entries.where((e) => e.isCancelled).length;
+    final active = entries.where((e) => !e.isCancelled).length;
+
+    // nur wenn wirklich ALLES ersetzt wurde
+    return replaced == total && active > 0;
   }
 
   // ── Time maths ─────────────────────────────────────────────────────────────
@@ -509,7 +521,7 @@ class TimetableScreenState extends State<TimetableScreen> {
   }
 }
 
-// ── Week Page (one page in the PageView) ──────────────────────────────────────
+// ── Week Page ─────────────────────────────────────────────────────────────────
 
 class _WeekPage extends StatelessWidget {
   final int offset;
@@ -695,8 +707,11 @@ class _WeekPage extends StatelessWidget {
                     ._mondayForOffset(offset)
                     .add(Duration(days: i));
                 final isToday = state._isToday(offset, i);
-
                 final isHoliday = state._isSingleHolidayDay(offset, i);
+                final isDayOff = state._isDayAllCancelled(offset, i);
+                final isDayRepl =
+                    !isDayOff && state._isDayAllReplacement(offset, i);
+
                 return Expanded(
                   child: GestureDetector(
                     onTap: () {
@@ -722,6 +737,10 @@ class _WeekPage extends StatelessWidget {
                               fontWeight: FontWeight.w600,
                               color: isToday
                                   ? AppTheme.accent
+                                  : isDayOff
+                                  ? AppTheme.danger.withValues(alpha: 0.8)
+                                  : isDayRepl
+                                  ? AppTheme.accent.withValues(alpha: 0.8)
                                   : isHoliday
                                   ? AppTheme.orange.withValues(alpha: 0.8)
                                   : AppTheme.textTertiary,
@@ -745,6 +764,10 @@ class _WeekPage extends StatelessWidget {
                                   fontWeight: FontWeight.w700,
                                   color: isToday
                                       ? Colors.white
+                                      : isDayOff
+                                      ? AppTheme.danger
+                                      : isDayRepl
+                                      ? AppTheme.accent
                                       : isHoliday
                                       ? AppTheme.orange
                                       : AppTheme.textPrimary,
@@ -769,7 +792,6 @@ class _WeekPage extends StatelessWidget {
             backgroundColor: AppTheme.surface,
             onRefresh: () async {
               state._retryOffset(offset);
-              // wait for done
               while (state._cache[offset]?.state == _LoadState.loading) {
                 await Future.delayed(const Duration(milliseconds: 50));
               }
@@ -823,14 +845,19 @@ class _WeekPage extends StatelessWidget {
         // Day columns
         ...List.generate(5, (dayIndex) {
           final isHoliday = state._isSingleHolidayDay(offset, dayIndex);
+          final isDayOff = state._isDayAllCancelled(offset, dayIndex);
+          final isDayRepl =
+              !isDayOff && state._isDayAllReplacement(offset, dayIndex);
+          final isToday = state._isToday(offset, dayIndex);
+
+          final totalHeight =
+              n * TimetableScreenState._rowMinHeight +
+              List.generate(
+                n - 1,
+                (i) => gapAfter(i),
+              ).fold(0.0, (a, b) => a + b);
 
           if (isHoliday) {
-            final totalHeight =
-                n * TimetableScreenState._rowMinHeight +
-                List.generate(
-                  n - 1,
-                  (i) => gapAfter(i),
-                ).fold(0.0, (a, b) => a + b);
             return Expanded(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 2),
@@ -839,15 +866,62 @@ class _WeekPage extends StatelessWidget {
             );
           }
 
+          if (isDayOff || isDayRepl) {
+            // Ermögliche Tap für Detailansicht bei ganztägigem Entfall/Vertretung
+            final entries = state._forDay(offset, dayIndex);
+            final cancelled = entries.where((e) => e.isCancelled).toList();
+            final active = entries.where((e) => !e.isCancelled).toList();
+            TimetableEntry? display;
+            TimetableEntry? replacement;
+            if (isDayOff && cancelled.isNotEmpty) {
+              display = cancelled.first;
+            } else if (isDayRepl && cancelled.isNotEmpty && active.isNotEmpty) {
+              display = cancelled.first;
+              replacement = active.first;
+            }
+            return Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 2),
+                child: GestureDetector(
+                  onTap: display != null
+                      ? () => state._showDetail(display!, replacement)
+                      : null,
+                  behavior: HitTestBehavior.opaque,
+                  child: _DayStatusColumn(
+                    totalHeight: totalHeight,
+                    kind: isDayOff
+                        ? _DayStatus.cancelled
+                        : _DayStatus.replacement,
+                  ),
+                ),
+              ),
+            );
+          }
+
           return Expanded(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 2),
-              child: _buildDayColumn(
-                dayIndex: dayIndex,
-                sortedTimes: sortedTimes,
-                timeConnected: timeConnected,
-                gapAfter: gapAfter,
-                now: now,
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  _buildDayColumn(
+                    dayIndex: dayIndex,
+                    sortedTimes: sortedTimes,
+                    timeConnected: timeConnected,
+                    gapAfter: gapAfter,
+                    now: now,
+                  ),
+                  // Time indicator — only rendered when isToday
+                  if (isToday)
+                    _TimeIndicator(
+                      offset: offset,
+                      dayIndex: dayIndex,
+                      sortedTimes: sortedTimes,
+                      endTimeForStart: endTimeForStart,
+                      gapAfter: gapAfter,
+                      state: state,
+                    ),
+                ],
               ),
             ),
           );
@@ -919,6 +993,93 @@ class _WeekPage extends StatelessWidget {
   }
 }
 
+// ── Time Indicator ────────────────────────────────────────────────────────────
+
+class _TimeIndicator extends StatelessWidget {
+  final int offset;
+  final int dayIndex;
+  final List<int> sortedTimes;
+  final Map<int, int> endTimeForStart;
+  final double Function(int) gapAfter;
+  final TimetableScreenState state;
+
+  const _TimeIndicator({
+    required this.offset,
+    required this.dayIndex,
+    required this.sortedTimes,
+    required this.endTimeForStart,
+    required this.gapAfter,
+    required this.state,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final now = DateTime.now();
+    final nowMins = now.hour * 60 + now.minute;
+
+    final firstStartMins = state._toMins(sortedTimes.first);
+    final lastEndMins = state._toMins(
+      endTimeForStart[sortedTimes.last] ??
+          state._addMinutes(sortedTimes.last, 50),
+    );
+
+    // Only visible while within today's schedule
+    if (nowMins < firstStartMins || nowMins > lastEndMins) {
+      return const SizedBox.shrink();
+    }
+
+    // Walk through slots to compute y position
+    double y = 0;
+    final n = sortedTimes.length;
+    for (int i = 0; i < n; i++) {
+      final slotStartMins = state._toMins(sortedTimes[i]);
+      final slotEndMins = state._toMins(
+        endTimeForStart[sortedTimes[i]] ??
+            state._addMinutes(sortedTimes[i], 50),
+      );
+
+      if (nowMins <= slotEndMins) {
+        final slotDuration = (slotEndMins - slotStartMins).clamp(1, 9999);
+        final elapsed = (nowMins - slotStartMins).clamp(0, slotDuration);
+        y += TimetableScreenState._rowMinHeight * (elapsed / slotDuration);
+        break;
+      } else {
+        y += TimetableScreenState._rowMinHeight;
+        if (i < n - 1) y += gapAfter(i);
+      }
+    }
+
+    return Positioned(
+      top: y - 1,
+      left: 0,
+      right: 0,
+      child: IgnorePointer(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            // Leading dot
+            Container(
+              width: 7,
+              height: 7,
+              decoration: const BoxDecoration(
+                color: AppTheme.accent,
+                shape: BoxShape.circle,
+              ),
+            ),
+            // Horizontal line
+            Expanded(
+              child: Container(
+                height: 2.0,
+                color: AppTheme.accent.withValues(alpha: 0.85),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 // ── Holiday Column ────────────────────────────────────────────────────────────
 
 class _HolidayColumn extends StatelessWidget {
@@ -958,6 +1119,62 @@ class _HolidayColumn extends StatelessWidget {
   }
 }
 
+// ── Day Status Column (ganzer Tag Entfall / Vertretung) ───────────────────────
+
+class _DayStatusColumn extends StatelessWidget {
+  final double totalHeight;
+  final _DayStatus kind;
+  const _DayStatusColumn({required this.totalHeight, required this.kind});
+
+  @override
+  Widget build(BuildContext context) {
+    final isCancelled = kind == _DayStatus.cancelled;
+    final color = isCancelled ? AppTheme.danger : AppTheme.accent;
+    final label = isCancelled ? 'Entfall' : 'Vertretung';
+    final icon = isCancelled
+        ? CupertinoIcons.xmark_circle_fill
+        : CupertinoIcons.arrow_right_arrow_left;
+
+    return Container(
+      height: totalHeight,
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withValues(alpha: 0.28)),
+      ),
+      child: Align(
+        alignment: Alignment.topCenter,
+        child: Padding(
+          padding: const EdgeInsets.only(top: 14),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 28,
+                height: 28,
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.14),
+                  shape: BoxShape.circle,
+                ),
+                child: Center(child: Icon(icon, size: 14, color: color)),
+              ),
+              const SizedBox(height: 5),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                  color: color,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 // ── Merged Cell ───────────────────────────────────────────────────────────────
 
 class _MergedCell extends StatelessWidget {
@@ -982,14 +1199,8 @@ class _MergedCell extends StatelessWidget {
     final subjectColor = AppTheme.colorForSubject(entry.subjectName);
     final isNow = slots.any((s) => s.isNow);
 
-    final isTappable = slots.any((s) {
-      if (s.isEmpty) return false;
-      final e = s.display!;
-      return e.isCancelled ||
-          e.isExam ||
-          e.lessonText.isNotEmpty ||
-          s.replacement != null;
-    });
+    // Jede Cell ist tappable, sofern ein Eintrag existiert
+    final isTappable = !primary.isEmpty;
 
     return GestureDetector(
       onTap: isTappable ? () => onTap(primary) : null,
@@ -998,9 +1209,7 @@ class _MergedCell extends StatelessWidget {
         decoration: BoxDecoration(
           color: AppTheme.surface,
           borderRadius: BorderRadius.circular(6),
-          border: isNow
-              ? null
-              : entry.isExam
+          border: entry.isExam
               ? Border.all(
                   color: AppTheme.warning.withValues(alpha: 0.5),
                   width: 1.0,
@@ -1012,10 +1221,11 @@ class _MergedCell extends StatelessWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              // Left accent bar — more opaque for cancelled so it reads clearly
               Container(
                 width: 3,
                 color: entry.isCancelled
-                    ? AppTheme.danger.withValues(alpha: 0.4)
+                    ? AppTheme.danger.withValues(alpha: 0.7)
                     : entry.isExam
                     ? AppTheme.warning.withValues(alpha: 0.8)
                     : subjectColor.withValues(alpha: 0.55),
@@ -1079,13 +1289,16 @@ class _SlotContent extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
+                    // Reddish tint instead of gray so "Entfall" reads clearly
                     color: entry.isCancelled
-                        ? AppTheme.textTertiary
+                        ? AppTheme.danger.withValues(alpha: 0.65)
                         : AppTheme.textPrimary,
                     decoration: entry.isCancelled
                         ? TextDecoration.lineThrough
                         : null,
-                    decorationColor: AppTheme.textTertiary,
+                    // Thicker, red-tinted strikethrough
+                    decorationColor: AppTheme.danger.withValues(alpha: 0.75),
+                    decorationThickness: 2.0,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -1096,7 +1309,9 @@ class _SlotContent extends StatelessWidget {
                     entry.teacherName,
                     style: TextStyle(
                       fontSize: 10,
-                      color: AppTheme.textTertiary,
+                      color: entry.isCancelled
+                          ? AppTheme.danger.withValues(alpha: 0.65)
+                          : AppTheme.textTertiary,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -1108,7 +1323,9 @@ class _SlotContent extends StatelessWidget {
                     entry.roomName,
                     style: TextStyle(
                       fontSize: 10,
-                      color: AppTheme.textTertiary,
+                      color: entry.isCancelled
+                          ? AppTheme.danger.withValues(alpha: 0.65)
+                          : AppTheme.textTertiary,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,

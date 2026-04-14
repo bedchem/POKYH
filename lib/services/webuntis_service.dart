@@ -50,11 +50,11 @@ class WebUntisService {
   Future<Uint8List?> fetchProfileImage() async {
     if (_studentId == null || _sessionId == null) return null;
     try {
-      final url = '$_baseUrl/api/portrait/students/$_studentId?v=${DateTime.now().millisecondsSinceEpoch}';
-      final response = await http.get(
-        Uri.parse(url),
-        headers: {'Cookie': _cookieHeader},
-      ).timeout(const Duration(seconds: 10));
+      final url =
+          '$_baseUrl/api/portrait/students/$_studentId?v=${DateTime.now().millisecondsSinceEpoch}';
+      final response = await http
+          .get(Uri.parse(url), headers: {'Cookie': _cookieHeader})
+          .timeout(const Duration(seconds: 10));
 
       _profileImageFetched = true;
       if (response.statusCode == 200 && response.bodyBytes.isNotEmpty) {
@@ -80,20 +80,22 @@ class WebUntisService {
 
   Future<bool> login(String username, String password) async {
     try {
-      final response = await http.post(
-        Uri.parse('$_baseUrl/jsonrpc.do?school=$_school'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'jsonrpc': '2.0',
-          'id': '1',
-          'method': 'authenticate',
-          'params': {
-            'user': username,
-            'password': password,
-            'client': 'pockyh',
-          },
-        }),
-      ).timeout(_timeout);
+      final response = await http
+          .post(
+            Uri.parse('$_baseUrl/jsonrpc.do?school=$_school'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'jsonrpc': '2.0',
+              'id': '1',
+              'method': 'authenticate',
+              'params': {
+                'user': username,
+                'password': password,
+                'client': 'pockyh',
+              },
+            }),
+          )
+          .timeout(_timeout);
 
       if (response.statusCode != 200) return false;
 
@@ -127,7 +129,9 @@ class WebUntisService {
 
       return true;
     } on TimeoutException {
-      throw WebUntisException('Verbindung abgelaufen. Bitte versuche es erneut.');
+      throw WebUntisException(
+        'Verbindung abgelaufen. Bitte versuche es erneut.',
+      );
     } catch (e) {
       if (e is WebUntisException) rethrow;
       throw WebUntisException('Netzwerkfehler: $e');
@@ -136,10 +140,12 @@ class WebUntisService {
 
   Future<void> _fetchBearerToken() async {
     try {
-      final response = await http.get(
-        Uri.parse('$_baseUrl/api/token/new'),
-        headers: {'Cookie': _cookieHeader},
-      ).timeout(_timeout);
+      final response = await http
+          .get(
+            Uri.parse('$_baseUrl/api/token/new'),
+            headers: {'Cookie': _cookieHeader},
+          )
+          .timeout(_timeout);
 
       if (response.statusCode == 200) {
         _bearerToken = response.body.trim().replaceAll('"', '');
@@ -165,11 +171,13 @@ class WebUntisService {
         // Use first day's time units (they're the same for all days)
         final units = result[0]['timeUnits'] as List? ?? [];
         _timeGrid = units
-            .map((u) => TimeGridUnit(
-                  name: u['name']?.toString() ?? '',
-                  startTime: u['startTime'] ?? 0,
-                  endTime: u['endTime'] ?? 0,
-                ))
+            .map(
+              (u) => TimeGridUnit(
+                name: u['name']?.toString() ?? '',
+                startTime: u['startTime'] ?? 0,
+                endTime: u['endTime'] ?? 0,
+              ),
+            )
             .toList();
       }
     } catch (_) {}
@@ -188,16 +196,21 @@ class WebUntisService {
   Future<void> logout() async {
     try {
       if (_sessionId != null) {
-        await http.post(
-          Uri.parse('$_baseUrl/jsonrpc.do?school=$_school'),
-          headers: {'Content-Type': 'application/json', 'Cookie': _cookieHeader},
-          body: jsonEncode({
-            'jsonrpc': '2.0',
-            'id': '1',
-            'method': 'logout',
-            'params': {},
-          }),
-        ).timeout(const Duration(seconds: 5));
+        await http
+            .post(
+              Uri.parse('$_baseUrl/jsonrpc.do?school=$_school'),
+              headers: {
+                'Content-Type': 'application/json',
+                'Cookie': _cookieHeader,
+              },
+              body: jsonEncode({
+                'jsonrpc': '2.0',
+                'id': '1',
+                'method': 'logout',
+                'params': {},
+              }),
+            )
+            .timeout(const Duration(seconds: 5));
       }
     } catch (_) {}
     _sessionId = null;
@@ -216,9 +229,11 @@ class WebUntisService {
     final prefs = await SharedPreferences.getInstance();
     if (_sessionId != null) await prefs.setString('sessionId', _sessionId!);
     if (_studentId != null) await prefs.setInt('studentId', _studentId!);
-    if (_bearerToken != null) await prefs.setString('bearerToken', _bearerToken!);
+    if (_bearerToken != null)
+      await prefs.setString('bearerToken', _bearerToken!);
     if (_klasseId != null) await prefs.setInt('klasseId', _klasseId!);
-    if (_schoolYearId != null) await prefs.setInt('schoolYearId', _schoolYearId!);
+    if (_schoolYearId != null)
+      await prefs.setInt('schoolYearId', _schoolYearId!);
     if (_username != null) await prefs.setString('username', _username!);
   }
 
@@ -267,13 +282,18 @@ class WebUntisService {
 
   Future<List<TimetableEntry>> getWeekTimetable({DateTime? weekStart}) async {
     final start = weekStart ?? _getMonday(DateTime.now());
-    final dateStr = '${start.year}-${start.month.toString().padLeft(2, '0')}-${start.day.toString().padLeft(2, '0')}';
+    final dateStr =
+        '${start.year}-${start.month.toString().padLeft(2, '0')}-${start.day.toString().padLeft(2, '0')}';
 
     try {
-      final response = await http.get(
-        Uri.parse('$_baseUrl/api/public/timetable/weekly/data?elementType=5&elementId=$_studentId&date=$dateStr&formatId=1'),
-        headers: {'Cookie': _cookieHeader},
-      ).timeout(_timeout);
+      final response = await http
+          .get(
+            Uri.parse(
+              '$_baseUrl/api/public/timetable/weekly/data?elementType=5&elementId=$_studentId&date=$dateStr&formatId=1',
+            ),
+            headers: {'Cookie': _cookieHeader},
+          )
+          .timeout(_timeout);
 
       if (response.statusCode == 401 || response.statusCode == 403) {
         throw WebUntisException('Sitzung abgelaufen', isAuthError: true);
@@ -297,7 +317,8 @@ class WebUntisService {
       }
 
       // Parse periods
-      final periodsMap = resultData['elementPeriods'] as Map<String, dynamic>? ?? {};
+      final periodsMap =
+          resultData['elementPeriods'] as Map<String, dynamic>? ?? {};
       final periods = periodsMap['$_studentId'] as List? ?? [];
 
       final entries = <TimetableEntry>[];
@@ -343,13 +364,17 @@ class WebUntisService {
 
     try {
       // Step 1: Get list of lessons (subjects) with grades
-      final listResponse = await http.get(
-        Uri.parse('$_baseUrl/api/classreg/grade/grading/list?studentId=$_studentId&schoolyearId=$_schoolYearId'),
-        headers: {
-          'Authorization': 'Bearer $_bearerToken',
-          'Cookie': _cookieHeader,
-        },
-      ).timeout(const Duration(seconds: 20));
+      final listResponse = await http
+          .get(
+            Uri.parse(
+              '$_baseUrl/api/classreg/grade/grading/list?studentId=$_studentId&schoolyearId=$_schoolYearId',
+            ),
+            headers: {
+              'Authorization': 'Bearer $_bearerToken',
+              'Cookie': _cookieHeader,
+            },
+          )
+          .timeout(const Duration(seconds: 20));
 
       if (listResponse.statusCode == 401 || listResponse.statusCode == 403) {
         throw WebUntisException('Sitzung abgelaufen', isAuthError: true);
@@ -372,13 +397,17 @@ class WebUntisService {
         final teacherName = lesson['teachers'] ?? '';
 
         try {
-          final gradeResponse = await http.get(
-            Uri.parse('$_baseUrl/api/classreg/grade/grading/lesson?studentId=$_studentId&lessonId=$lessonId'),
-            headers: {
-              'Authorization': 'Bearer $_bearerToken',
-              'Cookie': _cookieHeader,
-            },
-          ).timeout(_timeout);
+          final gradeResponse = await http
+              .get(
+                Uri.parse(
+                  '$_baseUrl/api/classreg/grade/grading/lesson?studentId=$_studentId&lessonId=$lessonId',
+                ),
+                headers: {
+                  'Authorization': 'Bearer $_bearerToken',
+                  'Cookie': _cookieHeader,
+                },
+              )
+              .timeout(_timeout);
 
           if (gradeResponse.statusCode == 200) {
             final gradeData = jsonDecode(gradeResponse.body);
@@ -391,12 +420,14 @@ class WebUntisService {
 
             gradeEntries.sort((a, b) => a.date.compareTo(b.date));
 
-            results.add(SubjectGrades(
-              lessonId: lessonId,
-              subjectName: subjectName,
-              teacherName: teacherName,
-              grades: gradeEntries,
-            ));
+            results.add(
+              SubjectGrades(
+                lessonId: lessonId,
+                subjectName: subjectName,
+                teacherName: teacherName,
+                grades: gradeEntries,
+              ),
+            );
           }
         } catch (_) {
           // Skip individual lesson errors, continue with others
@@ -422,19 +453,21 @@ class WebUntisService {
       throw WebUntisException('Nicht angemeldet', isAuthError: true);
     }
 
-    final response = await http.post(
-      Uri.parse('$_baseUrl/jsonrpc.do?school=$_school'),
-      headers: {
-        'Content-Type': 'application/json',
-        'Cookie': _cookieHeader,
-      },
-      body: jsonEncode({
-        'jsonrpc': '2.0',
-        'id': '1',
-        'method': method,
-        'params': params,
-      }),
-    ).timeout(_timeout);
+    final response = await http
+        .post(
+          Uri.parse('$_baseUrl/jsonrpc.do?school=$_school'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Cookie': _cookieHeader,
+          },
+          body: jsonEncode({
+            'jsonrpc': '2.0',
+            'id': '1',
+            'method': method,
+            'params': params,
+          }),
+        )
+        .timeout(_timeout);
 
     if (response.statusCode != 200) {
       throw WebUntisException('Server-Fehler: ${response.statusCode}');
@@ -453,7 +486,8 @@ class WebUntisService {
   }
 
   int _dateToInt(DateTime d) => int.parse(
-      '${d.year}${d.month.toString().padLeft(2, '0')}${d.day.toString().padLeft(2, '0')}');
+    '${d.year}${d.month.toString().padLeft(2, '0')}${d.day.toString().padLeft(2, '0')}',
+  );
 
   DateTime _getMonday(DateTime date) =>
       date.subtract(Duration(days: date.weekday - 1));
@@ -493,7 +527,9 @@ class TimetableEntry {
   });
 
   factory TimetableEntry.fromWeeklyApi(
-      Map<String, dynamic> j, Map<String, Map<String, dynamic>> elementMap) {
+    Map<String, dynamic> j,
+    Map<String, Map<String, dynamic>> elementMap,
+  ) {
     final elements = j['elements'] as List? ?? [];
 
     String subjectName = '';
@@ -539,7 +575,8 @@ class TimetableEntry {
       roomName: roomName,
       cellState: j['cellState']?.toString() ?? '',
       lessonText: j['lessonText']?.toString() ?? '',
-      isCancelled: j['cellState'] == 'CANCEL' ||
+      isCancelled:
+          j['cellState'] == 'CANCEL' ||
           j['code']?.toString() == 'cancelled' ||
           (isMap['cancelled'] == true),
       isExam: isMap['exam'] == true,
@@ -558,8 +595,9 @@ class TimetableEntry {
     return '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}';
   }
 
-  String get displayName =>
-      subjectLong.isNotEmpty ? subjectLong : (subjectName.isNotEmpty ? subjectName : lessonText);
+  String get displayName => subjectLong.isNotEmpty
+      ? subjectLong
+      : (subjectName.isNotEmpty ? subjectName : lessonText);
 }
 
 class SubjectGrades {
@@ -576,13 +614,18 @@ class SubjectGrades {
   });
 
   double? get average {
-    final values = grades.map((g) => g.markDisplayValue).where((v) => v > 0).toList();
+    final values = grades
+        .map((g) => g.markDisplayValue)
+        .where((v) => v > 0)
+        .toList();
     if (values.isEmpty) return null;
     return values.reduce((a, b) => a + b) / values.length;
   }
 
   int get positiveCount => grades.where((g) => g.markDisplayValue >= 6).length;
-  int get negativeCount => grades.where((g) => g.markDisplayValue < 6 && g.markDisplayValue > 0).length;
+  int get negativeCount => grades
+      .where((g) => g.markDisplayValue < 6 && g.markDisplayValue > 0)
+      .length;
 }
 
 class GradeEntry {
@@ -615,7 +658,10 @@ class GradeEntry {
       markName: mark['name']?.toString() ?? '',
       markValue: mark['markValue'] ?? 0,
       markDisplayValue: (mark['markDisplayValue'] as num?)?.toDouble() ?? 0.0,
-      examType: examType['longname']?.toString() ?? examType['name']?.toString() ?? '',
+      examType:
+          examType['longname']?.toString() ??
+          examType['name']?.toString() ??
+          '',
     );
   }
 
@@ -631,7 +677,11 @@ class TimeGridUnit {
   final int startTime;
   final int endTime;
 
-  TimeGridUnit({required this.name, required this.startTime, required this.endTime});
+  TimeGridUnit({
+    required this.name,
+    required this.startTime,
+    required this.endTime,
+  });
 
   String get startFormatted {
     final h = startTime ~/ 100;
