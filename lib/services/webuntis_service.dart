@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import '../config/app_config.dart';
 
 class WebUntisException implements Exception {
   final String message;
@@ -13,12 +14,12 @@ class WebUntisException implements Exception {
 }
 
 class WebUntisService {
-  static const String _baseUrl = 'https://lbs-brixen.webuntis.com/WebUntis';
-  static const String _school = 'lbs-brixen';
-  static const String _schoolNameCookie = '_bGJzLWJyaXhlbg==';
-  static const Duration _timeout = Duration(seconds: 15);
-  static const Duration _timetableTTL = Duration(minutes: 10);
-  static const Duration _gradesTTL = Duration(minutes: 5);
+  static const String _baseUrl = AppConfig.webUntisBaseUrl;
+  static const String _school = AppConfig.webUntisSchool;
+  static const String _schoolNameCookie = AppConfig.webUntisSchoolNameCookie;
+  static const Duration _timeout = AppConfig.networkTimeout;
+  static const Duration _timetableTTL = AppConfig.timetableCacheTTL;
+  static const Duration _gradesTTL = AppConfig.gradesCacheTTL;
 
   // Persistent HTTP client — reuses TCP/TLS connections across requests.
   final http.Client _client = http.Client();
@@ -275,22 +276,17 @@ class WebUntisService {
 
       if (_sessionId == null || _studentId == null) return false;
 
-      // Validate session and refresh bearer in parallel.
-      final sessionFuture = _rpc('getLatestImportTime', {});
-      final bearerFuture = _fetchBearerToken();
-      final sessionResult = await sessionFuture;
-      await bearerFuture;
-
-      if (sessionResult == null) {
-        await clearSession();
-        return false;
-      }
-
-      await saveSession();
-
-      // Pre-warm grades cache from disk.
+      // Pre-warm grades cache from disk immediately — no network needed.
       _loadGradesDiskCache(prefs);
 
+      // Refresh bearer token in the background so the first timetable load
+      // is not blocked. If the saved bearer is still valid it will be used
+      // right away; the fresh one replaces it once available.
+      _fetchBearerToken().then((_) => saveSession()).ignore();
+
+      // Trust the stored session — no validation network call on startup.
+      // If the session has actually expired the first real API call will
+      // return a 401 and the screen redirects to login automatically.
       return true;
     } catch (_) {
       await clearSession();

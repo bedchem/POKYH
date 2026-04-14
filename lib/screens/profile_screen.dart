@@ -3,9 +3,10 @@ import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
-import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../config/app_config.dart';
+import '../main.dart' show appVersion;
 import '../services/webuntis_service.dart';
 import '../services/update_service.dart';
 import '../theme/app_theme.dart';
@@ -28,7 +29,8 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   bool _clearingCache = false;
   bool _checkingUpdate = false;
-  String _appVersion = '';
+  // appVersion is pre-fetched at startup in main.dart — no async call needed.
+  String get _appVersion => appVersion.isNotEmpty ? appVersion : '?.?.?';
 
   // Einstellungen
   String _themeMode = 'system';
@@ -38,16 +40,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void initState() {
     super.initState();
     _loadSettings();
-    _loadVersion();
-  }
-
-  Future<void> _loadVersion() async {
-    try {
-      final info = await PackageInfo.fromPlatform();
-      if (mounted) setState(() => _appVersion = info.version);
-    } catch (_) {
-      if (mounted) setState(() => _appVersion = '?.?.?');
-    }
   }
 
   Future<void> _loadSettings() async {
@@ -206,8 +198,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
       scheme: 'mailto',
       path: 'feedback@plattnericus.dev',
       queryParameters: {
-        'subject': '[POCKYH] Feedback',
-        'body': '\n\n---\nVersion: $_appVersion\nSchule: LBS Brixen',
+        'subject': '[${AppConfig.appName}] Feedback',
+        'body': '\n\n---\nVersion: $_appVersion\nSchule: ${AppConfig.schoolName}',
       },
     );
     if (await canLaunchUrl(uri)) {
@@ -221,7 +213,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   // GitHub öffnen
   // ──────────────────────────────────────────────────────────────────────────
   Future<void> _openGitHub() async {
-    final uri = Uri.parse('https://github.com/bedchem/POKYH');
+    final uri = Uri.parse(AppConfig.githubUrl);
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
     } else {
@@ -234,11 +226,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
       showCupertinoDialog(
         context: context,
         builder: (ctx) => CupertinoAlertDialog(
-          title: const Text('POCKYH'),
+          title: Text(AppConfig.appName),
           content: Text(
             'Version $_appVersion\n\n'
-            'Die All‑in‑One Schul‑App für die LBS Brixen.\n\n'
-            '© 2025 – MIT Lizenz',
+            'Die All‑in‑One Schul‑App für die ${AppConfig.schoolName}.\n\n'
+            '© ${AppConfig.copyrightYear} – MIT Lizenz',
           ),
           actions: [
             CupertinoDialogAction(
@@ -261,11 +253,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
-          title: Text('POCKYH', style: TextStyle(color: AppTheme.textPrimary)),
+          title: Text(AppConfig.appName, style: TextStyle(color: AppTheme.textPrimary)),
           content: Text(
             'Version $_appVersion\n\n'
-            'Die All‑in‑One Schul‑App für die LBS Brixen.\n\n'
-            '© 2025 – MIT Lizenz',
+            'Die All‑in‑One Schul‑App für die ${AppConfig.schoolName}.\n\n'
+            '© ${AppConfig.copyrightYear} – MIT Lizenz',
             style: TextStyle(color: AppTheme.textSecondary),
           ),
           actions: [

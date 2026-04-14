@@ -49,9 +49,18 @@ class AppTheme {
     'Re-Wiku': Color(0xFF6AB87A),
   };
 
+  /// Returns a color for a subject name.
+  /// Uses the predefined map first; unknown subjects get a deterministic
+  /// color derived from their name so the same subject always has the
+  /// same color regardless of which school uses the app.
   static Color colorForSubject(String name) {
-    if (name.isEmpty) return const Color.fromARGB(255, 48, 137, 209);
-    return _subjectColorMap[name] ?? const Color(0xFF7A7A8A);
+    if (name.isEmpty) return const Color(0xFF5AA0E8);
+    final known = _subjectColorMap[name];
+    if (known != null) return known;
+    // Deterministic hue from subject name — consistent across sessions.
+    final hash = name.codeUnits.fold(0, (h, c) => (h * 31 + c) & 0xFFFFFFFF);
+    final hue = (hash % 360).toDouble();
+    return HSLColor.fromAHSL(1.0, hue, 0.50, 0.52).toColor();
   }
 
   // ── ThemeData ──────────────────────────────────────────────────────────

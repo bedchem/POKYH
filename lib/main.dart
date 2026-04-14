@@ -3,21 +3,34 @@ import 'package:flutter/cupertino.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'config/app_config.dart';
 import 'firebase_options.dart';
 import 'services/webuntis_service.dart';
-import 'services/update_service.dart';
 import 'screens/login_screen.dart';
 import 'screens/home_screen.dart';
 import 'theme/app_theme.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
+/// Pre-fetched at startup so HomeScreen doesn't need to fetch it again.
+String appVersion = '';
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
-  // Load saved theme preference before first frame.
-  final prefs = await SharedPreferences.getInstance();
+  // Run Firebase init, SharedPreferences and PackageInfo in parallel —
+  // none of them depend on each other.
+  final results = await Future.wait([
+    Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform),
+    SharedPreferences.getInstance(),
+    PackageInfo.fromPlatform(),
+  ]);
+
+  final prefs = results[1] as SharedPreferences;
+  final info = results[2] as PackageInfo;
+
+  appVersion = info.version;
+
   final saved = prefs.getString('themeMode') ?? 'system';
   AppTheme.themeNotifier.value = _themeModeFrom(saved);
 
@@ -26,12 +39,9 @@ void main() async {
 
 ThemeMode _themeModeFrom(String value) {
   switch (value) {
-    case 'light':
-      return ThemeMode.light;
-    case 'dark':
-      return ThemeMode.dark;
-    default:
-      return ThemeMode.system;
+    case 'light':  return ThemeMode.light;
+    case 'dark':   return ThemeMode.dark;
+    default:       return ThemeMode.system;
   }
 }
 
@@ -60,14 +70,13 @@ class _PockyhAppState extends State<PockyhApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'POKYH',
+      title: AppConfig.appName,
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),
       darkTheme: AppTheme.dark(),
       themeMode: AppTheme.themeNotifier.value,
       navigatorKey: navigatorKey,
       builder: (context, child) {
-        // Sync static brightness so AppTheme color getters work everywhere.
         AppTheme.currentBrightness = Theme.of(context).brightness;
         return child!;
       },
@@ -93,7 +102,7 @@ class _SplashScreenState extends State<SplashScreen>
     super.initState();
     _anim = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 800),
+      duration: const Duration(milliseconds: 600),
     );
     _fade = CurvedAnimation(parent: _anim, curve: Curves.easeOut);
     _anim.forward();
@@ -112,9 +121,8 @@ class _SplashScreenState extends State<SplashScreen>
 
     if (!mounted) return;
 
-    if (restored) {
-      service.fetchProfileImage();
-    }
+    // Kick off profile image fetch in background — doesn't block navigation.
+    if (restored) service.fetchProfileImage().ignore();
 
     final target = restored
         ? HomeScreen(service: service)
@@ -126,23 +134,9 @@ class _SplashScreenState extends State<SplashScreen>
         pageBuilder: (_, _, _) => target,
         transitionsBuilder: (_, a, _, child) =>
             FadeTransition(opacity: a, child: child),
-        transitionDuration: const Duration(milliseconds: 400),
+        transitionDuration: const Duration(milliseconds: 300),
       ),
     );
-
-    _checkForUpdate();
-  }
-
-  Future<void> _checkForUpdate() async {
-    try {
-      final info = await PackageInfo.fromPlatform();
-      final ctx = navigatorKey.currentContext;
-      if (ctx == null) return;
-      await UpdateService.checkForUpdate(
-        ctx,
-        currentVersion: info.version,
-      );
-    } catch (_) {}
   }
 
   @override
@@ -178,7 +172,7 @@ class _SplashScreenState extends State<SplashScreen>
               ),
               const SizedBox(height: 20),
               Text(
-                'POKYH',
+                AppConfig.appName,
                 style: TextStyle(
                   fontSize: 28,
                   fontWeight: FontWeight.w700,

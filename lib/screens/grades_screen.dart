@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
+import '../config/app_config.dart';
 import '../services/webuntis_service.dart';
 import '../theme/app_theme.dart';
 import 'login_screen.dart';
@@ -114,7 +115,7 @@ class _GradesScreenState extends State<GradesScreen> {
                     Padding(
                       padding: const EdgeInsets.only(top: 4),
                       child: Text(
-                        '${_subjects.length} Fächer · Schuljahr 2025/2026',
+                        '${_subjects.length} Fächer · Schuljahr ${AppConfig.currentSchoolYear}',
                         style: TextStyle(
                           fontSize: 14,
                           color: AppTheme.textSecondary,

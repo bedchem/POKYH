@@ -5,6 +5,9 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import '../config/app_config.dart';
+import '../main.dart' show appVersion;
+import '../services/update_service.dart';
 import '../services/webuntis_service.dart';
 import '../theme/app_theme.dart';
 import 'timetable_screen.dart' show TimetableScreen, TimetableScreenState;
@@ -30,6 +33,8 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _timetableKey = TimetableScreen.createKey();
+    // Trigger update check after the first frame so the UI is fully visible.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _checkForUpdate());
     _screens = [
       _DashboardTab(
         service: widget.service,
@@ -67,6 +72,13 @@ class _HomeScreenState extends State<HomeScreen> {
       GradesScreen(service: widget.service),
       const MensaScreen(),
     ];
+  }
+
+  Future<void> _checkForUpdate() async {
+    if (!mounted || appVersion.isEmpty) return;
+    try {
+      await UpdateService.checkForUpdate(context, currentVersion: appVersion);
+    } catch (_) {}
   }
 
   Future<void> _logout() async {
@@ -500,8 +512,8 @@ class _DashboardTabState extends State<_DashboardTab>
           '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
 
       final response = await http
-          .get(Uri.parse('https://mensa.plattnericus.dev/mensa.json'))
-          .timeout(const Duration(seconds: 6));
+          .get(Uri.parse(AppConfig.mensaApiUrl))
+          .timeout(AppConfig.mensaTimeout);
 
       if (response.statusCode != 200) {
         if (mounted) setState(() => _loadingMensa = false);

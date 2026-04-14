@@ -61,7 +61,7 @@ class DishService {
   /// Speichert bei Erfolg automatisch in den Cache.
   /// Gibt null zurück bei Fehler/Timeout.
   Future<List<Dish>?> fetchFromServer() async {
-    final url = AppConfig.apiUrl;
+    final url = AppConfig.mensaApiUrl;
     debugPrint('[DishService] Fetching: $url');
     try {
       final response = await http.get(

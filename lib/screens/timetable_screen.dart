@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
+import '../config/app_config.dart';
 import '../services/webuntis_service.dart';
 import '../theme/app_theme.dart';
 import 'login_screen.dart';
@@ -94,26 +95,8 @@ class TimetableScreenState extends State<TimetableScreen> {
   int _currentOffset = 0;
   int _selectedDay = -1;
 
-  static const _dayLabels = ['Mo', 'Di', 'Mi', 'Do', 'Fr'];
-  static const _months = [
-    'Jan',
-    'Feb',
-    'Mär',
-    'Apr',
-    'Mai',
-    'Jun',
-    'Jul',
-    'Aug',
-    'Sep',
-    'Okt',
-    'Nov',
-    'Dez',
-  ];
-
-  static const _fixedBreakWindows = [
-    (start: 1020, end: 1030),
-    (start: 1455, end: 1505),
-  ];
+  static List<String> get _dayLabels => AppConfig.dayLabels;
+  static List<String> get _months => AppConfig.monthLabels;
 
   static const double _rowMinHeight = 78.0;
   static const double _connectedGap = 5.0;
@@ -297,10 +280,26 @@ class TimetableScreenState extends State<TimetableScreen> {
     return (total ~/ 60) * 100 + (total % 60);
   }
 
+  /// Returns break windows derived from the API's TimeGrid.
+  /// Falls back to [AppConfig.defaultBreakWindows] if the TimeGrid is empty.
+  List<({int start, int end})> get _breakWindows {
+    final grid = widget.service.timeGrid;
+    if (grid.length < 2) return AppConfig.defaultBreakWindows;
+    final breaks = <({int start, int end})>[];
+    for (int i = 0; i < grid.length - 1; i++) {
+      final gapMins = _toMins(grid[i + 1].startTime) - _toMins(grid[i].endTime);
+      // A gap > 0 and ≤ 30 min between lessons is a short break.
+      if (gapMins > 0 && gapMins <= 30) {
+        breaks.add((start: grid[i].endTime, end: grid[i + 1].startTime));
+      }
+    }
+    return breaks.isEmpty ? AppConfig.defaultBreakWindows : breaks;
+  }
+
   bool _crossesFixedBreak(int endTime, int nextStart) {
     final endM = _toMins(endTime);
     final startM = _toMins(nextStart);
-    for (final b in _fixedBreakWindows) {
+    for (final b in _breakWindows) {
       if (endM < _toMins(b.end) && startM > _toMins(b.start)) return true;
     }
     return false;
