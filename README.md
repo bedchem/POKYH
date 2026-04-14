@@ -52,7 +52,19 @@ flutter run
 ### Android (Release APK)
 
 ```bash
+cd ~/Downloads/POKYH
+
+flutter clean
+
 flutter build apk --release
+
+cd ~/Downloads
+
+rm -f POKYH.apk
+
+cp ~/Downloads/POKYH/build/app/outputs/flutter-apk/app-release.apk POKYH.apk
+
+echo "Fertig: ~/Downloads/POKYH.apk"
 ```
 
 ---
