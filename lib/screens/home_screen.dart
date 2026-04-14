@@ -398,15 +398,61 @@ class _DashboardTabState extends State<_DashboardTab>
   }
 
   Future<void> _load() async {
+    // Show cached data immediately so the screen isn't blank while fetching.
+    _applyGradesCache(widget.service.cachedGrades);
+    final cachedWeek = widget.service.getCachedWeek(_getThisMonday());
+    if (cachedWeek != null) _applyTimetableCache(cachedWeek);
+
     setState(() {
-      _loadingTimetable = true;
-      _loadingGrades = true;
+      _loadingTimetable = cachedWeek == null;
+      _loadingGrades = widget.service.cachedGrades == null;
       _loadingMensa = true;
       _errorTimetable = null;
     });
+
     _fadeController.reset();
     await Future.wait([_loadTimetable(), _loadGrades(), _loadMensa()]);
     if (mounted) _fadeController.forward();
+  }
+
+  DateTime _getThisMonday() {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    return today.subtract(Duration(days: today.weekday - 1));
+  }
+
+  void _applyTimetableCache(List<TimetableEntry> allWeek) {
+    final now = DateTime.now();
+    final todayInt = _dateInt(now);
+    _allWeek = allWeek;
+    _today = allWeek.where((e) => e.date == todayInt).toList();
+    _loadingTimetable = false;
+  }
+
+  void _applyGradesCache(List<SubjectGrades>? subjects) {
+    if (subjects == null) return;
+    final allGrades = <_RecentGrade>[];
+    double sum = 0;
+    int count = 0;
+    for (final subject in subjects) {
+      for (final grade in subject.grades) {
+        if (grade.markDisplayValue <= 0) continue;
+        allGrades.add(
+          _RecentGrade(
+            subject: subject.subjectName,
+            value: grade.markDisplayValue,
+            date: grade.date,
+            type: grade.examType,
+          ),
+        );
+        sum += grade.markDisplayValue;
+        count++;
+      }
+    }
+    allGrades.sort((a, b) => b.date.compareTo(a.date));
+    _recentGrades = allGrades.take(3).toList();
+    _weekAverage = count > 0 ? sum / count : null;
+    _loadingGrades = false;
   }
 
   Future<void> _loadTimetable() async {
@@ -441,32 +487,7 @@ class _DashboardTabState extends State<_DashboardTab>
   Future<void> _loadGrades() async {
     try {
       final subjects = await widget.service.getAllGrades();
-      final allGrades = <_RecentGrade>[];
-      double sum = 0;
-      int count = 0;
-      for (final subject in subjects) {
-        for (final grade in subject.grades) {
-          if (grade.markDisplayValue <= 0) continue;
-          allGrades.add(
-            _RecentGrade(
-              subject: subject.subjectName,
-              value: grade.markDisplayValue,
-              date: grade.date,
-              type: grade.examType,
-            ),
-          );
-          sum += grade.markDisplayValue;
-          count++;
-        }
-      }
-      allGrades.sort((a, b) => b.date.compareTo(a.date));
-      if (mounted) {
-        setState(() {
-          _recentGrades = allGrades.take(3).toList();
-          _weekAverage = count > 0 ? sum / count : null;
-          _loadingGrades = false;
-        });
-      }
+      if (mounted) setState(() => _applyGradesCache(subjects));
     } catch (_) {
       if (mounted) setState(() => _loadingGrades = false);
     }

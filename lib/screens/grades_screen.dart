@@ -24,13 +24,25 @@ class _GradesScreenState extends State<GradesScreen> {
     _load();
   }
 
-  Future<void> _load() async {
+  Future<void> _load({bool forceRefresh = false}) async {
+    // Show cached data immediately — no spinner if we already have data.
+    final cached = widget.service.cachedGrades;
+    if (cached != null && !forceRefresh) {
+      setState(() {
+        _subjects = cached;
+        _loading = false;
+      });
+      // Refresh silently in background.
+      _refreshInBackground();
+      return;
+    }
+
     setState(() {
-      _loading = true;
+      _loading = _subjects.isEmpty;
       _error = null;
     });
     try {
-      final grades = await widget.service.getAllGrades();
+      final grades = await widget.service.getAllGrades(forceRefresh: forceRefresh);
       if (mounted) {
         setState(() {
           _subjects = grades;
@@ -58,6 +70,13 @@ class _GradesScreenState extends State<GradesScreen> {
         });
       }
     }
+  }
+
+  Future<void> _refreshInBackground() async {
+    try {
+      final grades = await widget.service.getAllGrades(forceRefresh: true);
+      if (mounted) setState(() => _subjects = grades);
+    } catch (_) {}
   }
 
   double? get _totalAverage {
@@ -880,7 +899,7 @@ class _SubjectDetailSheetState extends State<_SubjectDetailSheet> {
       maxChildSize: 0.95,
       minChildSize: 0.5,
       builder: (_, scrollCtrl) => GestureDetector(
-        onTap: () => _focusNode.unfocus(), // Fokus entfernen bei Tap außerhalb
+        onTap: () => _focusNode.unfocus(),
         behavior: HitTestBehavior.opaque,
         child: Container(
           decoration: BoxDecoration(

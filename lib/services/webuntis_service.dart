@@ -17,6 +17,11 @@ class WebUntisService {
   static const String _school = 'lbs-brixen';
   static const String _schoolNameCookie = '_bGJzLWJyaXhlbg==';
   static const Duration _timeout = Duration(seconds: 15);
+  static const Duration _timetableTTL = Duration(minutes: 10);
+  static const Duration _gradesTTL = Duration(minutes: 5);
+
+  // Persistent HTTP client — reuses TCP/TLS connections across requests.
+  final http.Client _client = http.Client();
 
   String? _sessionId;
   String? _bearerToken;
@@ -30,29 +35,23 @@ class WebUntisService {
   String? get username => _username;
   int? get studentId => _studentId;
 
-  /// Cached profile image bytes (null = not yet fetched, empty = no image available)
+  /// Profile image cache
   Uint8List? _profileImageBytes;
   bool _profileImageFetched = false;
 
-  /// URL for the student's WebUntis profile portrait
   String? get profileImageUrl {
     if (_studentId == null || _sessionId == null) return null;
     return '$_baseUrl/api/portrait/students/$_studentId?v=${DateTime.now().millisecondsSinceEpoch}';
   }
 
-  /// Cached profile image bytes, or null if unavailable
   Uint8List? get profileImageBytes => _profileImageBytes;
-
-  /// Whether the profile image has been fetched at least once
   bool get profileImageFetched => _profileImageFetched;
 
-  /// Fetches the profile image bytes. Returns null if unavailable.
   Future<Uint8List?> fetchProfileImage() async {
     if (_studentId == null || _sessionId == null) return null;
     try {
-      final url =
-          '$_baseUrl/api/portrait/students/$_studentId?v=${DateTime.now().millisecondsSinceEpoch}';
-      final response = await http
+      final url = '$_baseUrl/api/portrait/students/$_studentId';
+      final response = await _client
           .get(Uri.parse(url), headers: {'Cookie': _cookieHeader})
           .timeout(const Duration(seconds: 10));
 
@@ -70,17 +69,50 @@ class WebUntisService {
     }
   }
 
-  /// Cookie header needed for authenticated image requests
   String get cookieHeader => _cookieHeader;
 
   String get _cookieHeader =>
       'JSESSIONID=${_sessionId ?? ""}; schoolname="$_schoolNameCookie"';
 
+  // ── Timetable in-memory cache ─────────────────────────────────────────────
+
+  final Map<String, _CachedData<List<TimetableEntry>>> _timetableCache = {};
+
+  /// Returns cached timetable for the given week start, or null if expired/missing.
+  List<TimetableEntry>? getCachedWeek(DateTime weekStart) {
+    final key = _weekKey(weekStart);
+    final cached = _timetableCache[key];
+    if (cached == null || cached.isExpired(_timetableTTL)) return null;
+    return cached.data;
+  }
+
+  void _cacheTimetable(DateTime weekStart, List<TimetableEntry> entries) {
+    _timetableCache[_weekKey(weekStart)] = _CachedData(entries);
+  }
+
+  String _weekKey(DateTime d) =>
+      '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+  // ── Grades in-memory cache ────────────────────────────────────────────────
+
+  _CachedData<List<SubjectGrades>>? _gradesCache;
+
+  List<SubjectGrades>? get cachedGrades {
+    final c = _gradesCache;
+    if (c == null || c.isExpired(_gradesTTL)) return null;
+    return c.data;
+  }
+
+  void _clearCaches() {
+    _timetableCache.clear();
+    _gradesCache = null;
+  }
+
   // ── AUTH ──────────────────────────────────────────────────────────────────
 
   Future<bool> login(String username, String password) async {
     try {
-      final response = await http
+      final response = await _client
           .post(
             Uri.parse('$_baseUrl/jsonrpc.do?school=$_school'),
             headers: {'Content-Type': 'application/json'},
@@ -108,23 +140,19 @@ class WebUntisService {
       _klasseId = result['klasseId'];
       _username = username;
 
-      // Extract JSESSIONID from Set-Cookie header
       final setCookie = response.headers['set-cookie'];
       if (setCookie != null) {
         final match = RegExp(r'JSESSIONID=([^;]+)').firstMatch(setCookie);
         if (match != null) _sessionId = match.group(1);
       }
 
-      // Fetch bearer token for REST API
-      await _fetchBearerToken();
+      // Run all three init calls in parallel — was sequential before.
+      await Future.wait([
+        _fetchBearerToken(),
+        _fetchSchoolYear(),
+        _fetchTimeGrid(),
+      ]);
 
-      // Fetch current school year
-      await _fetchSchoolYear();
-
-      // Fetch time grid
-      await _fetchTimeGrid();
-
-      // Save session for persistence
       await saveSession();
 
       return true;
@@ -140,7 +168,7 @@ class WebUntisService {
 
   Future<void> _fetchBearerToken() async {
     try {
-      final response = await http
+      final response = await _client
           .get(
             Uri.parse('$_baseUrl/api/token/new'),
             headers: {'Cookie': _cookieHeader},
@@ -150,9 +178,7 @@ class WebUntisService {
       if (response.statusCode == 200) {
         _bearerToken = response.body.trim().replaceAll('"', '');
       }
-    } catch (_) {
-      // Bearer token is optional - grades won't work without it
-    }
+    } catch (_) {}
   }
 
   Future<void> _fetchSchoolYear() async {
@@ -168,7 +194,6 @@ class WebUntisService {
     try {
       final result = await _rpc('getTimegridUnits', {});
       if (result is List && result.isNotEmpty) {
-        // Use first day's time units (they're the same for all days)
         final units = result[0]['timeUnits'] as List? ?? [];
         _timeGrid = units
             .map(
@@ -196,7 +221,7 @@ class WebUntisService {
   Future<void> logout() async {
     try {
       if (_sessionId != null) {
-        await http
+        await _client
             .post(
               Uri.parse('$_baseUrl/jsonrpc.do?school=$_school'),
               headers: {
@@ -220,6 +245,7 @@ class WebUntisService {
     _schoolYearId = null;
     _profileImageBytes = null;
     _profileImageFetched = false;
+    _clearCaches();
     await clearSession();
   }
 
@@ -249,16 +275,21 @@ class WebUntisService {
 
       if (_sessionId == null || _studentId == null) return false;
 
-      // Validate session is still alive
-      final result = await _rpc('getLatestImportTime', {});
-      if (result == null) {
+      // Validate session and refresh bearer in parallel.
+      final sessionFuture = _rpc('getLatestImportTime', {});
+      final bearerFuture = _fetchBearerToken();
+      final sessionResult = await sessionFuture;
+      await bearerFuture;
+
+      if (sessionResult == null) {
         await clearSession();
         return false;
       }
 
-      // Refresh bearer token (they expire faster)
-      await _fetchBearerToken();
       await saveSession();
+
+      // Pre-warm grades cache from disk.
+      _loadGradesDiskCache(prefs);
 
       return true;
     } catch (_) {
@@ -274,6 +305,7 @@ class WebUntisService {
     _klasseId = null;
     _schoolYearId = null;
     _username = null;
+    _clearCaches();
     final prefs = await SharedPreferences.getInstance();
     await prefs.clear();
   }
@@ -282,11 +314,16 @@ class WebUntisService {
 
   Future<List<TimetableEntry>> getWeekTimetable({DateTime? weekStart}) async {
     final start = weekStart ?? _getMonday(DateTime.now());
+
+    // Return from cache if still fresh.
+    final cached = getCachedWeek(start);
+    if (cached != null) return cached;
+
     final dateStr =
         '${start.year}-${start.month.toString().padLeft(2, '0')}-${start.day.toString().padLeft(2, '0')}';
 
     try {
-      final response = await http
+      final response = await _client
           .get(
             Uri.parse(
               '$_baseUrl/api/public/timetable/weekly/data?elementType=5&elementId=$_studentId&date=$dateStr&formatId=1',
@@ -305,9 +342,11 @@ class WebUntisService {
 
       final data = jsonDecode(response.body);
       final resultData = data['data']?['result']?['data'];
-      if (resultData == null) return [];
+      if (resultData == null) {
+        _cacheTimetable(start, []);
+        return [];
+      }
 
-      // Build element lookup map
       final elements = resultData['elements'] as List? ?? [];
       final elementMap = <String, Map<String, dynamic>>{};
       for (final e in elements) {
@@ -316,7 +355,6 @@ class WebUntisService {
         elementMap['$type-$id'] = Map<String, dynamic>.from(e);
       }
 
-      // Parse periods
       final periodsMap =
           resultData['elementPeriods'] as Map<String, dynamic>? ?? {};
       final periods = periodsMap['$_studentId'] as List? ?? [];
@@ -331,6 +369,7 @@ class WebUntisService {
         return dateComp != 0 ? dateComp : a.startTime.compareTo(b.startTime);
       });
 
+      _cacheTimetable(start, entries);
       return entries;
     } on TimeoutException {
       throw WebUntisException('Verbindung abgelaufen');
@@ -350,9 +389,15 @@ class WebUntisService {
 
   // ── GRADES ────────────────────────────────────────────────────────────────
 
-  Future<List<SubjectGrades>> getAllGrades() async {
+  Future<List<SubjectGrades>> getAllGrades({bool forceRefresh = false}) async {
     if (_studentId == null || _bearerToken == null) {
       throw WebUntisException('Nicht angemeldet oder kein Token');
+    }
+
+    // Return memory-cached data if still fresh and not forced.
+    if (!forceRefresh) {
+      final mem = cachedGrades;
+      if (mem != null) return mem;
     }
 
     if (_schoolYearId == null) {
@@ -363,8 +408,8 @@ class WebUntisService {
     }
 
     try {
-      // Step 1: Get list of lessons (subjects) with grades
-      final listResponse = await http
+      // Step 1: fetch lesson list.
+      final listResponse = await _client
           .get(
             Uri.parse(
               '$_baseUrl/api/classreg/grade/grading/list?studentId=$_studentId&schoolyearId=$_schoolYearId',
@@ -389,53 +434,18 @@ class WebUntisService {
 
       if (lessons.isEmpty) return [];
 
-      // Step 2: For each lesson, get detailed grades
-      final results = <SubjectGrades>[];
-      for (final lesson in lessons) {
-        final lessonId = lesson['id'];
-        final subjectName = lesson['subjects'] ?? '';
-        final teacherName = lesson['teachers'] ?? '';
+      // Step 2: fetch all lesson grades IN PARALLEL — was sequential before.
+      final futures = lessons.map((lesson) => _fetchLessonGrades(lesson));
+      final fetched = await Future.wait(futures);
 
-        try {
-          final gradeResponse = await http
-              .get(
-                Uri.parse(
-                  '$_baseUrl/api/classreg/grade/grading/lesson?studentId=$_studentId&lessonId=$lessonId',
-                ),
-                headers: {
-                  'Authorization': 'Bearer $_bearerToken',
-                  'Cookie': _cookieHeader,
-                },
-              )
-              .timeout(_timeout);
-
-          if (gradeResponse.statusCode == 200) {
-            final gradeData = jsonDecode(gradeResponse.body);
-            final grades = gradeData['data']?['grades'] as List? ?? [];
-
-            final gradeEntries = grades
-                .map((g) => GradeEntry.fromJson(g))
-                .where((g) => g.markValue > 0)
-                .toList();
-
-            gradeEntries.sort((a, b) => a.date.compareTo(b.date));
-
-            results.add(
-              SubjectGrades(
-                lessonId: lessonId,
-                subjectName: subjectName,
-                teacherName: teacherName,
-                grades: gradeEntries,
-              ),
-            );
-          }
-        } catch (_) {
-          // Skip individual lesson errors, continue with others
-        }
-      }
-
-      // Sort by subject name
+      final results = fetched.whereType<SubjectGrades>().toList();
       results.sort((a, b) => a.subjectName.compareTo(b.subjectName));
+
+      // Update memory cache.
+      _gradesCache = _CachedData(results);
+
+      // Persist to disk for next cold launch.
+      _saveGradesDiskCache(results);
 
       return results;
     } on TimeoutException {
@@ -446,6 +456,84 @@ class WebUntisService {
     }
   }
 
+  Future<SubjectGrades?> _fetchLessonGrades(Map<String, dynamic> lesson) async {
+    final lessonId = lesson['id'];
+    final subjectName = lesson['subjects'] ?? '';
+    final teacherName = lesson['teachers'] ?? '';
+    try {
+      final response = await _client
+          .get(
+            Uri.parse(
+              '$_baseUrl/api/classreg/grade/grading/lesson?studentId=$_studentId&lessonId=$lessonId',
+            ),
+            headers: {
+              'Authorization': 'Bearer $_bearerToken',
+              'Cookie': _cookieHeader,
+            },
+          )
+          .timeout(_timeout);
+
+      if (response.statusCode != 200) return null;
+
+      final gradeData = jsonDecode(response.body);
+      final grades = gradeData['data']?['grades'] as List? ?? [];
+
+      final gradeEntries = grades
+          .map((g) => GradeEntry.fromJson(g))
+          .where((g) => g.markValue > 0)
+          .toList();
+
+      gradeEntries.sort((a, b) => a.date.compareTo(b.date));
+
+      return SubjectGrades(
+        lessonId: lessonId,
+        subjectName: subjectName,
+        teacherName: teacherName,
+        grades: gradeEntries,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  // ── GRADES DISK CACHE ─────────────────────────────────────────────────────
+
+  static const _kGradesCacheKey = 'grades_cache_v1';
+  static const _kGradesCacheTimeKey = 'grades_cache_time_v1';
+
+  void _saveGradesDiskCache(List<SubjectGrades> grades) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final encoded = jsonEncode(grades.map((s) => s.toJson()).toList());
+      await prefs.setString(_kGradesCacheKey, encoded);
+      await prefs.setInt(
+        _kGradesCacheTimeKey,
+        DateTime.now().millisecondsSinceEpoch,
+      );
+    } catch (_) {}
+  }
+
+  void _loadGradesDiskCache(SharedPreferences prefs) {
+    try {
+      final timeMs = prefs.getInt(_kGradesCacheTimeKey);
+      if (timeMs == null) return;
+      final age = DateTime.now().difference(
+        DateTime.fromMillisecondsSinceEpoch(timeMs),
+      );
+      if (age > const Duration(hours: 12)) return;
+
+      final encoded = prefs.getString(_kGradesCacheKey);
+      if (encoded == null) return;
+
+      final list = (jsonDecode(encoded) as List)
+          .map((j) => SubjectGrades.fromJson(j as Map<String, dynamic>))
+          .toList();
+
+      // Only pre-warm if no fresher data is already in memory.
+      _gradesCache ??= _CachedData(list);
+    } catch (_) {}
+  }
+
   // ── HELPERS ───────────────────────────────────────────────────────────────
 
   Future<dynamic> _rpc(String method, Map<String, dynamic> params) async {
@@ -453,7 +541,7 @@ class WebUntisService {
       throw WebUntisException('Nicht angemeldet', isAuthError: true);
     }
 
-    final response = await http
+    final response = await _client
         .post(
           Uri.parse('$_baseUrl/jsonrpc.do?school=$_school'),
           headers: {
@@ -491,6 +579,17 @@ class WebUntisService {
 
   DateTime _getMonday(DateTime date) =>
       date.subtract(Duration(days: date.weekday - 1));
+}
+
+// ── Generic cache wrapper ─────────────────────────────────────────────────────
+
+class _CachedData<T> {
+  final T data;
+  final DateTime _fetchedAt;
+
+  _CachedData(this.data) : _fetchedAt = DateTime.now();
+
+  bool isExpired(Duration ttl) => DateTime.now().difference(_fetchedAt) > ttl;
 }
 
 // ── MODELS ────────────────────────────────────────────────────────────────────
@@ -626,6 +725,22 @@ class SubjectGrades {
   int get negativeCount => grades
       .where((g) => g.markDisplayValue < 6 && g.markDisplayValue > 0)
       .length;
+
+  Map<String, dynamic> toJson() => {
+    'lessonId': lessonId,
+    'subjectName': subjectName,
+    'teacherName': teacherName,
+    'grades': grades.map((g) => g.toJson()).toList(),
+  };
+
+  factory SubjectGrades.fromJson(Map<String, dynamic> j) => SubjectGrades(
+    lessonId: j['lessonId'] ?? 0,
+    subjectName: j['subjectName'] ?? '',
+    teacherName: j['teacherName'] ?? '',
+    grades: (j['grades'] as List? ?? [])
+        .map((g) => GradeEntry.fromCacheJson(g as Map<String, dynamic>))
+        .toList(),
+  );
 }
 
 class GradeEntry {
@@ -664,6 +779,26 @@ class GradeEntry {
           '',
     );
   }
+
+  factory GradeEntry.fromCacheJson(Map<String, dynamic> j) => GradeEntry(
+    id: j['id'] ?? 0,
+    text: j['text'] ?? '',
+    date: j['date'] ?? 0,
+    markName: j['markName'] ?? '',
+    markValue: j['markValue'] ?? 0,
+    markDisplayValue: (j['markDisplayValue'] as num?)?.toDouble() ?? 0.0,
+    examType: j['examType'] ?? '',
+  );
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'text': text,
+    'date': date,
+    'markName': markName,
+    'markValue': markValue,
+    'markDisplayValue': markDisplayValue,
+    'examType': examType,
+  };
 
   String get dateFormatted {
     final s = date.toString();

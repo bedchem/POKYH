@@ -1,7 +1,7 @@
 name: pockyh
 description: "WebUntis Stundenplan & Noten App"
 publish_to: 'none'
-version: 1.0.5+1
+version: 1.0.6+1
 
 environment:
   sdk: ^3.11.4
