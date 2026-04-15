@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../services/webuntis_service.dart';
 import '../theme/app_theme.dart';
+import '../widgets/back_swipe_pop_scope.dart';
 
 class MessageDetailScreen extends StatefulWidget {
   final WebUntisService service;
@@ -67,7 +68,7 @@ class _MessageDetailScreenState extends State<MessageDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    final page = Scaffold(
       backgroundColor: AppTheme.bg,
       body: SafeArea(
         child: Column(
@@ -117,6 +118,14 @@ class _MessageDetailScreenState extends State<MessageDetailScreen> {
           ],
         ),
       ),
+    );
+
+    final isIOS = Theme.of(context).platform == TargetPlatform.iOS;
+    if (isIOS) return page;
+
+    return BackSwipePopScope(
+      canPop: () => Navigator.of(context).canPop(),
+      child: page,
     );
   }
 

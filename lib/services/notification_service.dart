@@ -25,7 +25,6 @@ class NotificationService {
   /// Called once on app startup.
   Future<void> initialize() async {
     await _requestPermissions();
-    await _loadKnownIds();
     _setupFcmListeners();
     _logFcmToken();
   }
@@ -34,12 +33,19 @@ class NotificationService {
   void startPolling(WebUntisService service) {
     _service = service;
     _pollTimer?.cancel();
-    _pollTimer = Timer.periodic(
-      AppConfig.messagesCheckInterval,
-      (_) => _checkForNewMessages(),
-    );
-    // Immediate check on start
-    _checkForNewMessages();
+    _pollTimer = null;
+
+    _loadKnownIds(service).then((_) {
+      if (!identical(_service, service)) return;
+
+      _pollTimer?.cancel();
+      _pollTimer = Timer.periodic(
+        AppConfig.messagesCheckInterval,
+        (_) => _checkForNewMessages(),
+      );
+      // Immediate check on start
+      _checkForNewMessages();
+    });
   }
 
   /// Stop periodic message checks.
@@ -47,6 +53,8 @@ class NotificationService {
     _pollTimer?.cancel();
     _pollTimer = null;
     _service = null;
+    _knownMessageIds = {};
+    onNewMessages = null;
   }
 
   /// Callback to display in-app notification banners.
@@ -137,7 +145,7 @@ class NotificationService {
       }
 
       _knownMessageIds = currentIds;
-      await _saveKnownIds();
+      await _saveKnownIds(service);
     } catch (_) {
       // Silent failure — will retry on next poll
     }
@@ -145,24 +153,29 @@ class NotificationService {
 
   // ── Known message ID persistence ─────────────────────────────────────────
 
-  static const _kKnownIdsKey = 'notification_known_message_ids';
+  String _knownIdsKey(WebUntisService service) =>
+      'notification_known_message_ids_v1_${service.persistenceScopeKey}';
 
-  Future<void> _loadKnownIds() async {
+  Future<void> _loadKnownIds(WebUntisService service) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final saved = prefs.getStringList(_kKnownIdsKey);
+      final saved = prefs.getStringList(_knownIdsKey(service));
       if (saved != null) {
         _knownMessageIds = saved.map((s) => int.tryParse(s) ?? 0).toSet();
         _knownMessageIds.remove(0);
+      } else {
+        _knownMessageIds = {};
       }
-    } catch (_) {}
+    } catch (_) {
+      _knownMessageIds = {};
+    }
   }
 
-  Future<void> _saveKnownIds() async {
+  Future<void> _saveKnownIds(WebUntisService service) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setStringList(
-        _kKnownIdsKey,
+        _knownIdsKey(service),
         _knownMessageIds.map((id) => id.toString()).toList(),
       );
     } catch (_) {}

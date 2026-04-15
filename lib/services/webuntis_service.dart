@@ -35,6 +35,18 @@ class WebUntisService {
   bool get isLoggedIn => _sessionId != null && _studentId != null;
   String? get username => _username;
   int? get studentId => _studentId;
+  String get persistenceScopeKey {
+    final id = _studentId;
+    if (id != null) return 'student_$id';
+
+    final name = _username?.trim().toLowerCase();
+    if (name != null && name.isNotEmpty) {
+      final normalized = name.replaceAll(RegExp(r'[^a-z0-9]+'), '_');
+      return 'user_$normalized';
+    }
+
+    return 'anonymous';
+  }
 
   /// Profile image cache
   Uint8List? _profileImageBytes;
@@ -156,6 +168,7 @@ class WebUntisService {
       ]);
 
       await saveSession();
+      await _loadReadMessageIds();
 
       return true;
     } on TimeoutException {
@@ -281,6 +294,7 @@ class WebUntisService {
 
       // Pre-warm grades cache from disk immediately — no network needed.
       _loadGradesDiskCache(prefs);
+      await _loadReadMessageIds();
 
       // Refresh bearer token in the background so the first timetable load
       // is not blocked. If the saved bearer is still valid it will be used
@@ -304,9 +318,15 @@ class WebUntisService {
     _klasseId = null;
     _schoolYearId = null;
     _username = null;
+    _readMessageIds = {};
     _clearCaches();
     final prefs = await SharedPreferences.getInstance();
-    await prefs.clear();
+    await prefs.remove('sessionId');
+    await prefs.remove('studentId');
+    await prefs.remove('bearerToken');
+    await prefs.remove('klasseId');
+    await prefs.remove('schoolYearId');
+    await prefs.remove('username');
   }
 
   // ── TIMETABLE ─────────────────────────────────────────────────────────────
@@ -547,6 +567,7 @@ class WebUntisService {
 
   _CachedData<List<MessagePreview>>? _messagesCache;
   static const Duration _messagesTTL = AppConfig.messagesCacheTTL;
+  Set<int> _readMessageIds = {};
 
   List<MessagePreview>? get cachedMessages => _messagesCache?.data;
 
@@ -583,7 +604,7 @@ class WebUntisService {
       }
 
       final data = jsonDecode(response.body);
-      final messages = _parseMessageList(data);
+      final messages = _applyLocalReadState(_parseMessageList(data));
       _messagesCache = _CachedData(messages);
       return messages;
     } on TimeoutException {
@@ -624,9 +645,11 @@ class WebUntisService {
       );
 
       // Mark as read locally in the cached list
-      _markReadInCache(messageId);
+      await _markReadInCache(messageId);
 
-      return detail;
+      return detail.copyWith(
+        isRead: _readMessageIds.contains(messageId) || detail.isRead,
+      );
     } on TimeoutException {
       throw WebUntisException('Verbindung abgelaufen');
     } catch (e) {
@@ -651,11 +674,15 @@ class WebUntisService {
           )
           .timeout(_timeout);
 
-      _markReadInCache(messageId);
+      await _markReadInCache(messageId);
     } catch (_) {}
   }
 
-  void _markReadInCache(int messageId) {
+  Future<void> _markReadInCache(int messageId) async {
+    if (_readMessageIds.add(messageId)) {
+      await _saveReadMessageIds();
+    }
+
     final cached = _messagesCache?.data;
     if (cached == null) return;
     final updated = cached.map((m) {
@@ -675,6 +702,49 @@ class WebUntisService {
       return m;
     }).toList();
     _messagesCache = _CachedData(updated);
+  }
+
+  List<MessagePreview> _applyLocalReadState(List<MessagePreview> messages) {
+    if (_readMessageIds.isEmpty) return messages;
+    return messages
+        .map(
+          (m) => _readMessageIds.contains(m.id)
+              ? m.copyWith(isRead: true)
+              : m,
+        )
+        .toList();
+  }
+
+  String get _readIdsKey =>
+      'message_read_ids_v1_${AppConfig.webUntisSchool}_$persistenceScopeKey';
+
+  Future<void> _loadReadMessageIds() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final saved = prefs.getStringList(_readIdsKey);
+      if (saved == null) {
+        _readMessageIds = {};
+        return;
+      }
+
+      _readMessageIds = saved
+          .map((s) => int.tryParse(s))
+          .whereType<int>()
+          .where((id) => id > 0)
+          .toSet();
+    } catch (_) {
+      _readMessageIds = {};
+    }
+  }
+
+  Future<void> _saveReadMessageIds() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setStringList(
+        _readIdsKey,
+        (_readMessageIds.map((id) => id.toString()).toList()..sort()),
+      );
+    } catch (_) {}
   }
 
   List<MessagePreview> _parseMessageList(dynamic data) {
@@ -865,9 +935,6 @@ class TimetableEntry {
     for (final el in elements) {
       final type = el['type'];
       final id = el['id'];
-      final state = el['orgId'] != null
-          ? (el['state']?.toString() ?? '')
-          : (el['state']?.toString() ?? '');
       final elState = el['state']?.toString() ?? '';
       final lookup = elementMap['$type-$id'];
       // Also look up the original element via orgId if present
@@ -1143,6 +1210,30 @@ class MessagePreview {
     required this.recipientGroup,
   });
 
+  MessagePreview copyWith({
+    int? id,
+    String? subject,
+    String? contentPreview,
+    String? senderName,
+    int? senderId,
+    DateTime? sentDate,
+    bool? isRead,
+    bool? hasAttachments,
+    String? recipientGroup,
+  }) {
+    return MessagePreview(
+      id: id ?? this.id,
+      subject: subject ?? this.subject,
+      contentPreview: contentPreview ?? this.contentPreview,
+      senderName: senderName ?? this.senderName,
+      senderId: senderId ?? this.senderId,
+      sentDate: sentDate ?? this.sentDate,
+      isRead: isRead ?? this.isRead,
+      hasAttachments: hasAttachments ?? this.hasAttachments,
+      recipientGroup: recipientGroup ?? this.recipientGroup,
+    );
+  }
+
   factory MessagePreview.fromJson(Map<String, dynamic> j) {
     // Parse sender — may be a nested object or flat fields
     String senderName = '';
@@ -1221,6 +1312,28 @@ class MessageDetail {
     required this.isRead,
     required this.attachments,
   });
+
+  MessageDetail copyWith({
+    int? id,
+    String? subject,
+    String? body,
+    String? senderName,
+    int? senderId,
+    DateTime? sentDate,
+    bool? isRead,
+    List<MessageAttachment>? attachments,
+  }) {
+    return MessageDetail(
+      id: id ?? this.id,
+      subject: subject ?? this.subject,
+      body: body ?? this.body,
+      senderName: senderName ?? this.senderName,
+      senderId: senderId ?? this.senderId,
+      sentDate: sentDate ?? this.sentDate,
+      isRead: isRead ?? this.isRead,
+      attachments: attachments ?? this.attachments,
+    );
+  }
 
   factory MessageDetail.fromJson(Map<String, dynamic> j) {
     String senderName = '';

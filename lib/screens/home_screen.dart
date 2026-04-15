@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
@@ -8,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../config/app_config.dart';
 import '../main.dart' show appVersion;
 import '../services/update_service.dart';
+import '../services/notification_service.dart';
 import '../services/webuntis_service.dart';
 import '../theme/app_theme.dart';
 import 'timetable_screen.dart' show TimetableScreen, TimetableScreenState;
@@ -37,6 +37,8 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     _timetableKey = TimetableScreen.createKey();
     _mensaController = MensaScreenController();
+    NotificationService().onNewMessages = _showNewMessageBanner;
+    NotificationService().startPolling(widget.service);
     // Trigger update check after the first frame so the UI is fully visible.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkForUpdate();
@@ -94,6 +96,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _logout() async {
+    NotificationService().stopPolling();
     await widget.service.logout();
     if (!mounted) return;
     Navigator.pushReplacement(
@@ -103,6 +106,56 @@ class _HomeScreenState extends State<HomeScreen> {
         transitionsBuilder: (_, a, _, child) =>
             FadeTransition(opacity: a, child: child),
         transitionDuration: const Duration(milliseconds: 300),
+      ),
+    );
+  }
+
+  void _showNewMessageBanner(int count, String? subject) {
+    if (!mounted) return;
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    if (messenger == null) return;
+
+    final text = count == 1
+        ? 'Neue Mitteilung: ${subject ?? ''}'
+        : '$count neue Mitteilungen';
+
+    messenger.showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(
+              CupertinoIcons.bell_fill,
+              color: Colors.white,
+              size: 18,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                text,
+                style: const TextStyle(fontWeight: FontWeight.w600),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: AppTheme.accent,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        duration: const Duration(seconds: 4),
+        action: SnackBarAction(
+          label: 'Anzeigen',
+          textColor: Colors.white,
+          onPressed: () {
+            Navigator.push(
+              context,
+              CupertinoPageRoute(
+                builder: (_) => MessagesScreen(service: widget.service),
+              ),
+            );
+          },
+        ),
       ),
     );
   }
@@ -1025,10 +1078,6 @@ class _CardReorderListState extends State<_CardReorderList> {
       children: List.generate(widget.cards.length, (index) {
         final entry = widget.cards[index];
         final isDraggingThis = _draggingIndex == index;
-        final isHoveredTarget =
-            _hoverIndex == index &&
-            _draggingIndex != null &&
-            _draggingIndex != index;
 
         return Padding(
           key: entry.key,
@@ -1045,8 +1094,8 @@ class _CardReorderListState extends State<_CardReorderList> {
               color: Colors.transparent,
               child: SizedBox(
                 width: screenWidth - 32,
-                child: Transform.scale(
-                  scale: 1.04,
+                child: Transform(
+                  transform: Matrix4.diagonal3Values(1.04, 1.04, 1.0),
                   alignment: Alignment.topCenter,
                   child: Container(
                     decoration: BoxDecoration(
@@ -1091,8 +1140,11 @@ class _CardReorderListState extends State<_CardReorderList> {
                 return AnimatedContainer(
                   duration: const Duration(milliseconds: 200),
                   curve: Curves.easeOut,
-                  transform: Matrix4.identity()
-                    ..scale(isDraggingThis ? 0.96 : 1.0),
+                  transform: Matrix4.diagonal3Values(
+                    isDraggingThis ? 0.96 : 1.0,
+                    isDraggingThis ? 0.96 : 1.0,
+                    1.0,
+                  ),
                   transformAlignment: Alignment.center,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(14),
