@@ -64,4 +64,6 @@ class AppConfig {
   static const Duration updateCheckTimeout = Duration(seconds: 10);
   static const Duration downloadTimeout = Duration(minutes: 10);
   static const Duration mensaTimeout = Duration(seconds: 6);
+  static const Duration messagesCacheTTL = Duration(minutes: 5);
+  static const Duration messagesCheckInterval = Duration(minutes: 5);
 }

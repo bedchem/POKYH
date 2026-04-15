@@ -107,6 +107,7 @@ class WebUntisService {
   void _clearCaches() {
     _timetableCache.clear();
     _gradesCache = null;
+    _messagesCache = null;
   }
 
   // ── AUTH ──────────────────────────────────────────────────────────────────
@@ -542,6 +543,160 @@ class WebUntisService {
     }
   }
 
+  // ── MESSAGES ──────────────────────────────────────────────────────────────
+
+  _CachedData<List<MessagePreview>>? _messagesCache;
+  static const Duration _messagesTTL = AppConfig.messagesCacheTTL;
+
+  List<MessagePreview>? get cachedMessages => _messagesCache?.data;
+
+  int get unreadMessageCount =>
+      (_messagesCache?.data ?? []).where((m) => !m.isRead).length;
+
+  Future<List<MessagePreview>> getMessages({bool forceRefresh = false}) async {
+    if (!forceRefresh) {
+      final cached = _messagesCache;
+      if (cached != null && !cached.isExpired(_messagesTTL)) return cached.data;
+    }
+
+    if (_bearerToken == null) {
+      throw WebUntisException('Nicht angemeldet', isAuthError: true);
+    }
+
+    try {
+      final response = await _client
+          .get(
+            Uri.parse('$_baseUrl/api/rest/view/v1/messages'),
+            headers: {
+              'Authorization': 'Bearer $_bearerToken',
+              'Cookie': _cookieHeader,
+            },
+          )
+          .timeout(_timeout);
+
+      if (response.statusCode == 401 || response.statusCode == 403) {
+        throw WebUntisException('Sitzung abgelaufen', isAuthError: true);
+      }
+
+      if (response.statusCode != 200) {
+        throw WebUntisException('Fehler beim Laden der Mitteilungen');
+      }
+
+      final data = jsonDecode(response.body);
+      final messages = _parseMessageList(data);
+      _messagesCache = _CachedData(messages);
+      return messages;
+    } on TimeoutException {
+      throw WebUntisException('Verbindung abgelaufen');
+    } catch (e) {
+      if (e is WebUntisException) rethrow;
+      throw WebUntisException('Fehler beim Laden der Mitteilungen: $e');
+    }
+  }
+
+  Future<MessageDetail> getMessageDetail(int messageId) async {
+    if (_bearerToken == null) {
+      throw WebUntisException('Nicht angemeldet', isAuthError: true);
+    }
+
+    try {
+      final response = await _client
+          .get(
+            Uri.parse('$_baseUrl/api/rest/view/v1/messages/$messageId'),
+            headers: {
+              'Authorization': 'Bearer $_bearerToken',
+              'Cookie': _cookieHeader,
+            },
+          )
+          .timeout(_timeout);
+
+      if (response.statusCode == 401 || response.statusCode == 403) {
+        throw WebUntisException('Sitzung abgelaufen', isAuthError: true);
+      }
+
+      if (response.statusCode != 200) {
+        throw WebUntisException('Fehler beim Laden der Nachricht');
+      }
+
+      final data = jsonDecode(response.body);
+      final detail = MessageDetail.fromJson(
+        data is Map<String, dynamic> ? data : (data['data'] ?? data),
+      );
+
+      // Mark as read locally in the cached list
+      _markReadInCache(messageId);
+
+      return detail;
+    } on TimeoutException {
+      throw WebUntisException('Verbindung abgelaufen');
+    } catch (e) {
+      if (e is WebUntisException) rethrow;
+      throw WebUntisException('Fehler beim Laden der Nachricht: $e');
+    }
+  }
+
+  Future<void> markMessageAsRead(int messageId) async {
+    if (_bearerToken == null) return;
+
+    try {
+      await _client
+          .post(
+            Uri.parse(
+              '$_baseUrl/api/rest/view/v1/messages/$messageId/markasread',
+            ),
+            headers: {
+              'Authorization': 'Bearer $_bearerToken',
+              'Cookie': _cookieHeader,
+            },
+          )
+          .timeout(_timeout);
+
+      _markReadInCache(messageId);
+    } catch (_) {}
+  }
+
+  void _markReadInCache(int messageId) {
+    final cached = _messagesCache?.data;
+    if (cached == null) return;
+    final updated = cached.map((m) {
+      if (m.id == messageId && !m.isRead) {
+        return MessagePreview(
+          id: m.id,
+          subject: m.subject,
+          contentPreview: m.contentPreview,
+          senderName: m.senderName,
+          senderId: m.senderId,
+          sentDate: m.sentDate,
+          isRead: true,
+          hasAttachments: m.hasAttachments,
+          recipientGroup: m.recipientGroup,
+        );
+      }
+      return m;
+    }).toList();
+    _messagesCache = _CachedData(updated);
+  }
+
+  List<MessagePreview> _parseMessageList(dynamic data) {
+    List<dynamic> messageList = [];
+
+    if (data is List) {
+      messageList = data;
+    } else if (data is Map) {
+      // Handle various WebUntis response wrappers
+      messageList = (data['incomingMessages'] as List?) ??
+          (data['messages'] as List?) ??
+          (data['data']?['incomingMessages'] as List?) ??
+          (data['data']?['messages'] as List?) ??
+          (data['data'] is List ? data['data'] as List : []);
+    }
+
+    return messageList
+        .map((m) => MessagePreview.fromJson(m as Map<String, dynamic>))
+        .toList()
+      ..sort((a, b) => b.sentDate.compareTo(a.sentDate));
+  }
+
   // ── GRADES DISK CACHE ─────────────────────────────────────────────────────
 
   static const _kGradesCacheKey = 'grades_cache_v1';
@@ -960,6 +1115,191 @@ class TimeGridUnit {
     final h = endTime ~/ 100;
     final m = endTime % 100;
     return '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}';
+  }
+}
+
+// ── MESSAGE MODELS ───────────────────────────────────────────────────────────
+
+class MessagePreview {
+  final int id;
+  final String subject;
+  final String contentPreview;
+  final String senderName;
+  final int senderId;
+  final DateTime sentDate;
+  final bool isRead;
+  final bool hasAttachments;
+  final String recipientGroup;
+
+  const MessagePreview({
+    required this.id,
+    required this.subject,
+    required this.contentPreview,
+    required this.senderName,
+    required this.senderId,
+    required this.sentDate,
+    required this.isRead,
+    required this.hasAttachments,
+    required this.recipientGroup,
+  });
+
+  factory MessagePreview.fromJson(Map<String, dynamic> j) {
+    // Parse sender — may be a nested object or flat fields
+    String senderName = '';
+    int senderId = 0;
+    final sender = j['sender'];
+    if (sender is Map) {
+      senderName = (sender['displayName'] ?? sender['name'] ?? '').toString();
+      senderId = (sender['userId'] ?? sender['id'] ?? 0) as int;
+    } else {
+      senderName = (j['senderName'] ?? j['sender'] ?? '').toString();
+      senderId = (j['senderId'] ?? 0) as int;
+    }
+
+    // Parse date — may be ISO string or epoch millis
+    DateTime sentDate;
+    final dateField = j['sentDateTime'] ?? j['sentDate'] ?? j['date'] ?? j['createDate'];
+    if (dateField is String) {
+      sentDate = DateTime.tryParse(dateField) ?? DateTime.now();
+    } else if (dateField is int) {
+      sentDate = dateField > 9999999999
+          ? DateTime.fromMillisecondsSinceEpoch(dateField)
+          : DateTime.fromMillisecondsSinceEpoch(dateField * 1000);
+    } else {
+      sentDate = DateTime.now();
+    }
+
+    return MessagePreview(
+      id: (j['id'] ?? 0) as int,
+      subject: (j['subject'] ?? j['title'] ?? '').toString(),
+      contentPreview: (j['contentPreview'] ?? j['preview'] ?? j['content'] ?? '').toString(),
+      senderName: senderName,
+      senderId: senderId,
+      sentDate: sentDate,
+      isRead: (j['isRead'] ?? j['read'] ?? j['readDate'] != null) == true,
+      hasAttachments: (j['hasAttachments'] ?? j['attachmentCount'] != null && (j['attachmentCount'] ?? 0) > 0) == true,
+      recipientGroup: (j['recipientGroup'] ?? j['group'] ?? '').toString(),
+    );
+  }
+
+  String get sentDateFormatted {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final msgDay = DateTime(sentDate.year, sentDate.month, sentDate.day);
+    final diff = today.difference(msgDay).inDays;
+
+    if (diff == 0) {
+      return '${sentDate.hour.toString().padLeft(2, '0')}:${sentDate.minute.toString().padLeft(2, '0')}';
+    } else if (diff == 1) {
+      return 'Gestern';
+    } else if (diff < 7) {
+      const days = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
+      return days[sentDate.weekday - 1];
+    } else {
+      return '${sentDate.day.toString().padLeft(2, '0')}.${sentDate.month.toString().padLeft(2, '0')}.${sentDate.year}';
+    }
+  }
+}
+
+class MessageDetail {
+  final int id;
+  final String subject;
+  final String body;
+  final String senderName;
+  final int senderId;
+  final DateTime sentDate;
+  final bool isRead;
+  final List<MessageAttachment> attachments;
+
+  const MessageDetail({
+    required this.id,
+    required this.subject,
+    required this.body,
+    required this.senderName,
+    required this.senderId,
+    required this.sentDate,
+    required this.isRead,
+    required this.attachments,
+  });
+
+  factory MessageDetail.fromJson(Map<String, dynamic> j) {
+    String senderName = '';
+    int senderId = 0;
+    final sender = j['sender'];
+    if (sender is Map) {
+      senderName = (sender['displayName'] ?? sender['name'] ?? '').toString();
+      senderId = (sender['userId'] ?? sender['id'] ?? 0) as int;
+    } else {
+      senderName = (j['senderName'] ?? j['sender'] ?? '').toString();
+      senderId = (j['senderId'] ?? 0) as int;
+    }
+
+    DateTime sentDate;
+    final dateField = j['sentDateTime'] ?? j['sentDate'] ?? j['date'] ?? j['createDate'];
+    if (dateField is String) {
+      sentDate = DateTime.tryParse(dateField) ?? DateTime.now();
+    } else if (dateField is int) {
+      sentDate = dateField > 9999999999
+          ? DateTime.fromMillisecondsSinceEpoch(dateField)
+          : DateTime.fromMillisecondsSinceEpoch(dateField * 1000);
+    } else {
+      sentDate = DateTime.now();
+    }
+
+    // Parse body — may be HTML or plain text
+    String body = (j['body'] ?? j['content'] ?? j['text'] ?? j['contentPreview'] ?? '').toString();
+    // Strip HTML tags for clean display
+    body = body.replaceAll(RegExp(r'<br\s*/?>'), '\n');
+    body = body.replaceAll(RegExp(r'<[^>]*>'), '');
+    body = body.replaceAll('&nbsp;', ' ');
+    body = body.replaceAll('&amp;', '&');
+    body = body.replaceAll('&lt;', '<');
+    body = body.replaceAll('&gt;', '>');
+    body = body.replaceAll('&quot;', '"');
+    body = body.trim();
+
+    final attachmentList = (j['attachments'] as List?) ?? [];
+
+    return MessageDetail(
+      id: (j['id'] ?? 0) as int,
+      subject: (j['subject'] ?? j['title'] ?? '').toString(),
+      body: body,
+      senderName: senderName,
+      senderId: senderId,
+      sentDate: sentDate,
+      isRead: (j['isRead'] ?? j['read'] ?? true) == true,
+      attachments: attachmentList
+          .map((a) => MessageAttachment.fromJson(a as Map<String, dynamic>))
+          .toList(),
+    );
+  }
+
+  String get sentDateFormatted {
+    return '${sentDate.day.toString().padLeft(2, '0')}.${sentDate.month.toString().padLeft(2, '0')}.${sentDate.year} '
+        '${sentDate.hour.toString().padLeft(2, '0')}:${sentDate.minute.toString().padLeft(2, '0')}';
+  }
+}
+
+class MessageAttachment {
+  final int id;
+  final String name;
+  final String? url;
+  final int? size;
+
+  const MessageAttachment({
+    required this.id,
+    required this.name,
+    this.url,
+    this.size,
+  });
+
+  factory MessageAttachment.fromJson(Map<String, dynamic> j) {
+    return MessageAttachment(
+      id: (j['id'] ?? 0) as int,
+      name: (j['name'] ?? j['fileName'] ?? 'Anhang').toString(),
+      url: j['url']?.toString() ?? j['downloadUrl']?.toString(),
+      size: j['size'] as int?,
+    );
   }
 }
 

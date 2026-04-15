@@ -23,6 +23,7 @@ dependencies:
   open_filex: ^4.5.0
   shared_preferences: ^2.2.0
   firebase_core: ^4.6.0
+  firebase_messaging: ^16.2.0
   haptic_feedback: ^0.6.4+3
 
 dev_dependencies:

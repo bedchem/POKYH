@@ -6,8 +6,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'config/app_config.dart';
 import 'firebase_options.dart';
 import 'services/webuntis_service.dart';
+import 'services/notification_service.dart';
 import 'screens/login_screen.dart';
 import 'screens/home_screen.dart';
+import 'screens/messages_screen.dart';
 import 'theme/app_theme.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
@@ -33,6 +35,9 @@ void main() async {
 
   final saved = prefs.getString('themeMode') ?? 'system';
   AppTheme.themeNotifier.value = _themeModeFrom(saved);
+
+  // Initialize notification service (FCM permissions + listeners)
+  await NotificationService().initialize();
 
   runApp(const PockyhApp());
 }
@@ -115,6 +120,55 @@ class _SplashScreenState extends State<SplashScreen>
     super.dispose();
   }
 
+  static void _showNewMessageBanner(
+    BuildContext context,
+    int count,
+    String? subject,
+    WebUntisService service,
+  ) {
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    if (messenger == null) return;
+
+    final text = count == 1
+        ? 'Neue Mitteilung: ${subject ?? ''}'
+        : '$count neue Mitteilungen';
+
+    messenger.showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(CupertinoIcons.bell_fill, color: Colors.white, size: 18),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                text,
+                style: const TextStyle(fontWeight: FontWeight.w600),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: AppTheme.accent,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        duration: const Duration(seconds: 4),
+        action: SnackBarAction(
+          label: 'Anzeigen',
+          textColor: Colors.white,
+          onPressed: () {
+            navigatorKey.currentState?.push(
+              CupertinoPageRoute(
+                builder: (_) => MessagesScreen(service: service),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
   Future<void> _tryRestoreSession() async {
     final service = WebUntisService();
     final restored = await service.restoreSession();
@@ -122,7 +176,18 @@ class _SplashScreenState extends State<SplashScreen>
     if (!mounted) return;
 
     // Kick off profile image fetch in background — doesn't block navigation.
-    if (restored) service.fetchProfileImage().ignore();
+    if (restored) {
+      service.fetchProfileImage().ignore();
+      // Start polling for new messages
+      final notifService = NotificationService();
+      notifService.startPolling(service);
+      notifService.onNewMessages = (count, subject) {
+        final ctx = navigatorKey.currentContext;
+        if (ctx != null) {
+          _showNewMessageBanner(ctx, count, subject, service);
+        }
+      };
+    }
 
     final target = restored
         ? HomeScreen(service: service)

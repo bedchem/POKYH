@@ -15,6 +15,7 @@ import 'grades_screen.dart';
 import 'mensa_screen.dart';
 import 'login_screen.dart';
 import 'profile_screen.dart';
+import 'messages_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   final WebUntisService service;
@@ -28,13 +29,17 @@ class _HomeScreenState extends State<HomeScreen> {
   int _tab = 0;
   late final List<Widget> _screens;
   late GlobalKey<TimetableScreenState> _timetableKey;
+  int _unreadMessages = 0;
 
   @override
   void initState() {
     super.initState();
     _timetableKey = TimetableScreen.createKey();
     // Trigger update check after the first frame so the UI is fully visible.
-    WidgetsBinding.instance.addPostFrameCallback((_) => _checkForUpdate());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkForUpdate();
+      _fetchUnreadCount();
+    });
     _screens = [
       _DashboardTab(
         service: widget.service,
@@ -95,6 +100,28 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  Future<void> _fetchUnreadCount() async {
+    try {
+      await widget.service.getMessages();
+      if (mounted) {
+        setState(() => _unreadMessages = widget.service.unreadMessageCount);
+      }
+    } catch (_) {}
+  }
+
+  void _openMessages() async {
+    await Navigator.push(
+      context,
+      CupertinoPageRoute(
+        builder: (_) => MessagesScreen(service: widget.service),
+      ),
+    );
+    // Refresh unread count when returning
+    if (mounted) {
+      setState(() => _unreadMessages = widget.service.unreadMessageCount);
+    }
+  }
+
   void _openProfile() {
     Navigator.push(
       context,
@@ -115,9 +142,19 @@ class _HomeScreenState extends State<HomeScreen> {
           Positioned(
             top: MediaQuery.of(context).padding.top + 12,
             right: 16,
-            child: GestureDetector(
-              onTap: _openProfile,
-              child: _SmallProfileAvatar(service: widget.service),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                GestureDetector(
+                  onTap: _openMessages,
+                  child: _MessageBadgeIcon(unreadCount: _unreadMessages),
+                ),
+                const SizedBox(width: 10),
+                GestureDetector(
+                  onTap: _openProfile,
+                  child: _SmallProfileAvatar(service: widget.service),
+                ),
+              ],
             ),
           ),
         ],
@@ -229,6 +266,75 @@ class _SmallProfileAvatarState extends State<_SmallProfileAvatar> {
       color: AppTheme.textSecondary,
     ),
   );
+}
+
+// ── Message Badge Icon ───────────────────────────────────────────────────────
+
+class _MessageBadgeIcon extends StatelessWidget {
+  final int unreadCount;
+  const _MessageBadgeIcon({required this.unreadCount});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 32,
+      height: 32,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: AppTheme.surface,
+              border: Border.all(
+                color: AppTheme.border.withValues(alpha: 0.4),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.2),
+                  blurRadius: 7,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Center(
+              child: Icon(
+                CupertinoIcons.bell_fill,
+                size: 15,
+                color: AppTheme.textSecondary,
+              ),
+            ),
+          ),
+          if (unreadCount > 0)
+            Positioned(
+              top: -3,
+              right: -3,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                decoration: BoxDecoration(
+                  color: AppTheme.danger,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: AppTheme.bg, width: 1.5),
+                ),
+                child: Center(
+                  child: Text(
+                    unreadCount > 99 ? '99+' : '$unreadCount',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 9,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
 }
 
 // ── Tab Item ──────────────────────────────────────────────────────────────────
