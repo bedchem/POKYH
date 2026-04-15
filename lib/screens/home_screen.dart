@@ -29,12 +29,14 @@ class _HomeScreenState extends State<HomeScreen> {
   int _tab = 0;
   late final List<Widget> _screens;
   late GlobalKey<TimetableScreenState> _timetableKey;
+  late final MensaScreenController _mensaController;
   int _unreadMessages = 0;
 
   @override
   void initState() {
     super.initState();
     _timetableKey = TimetableScreen.createKey();
+    _mensaController = MensaScreenController();
     // Trigger update check after the first frame so the UI is fully visible.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkForUpdate();
@@ -43,7 +45,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _screens = [
       _DashboardTab(
         service: widget.service,
-        onMensaTap: () => setState(() => _tab = 3),
+        onMensaTap: _showMensaTab,
         onExamTap: (exam) {
           if (exam == null) return;
           setState(() => _tab = 1);
@@ -75,8 +77,13 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       TimetableScreen(service: widget.service, key: _timetableKey),
       GradesScreen(service: widget.service),
-      const MensaScreen(),
+      MensaScreen(controller: _mensaController),
     ];
+  }
+
+  void _showMensaTab() {
+    _mensaController.scrollToTop();
+    setState(() => _tab = 3);
   }
 
   Future<void> _checkForUpdate() async {
@@ -198,7 +205,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   icon: CupertinoIcons.flame_fill,
                   label: 'Mensa',
                   active: _tab == 3,
-                  onTap: () => setState(() => _tab = 3),
+                  onTap: _showMensaTab,
                 ),
               ],
             ),

@@ -6,8 +6,13 @@ import '../models/dish.dart';
 import '../services/dish_service.dart';
 import '../theme/app_theme.dart';
 
+class MensaScreenController extends ChangeNotifier {
+  void scrollToTop() => notifyListeners();
+}
+
 class MensaScreen extends StatefulWidget {
-  const MensaScreen({super.key});
+  final MensaScreenController? controller;
+  const MensaScreen({super.key, this.controller});
 
   @override
   State<MensaScreen> createState() => _MensaScreenState();
@@ -15,14 +20,37 @@ class MensaScreen extends StatefulWidget {
 
 class _MensaScreenState extends State<MensaScreen> {
   final DishService _service = DishService();
+  final ScrollController _scrollController = ScrollController();
   List<Dish> _dishes = [];
   bool _loading = true;
   String? _error;
 
+  void _scrollToTop() {
+    if (!_scrollController.hasClients) return;
+    _scrollController.jumpTo(0);
+  }
+
   @override
   void initState() {
     super.initState();
+    widget.controller?.addListener(_scrollToTop);
     _load();
+  }
+
+  @override
+  void didUpdateWidget(covariant MensaScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller != widget.controller) {
+      oldWidget.controller?.removeListener(_scrollToTop);
+      widget.controller?.addListener(_scrollToTop);
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.controller?.removeListener(_scrollToTop);
+    _scrollController.dispose();
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -108,6 +136,7 @@ class _MensaScreenState extends State<MensaScreen> {
         backgroundColor: AppTheme.surface,
         onRefresh: _load,
         child: CustomScrollView(
+          controller: _scrollController,
           cacheExtent: 1400,
           physics: const AlwaysScrollableScrollPhysics(),
           slivers: [
