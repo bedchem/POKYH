@@ -14,11 +14,13 @@ class _SlotInfo {
   final TimetableEntry? replacement;
   final bool isNow;
   final _SlotKind kind;
+  final List<HomeworkEntry> homework;
   const _SlotInfo({
     this.display,
     this.replacement,
     this.isNow = false,
     this.kind = _SlotKind.empty,
+    this.homework = const [],
   });
   bool get isEmpty => kind == _SlotKind.empty || display == null;
 }
@@ -30,10 +32,12 @@ enum _LoadState { idle, loading, done, error }
 class _WeekData {
   _LoadState state;
   List<TimetableEntry> entries;
+  List<HomeworkEntry> homework;
   String? error;
   _WeekData({
     this.state = _LoadState.idle,
     this.entries = const [],
+    this.homework = const [],
     this.error,
   });
 }
@@ -162,12 +166,18 @@ class TimetableScreenState extends State<TimetableScreen> {
   Future<void> _fetchOffset(int offset) async {
     final weekStart = _mondayForOffset(offset);
     try {
-      final entries = await widget.service.getWeekTimetable(
-        weekStart: weekStart,
-      );
+      // Fetch timetable and homework in parallel.
+      final results = await Future.wait([
+        widget.service.getWeekTimetable(weekStart: weekStart),
+        widget.service.getHomework(weekStart: weekStart),
+      ]);
       if (!mounted) return;
       setState(() {
-        _cache[offset] = _WeekData(state: _LoadState.done, entries: entries);
+        _cache[offset] = _WeekData(
+          state: _LoadState.done,
+          entries: results[0] as List<TimetableEntry>,
+          homework: results[1] as List<HomeworkEntry>,
+        );
       });
     } on WebUntisException catch (e) {
       if (!mounted) return;
@@ -327,11 +337,20 @@ class TimetableScreenState extends State<TimetableScreen> {
     return bestIndex >= 0 ? bestIndex : null;
   }
 
-  _SlotInfo _buildSlot(int offset, int dayIndex, int startTime, DateTime now) {
-    final dayEntries = _forDay(
-      offset,
-      dayIndex,
-    ).where((e) => e.startTime == startTime).toList();
+  _SlotInfo _buildSlot(
+    int offset,
+    int dayIndex,
+    int startTime,
+    DateTime now,
+    Map<int, List<HomeworkEntry>> homeworkByLesson,
+  ) {
+    final dayEntries = _forDay(offset, dayIndex).where((e) {
+      // Exact match (normal case)
+      if (e.startTime == startTime) return true;
+      // Multi-slot entry: this grid time falls within the entry's range
+      return e.startTime < startTime && e.endTime > startTime;
+    }).toList();
+
     if (dayEntries.isEmpty) return const _SlotInfo();
 
     final cancelled = dayEntries.where((e) => e.isCancelled).toList();
@@ -362,12 +381,34 @@ class TimetableScreenState extends State<TimetableScreen> {
     }
 
     final isNow = _isToday(offset, dayIndex) && _isCurrentLesson(display, now);
+    final homework = homeworkByLesson[display.lessonId] ?? [];
     return _SlotInfo(
       display: display,
       replacement: repl,
       isNow: isNow,
       kind: kind,
+      homework: homework,
     );
+  }
+
+  /// Returns the single event entry covering ALL sortedTimes for this day,
+  /// or null if no such entry exists.
+  TimetableEntry? _getFullDayEvent(
+    int offset,
+    int dayIndex,
+    List<int> sortedTimes,
+  ) {
+    if (sortedTimes.isEmpty) return null;
+    final dayEntries = _forDay(offset, dayIndex);
+    for (final e in dayEntries) {
+      if (e.subjectName.isEmpty && e.lessonText.isNotEmpty && !e.isCancelled) {
+        final coversAll = sortedTimes.every(
+          (t) => e.startTime <= t && e.endTime > t,
+        );
+        if (coversAll) return e;
+      }
+    }
+    return null;
   }
 
   bool _slotsMergeable(_SlotInfo a, _SlotInfo b) {
@@ -381,7 +422,11 @@ class TimetableScreenState extends State<TimetableScreen> {
     return ea.subjectName == eb.subjectName && ea.lessonText == eb.lessonText;
   }
 
-  void _showDetail(TimetableEntry entry, TimetableEntry? replacement) {
+  void _showDetail(
+    TimetableEntry entry,
+    TimetableEntry? replacement, {
+    List<HomeworkEntry> homework = const [],
+  }) {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -390,6 +435,7 @@ class TimetableScreenState extends State<TimetableScreen> {
         entry: entry,
         replacement: replacement,
         service: widget.service,
+        homework: homework,
       ),
     );
   }
@@ -820,6 +866,12 @@ class _WeekPage extends StatelessWidget {
     final n = sortedTimes.length;
     final now = DateTime.now();
 
+    // Build lessonId → homework map once for all slots.
+    final homeworkByLesson = <int, List<HomeworkEntry>>{};
+    for (final hw in state._cache[offset]?.homework ?? []) {
+      homeworkByLesson.putIfAbsent(hw.lessonId, () => []).add(hw);
+    }
+
     // Check if today is visible in this week
     final hasTodayColumn = List.generate(
       5,
@@ -873,6 +925,28 @@ class _WeekPage extends StatelessWidget {
                 );
               }
 
+              // Full-day event (e.g. "Veranstaltung" 07:50–16:45)
+              final fullDayEvent = state._getFullDayEvent(
+                offset,
+                dayIndex,
+                sortedTimes,
+              );
+              if (fullDayEvent != null) {
+                return Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 2),
+                    child: GestureDetector(
+                      onTap: () => state._showDetail(fullDayEvent, null),
+                      behavior: HitTestBehavior.opaque,
+                      child: _EventColumn(
+                        totalHeight: totalHeight,
+                        label: fullDayEvent.lessonText,
+                      ),
+                    ),
+                  ),
+                );
+              }
+
               if (isDayOff || isDayRepl) {
                 final entries = state._forDay(offset, dayIndex);
                 final cancelled =
@@ -917,6 +991,7 @@ class _WeekPage extends StatelessWidget {
                     timeConnected: timeConnected,
                     gapAfter: gapAfter,
                     now: now,
+                    homeworkByLesson: homeworkByLesson,
                   ),
                 ),
               );
@@ -942,11 +1017,18 @@ class _WeekPage extends StatelessWidget {
     required List<bool> timeConnected,
     required double Function(int) gapAfter,
     required DateTime now,
+    required Map<int, List<HomeworkEntry>> homeworkByLesson,
   }) {
     final n = sortedTimes.length;
     final slots = List<_SlotInfo>.generate(
       n,
-      (idx) => state._buildSlot(offset, dayIndex, sortedTimes[idx], now),
+      (idx) => state._buildSlot(
+        offset,
+        dayIndex,
+        sortedTimes[idx],
+        now,
+        homeworkByLesson,
+      ),
     );
 
     final widgets = <Widget>[];
@@ -979,7 +1061,11 @@ class _WeekPage extends StatelessWidget {
             height: groupHeight,
             onTap: (slot) {
               if (slot.display != null) {
-                state._showDetail(slot.display!, slot.replacement);
+                state._showDetail(
+                  slot.display!,
+                  slot.replacement,
+                  homework: slot.homework,
+                );
               }
             },
           ),
@@ -1225,6 +1311,64 @@ class _DayStatusColumn extends StatelessWidget {
   }
 }
 
+// ── Event Column (Ganztages-Veranstaltung, blau) ──────────────────────────────
+
+class _EventColumn extends StatelessWidget {
+  final double totalHeight;
+  final String label;
+  const _EventColumn({required this.totalHeight, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: totalHeight,
+      decoration: BoxDecoration(
+        color: AppTheme.accent.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppTheme.accent.withValues(alpha: 0.30)),
+      ),
+      child: Align(
+        alignment: Alignment.topCenter,
+        child: Padding(
+          padding: const EdgeInsets.only(top: 14, left: 6, right: 6),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 28,
+                height: 28,
+                decoration: BoxDecoration(
+                  color: AppTheme.accent.withValues(alpha: 0.16),
+                  shape: BoxShape.circle,
+                ),
+                child: Center(
+                  child: Icon(
+                    CupertinoIcons.calendar_badge_plus,
+                    size: 14,
+                    color: AppTheme.accent,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 5),
+              Text(
+                label.isNotEmpty ? label : 'Veranstaltung',
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                  color: AppTheme.accent,
+                ),
+                textAlign: TextAlign.center,
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 // ── Merged Cell ───────────────────────────────────────────────────────────────
 
 class _MergedCell extends StatelessWidget {
@@ -1322,6 +1466,8 @@ class _SlotContent extends StatelessWidget {
       statusIconColor = AppTheme.tint;
     }
 
+    final hasHomework = slot.homework.isNotEmpty;
+
     return ClipRect(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(6, 3, 4, 3),
@@ -1383,12 +1529,26 @@ class _SlotContent extends StatelessWidget {
                 ],
               ],
             ),
-            if (statusIcon != null)
-              Positioned(
-                right: 0,
-                bottom: 0,
-                child: Icon(statusIcon, size: 11, color: statusIconColor),
+            // Bottom-right icon row: homework house + status icon
+            Positioned(
+              right: 0,
+              bottom: 0,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (hasHomework) ...[
+                    Icon(
+                      CupertinoIcons.house_fill,
+                      size: 11,
+                      color: AppTheme.accent.withValues(alpha: 0.85),
+                    ),
+                    if (statusIcon != null) const SizedBox(width: 3),
+                  ],
+                  if (statusIcon != null)
+                    Icon(statusIcon, size: 11, color: statusIconColor),
+                ],
               ),
+            ),
           ],
         ),
       ),
@@ -1402,10 +1562,12 @@ class _DetailSheet extends StatelessWidget {
   final TimetableEntry entry;
   final TimetableEntry? replacement;
   final WebUntisService service;
+  final List<HomeworkEntry> homework;
   const _DetailSheet({
     required this.entry,
     required this.replacement,
     required this.service,
+    this.homework = const [],
   });
 
   @override
@@ -1570,6 +1732,80 @@ class _DetailSheet extends StatelessWidget {
                 ),
               ),
             ),
+          ],
+          if (homework.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            Container(
+              height: 0.5,
+              color: AppTheme.border.withValues(alpha: 0.4),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Icon(
+                  CupertinoIcons.house_fill,
+                  size: 14,
+                  color: AppTheme.accent,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  'Hausaufgaben',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            for (final hw in homework) ...[
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                margin: const EdgeInsets.only(bottom: 6),
+                decoration: BoxDecoration(
+                  color: AppTheme.card,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: AppTheme.accent.withValues(alpha: 0.2),
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      hw.text,
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: AppTheme.textPrimary,
+                        height: 1.4,
+                      ),
+                    ),
+                    if (hw.dueDate > 0) ...[
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          Icon(
+                            CupertinoIcons.calendar,
+                            size: 11,
+                            color: AppTheme.textTertiary,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            'Fällig: ${hw.dueDateFormatted}',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: AppTheme.textTertiary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
           ],
           if (replacement != null) ...[
             const SizedBox(height: 16),
