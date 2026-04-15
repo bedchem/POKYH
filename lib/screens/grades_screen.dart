@@ -835,6 +835,7 @@ class _SubjectDetailSheetState extends State<_SubjectDetailSheet> {
   final TextEditingController _inputCtrl = TextEditingController();
   final FocusNode _focusNode = FocusNode(); // FocusNode hinzufügen
   String? _inputError;
+  bool _scrollResetQueued = false;
 
   @override
   void dispose() {
@@ -892,21 +893,38 @@ class _SubjectDetailSheetState extends State<_SubjectDetailSheet> {
     final color = AppTheme.colorForSubject(widget.subject.subjectName);
     final simAvg = _simAverage;
     final origAvg = widget.subject.average;
+    final screenHeight = MediaQuery.of(context).size.height;
+    final heightDelta = 10 / screenHeight;
+    final initialChildSize = (0.88 - heightDelta).clamp(0.0, 1.0) as double;
+    final maxChildSize = (0.95 - heightDelta).clamp(0.0, 1.0) as double;
+    final minChildSize = (0.5 - heightDelta).clamp(0.0, 1.0) as double;
 
     return DraggableScrollableSheet(
-      initialChildSize: 0.88,
-      maxChildSize: 0.95,
-      minChildSize: 0.5,
-      builder: (_, scrollCtrl) => GestureDetector(
-        onTap: () => _focusNode.unfocus(),
-        behavior: HitTestBehavior.opaque,
-        child: Container(
-          decoration: BoxDecoration(
-            color: AppTheme.bg,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
-          ),
-          child: Column(
-            children: [
+      initialChildSize: initialChildSize,
+      maxChildSize: maxChildSize,
+      minChildSize: minChildSize,
+      snap: true,
+      snapSizes: [minChildSize, initialChildSize, maxChildSize],
+      shouldCloseOnMinExtent: true,
+      builder: (_, scrollCtrl) {
+        if (!_scrollResetQueued) {
+          _scrollResetQueued = true;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted || !scrollCtrl.hasClients) return;
+            scrollCtrl.jumpTo(0);
+          });
+        }
+
+        return GestureDetector(
+          onTap: () => _focusNode.unfocus(),
+          behavior: HitTestBehavior.opaque,
+          child: Container(
+            decoration: BoxDecoration(
+              color: AppTheme.bg,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+            ),
+            child: Column(
+              children: [
               // Handle bar
               Padding(
                 padding: const EdgeInsets.only(top: 10, bottom: 4),
@@ -1444,10 +1462,11 @@ class _SubjectDetailSheetState extends State<_SubjectDetailSheet> {
                   ),
                 ),
               ),
-            ],
+              ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }

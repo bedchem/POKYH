@@ -606,42 +606,60 @@ class _DishCard extends StatelessWidget {
 
 // ── Dish Detail Bottom Sheet ─────────────────────────────────────────────────
 
-class _DishDetailSheet extends StatelessWidget {
+class _DishDetailSheet extends StatefulWidget {
   final Dish dish;
   const _DishDetailSheet({required this.dish});
 
   @override
+  State<_DishDetailSheet> createState() => _DishDetailSheetState();
+}
+
+class _DishDetailSheetState extends State<_DishDetailSheet> {
+  @override
   Widget build(BuildContext context) {
+    final dish = widget.dish;
     final screenHeight = MediaQuery.of(context).size.height;
+    final heightDelta = 10 / screenHeight;
+    final initialChildSize = (0.88 - heightDelta).clamp(0.0, 1.0).toDouble();
+    final maxChildSize = (0.95 - heightDelta).clamp(0.0, 1.0).toDouble();
+    final minChildSize = (0.5 - heightDelta).clamp(0.0, 1.0).toDouble();
 
-    return Container(
-      constraints: BoxConstraints(maxHeight: screenHeight * 0.88),
-      decoration: BoxDecoration(
-        color: AppTheme.bg,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Handle bar
-          Padding(
-            padding: const EdgeInsets.only(top: 8, bottom: 4),
-            child: Container(
-              width: 36,
-              height: 5,
-              decoration: BoxDecoration(
-                color: AppTheme.textTertiary.withValues(alpha: 0.4),
-                borderRadius: BorderRadius.circular(3),
-              ),
-            ),
+    return DraggableScrollableSheet(
+      initialChildSize: initialChildSize,
+      maxChildSize: maxChildSize,
+      minChildSize: minChildSize,
+      snap: true,
+      snapSizes: [minChildSize, initialChildSize, maxChildSize],
+      shouldCloseOnMinExtent: true,
+      builder: (_, scrollController) {
+        return Container(
+          decoration: BoxDecoration(
+            color: AppTheme.bg,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
           ),
+          child: Column(
+            mainAxisSize: MainAxisSize.max,
+            children: [
+              // Handle bar
+              Padding(
+                padding: const EdgeInsets.only(top: 8, bottom: 4),
+                child: Container(
+                  width: 36,
+                  height: 5,
+                  decoration: BoxDecoration(
+                    color: AppTheme.textTertiary.withValues(alpha: 0.4),
+                    borderRadius: BorderRadius.circular(3),
+                  ),
+                ),
+              ),
 
-          Flexible(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+              Expanded(
+                child: SingleChildScrollView(
+                  controller: scrollController,
+                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
                   // ── Hero Image ──
                   if (dish.hasImage)
                     ClipRRect(
@@ -729,7 +747,10 @@ class _DishDetailSheet extends StatelessWidget {
                     const SizedBox(height: 16),
                     Container(
                       width: double.infinity,
-                      padding: const EdgeInsets.all(14),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 9,
+                      ),
                       decoration: BoxDecoration(
                         color: AppTheme.surface,
                         borderRadius: BorderRadius.circular(12),
@@ -918,12 +939,14 @@ class _DishDetailSheet extends StatelessWidget {
                       ),
                     ),
                   ],
-                ],
+                    ],
+                  ),
+                ),
               ),
-            ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
