@@ -1,4 +1,5 @@
 import 'dart:ui';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/cupertino.dart';
 import '../models/dish.dart';
 
@@ -53,14 +54,15 @@ class _DishCardState extends State<DishCard> {
                 Hero(
                   tag: 'dish-${widget.dish.id}',
                   child: widget.dish.hasImage
-                      ? Image.network(
-                          widget.dish.imageUrl,
+                      ? CachedNetworkImage(
+                          imageUrl: widget.dish.imageUrl,
                           fit: BoxFit.cover,
-                          loadingBuilder: (context, child, progress) {
-                            if (progress == null) return child;
-                            return _buildPlaceholder(context);
-                          },
-                          errorBuilder: (_, _, _) => _buildPlaceholder(context),
+                          fadeInDuration: Duration.zero,
+                          placeholderFadeInDuration: Duration.zero,
+                          placeholder: (context, url) =>
+                              _buildPlaceholder(context),
+                          errorWidget: (context, url, error) =>
+                              _buildPlaceholder(context),
                         )
                       : _buildPlaceholder(context),
                 ),

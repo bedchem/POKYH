@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/cupertino.dart';
 import '../l10n/app_localizations.dart';
 import '../models/dish.dart';
@@ -71,14 +72,14 @@ class _DetailScreenState extends State<DetailScreen>
                     child: Hero(
                       tag: 'dish-${dish.id}',
                       child: dish.hasImage
-                          ? Image.network(
-                              dish.imageUrl,
+                          ? CachedNetworkImage(
+                              imageUrl: dish.imageUrl,
                               fit: BoxFit.cover,
-                              loadingBuilder: (context, child, progress) {
-                                if (progress == null) return child;
-                                return _buildImagePlaceholder(context);
-                              },
-                              errorBuilder: (_, _, _) =>
+                              fadeInDuration: Duration.zero,
+                              placeholderFadeInDuration: Duration.zero,
+                              placeholder: (context, url) =>
+                                  _buildImagePlaceholder(context),
+                              errorWidget: (context, url, error) =>
                                   _buildImagePlaceholder(context),
                             )
                           : _buildImagePlaceholder(context),

@@ -1,4 +1,5 @@
 import 'dart:ui';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/cupertino.dart';
 import '../l10n/app_localizations.dart';
 import '../models/dish.dart';
@@ -484,20 +485,19 @@ class _CalendarScreenState extends State<CalendarScreen>
                       Hero(
                         tag: 'dish-${dish.id}',
                         child: dish.hasImage
-                            ? Image.network(
-                                dish.imageUrl,
+                            ? CachedNetworkImage(
+                                imageUrl: dish.imageUrl,
                                 fit: BoxFit.cover,
-                                loadingBuilder: (context, child, progress) {
-                                  if (progress == null) return child;
-                                  return Container(
-                                    color: CupertinoColors.systemGrey5
-                                        .resolveFrom(context),
-                                    child: const Center(
-                                      child: CupertinoActivityIndicator(),
-                                    ),
-                                  );
-                                },
-                                errorBuilder: (_, _, _) => Container(
+                                fadeInDuration: Duration.zero,
+                                placeholderFadeInDuration: Duration.zero,
+                                placeholder: (context, url) => Container(
+                                  color: CupertinoColors.systemGrey5
+                                      .resolveFrom(context),
+                                  child: const Center(
+                                    child: CupertinoActivityIndicator(),
+                                  ),
+                                ),
+                                errorWidget: (context, url, error) => Container(
                                   color: CupertinoColors.systemGrey5
                                       .resolveFrom(context),
                                   child: const Icon(

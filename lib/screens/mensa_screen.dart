@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'dart:ui';
@@ -38,6 +39,7 @@ class _MensaScreenState extends State<MensaScreen> {
         _dishes = server;
         _loading = false;
       });
+      _schedulePrefetch(server);
       return;
     }
 
@@ -49,6 +51,7 @@ class _MensaScreenState extends State<MensaScreen> {
         _dishes = cached;
         _loading = false;
       });
+      _schedulePrefetch(cached);
       return;
     }
 
@@ -56,6 +59,19 @@ class _MensaScreenState extends State<MensaScreen> {
       _loading = false;
       _error = 'Keine Verbindung zum Server';
     });
+  }
+
+  void _schedulePrefetch(List<Dish> dishes) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _prefetchImages(dishes);
+    });
+  }
+
+  void _prefetchImages(List<Dish> dishes) {
+    for (final dish in dishes.where((d) => d.hasImage).take(10)) {
+      precacheImage(CachedNetworkImageProvider(dish.imageUrl), context);
+    }
   }
 
   Map<DateTime, List<Dish>> get _grouped {
@@ -92,6 +108,7 @@ class _MensaScreenState extends State<MensaScreen> {
         backgroundColor: AppTheme.surface,
         onRefresh: _load,
         child: CustomScrollView(
+          cacheExtent: 1400,
           physics: const AlwaysScrollableScrollPhysics(),
           slivers: [
             // ── Header ──
@@ -396,10 +413,22 @@ class _DishCard extends StatelessWidget {
                   SizedBox(
                     height: 160,
                     width: double.infinity,
-                    child: Image.network(
-                      dish.imageUrl,
+                    child: CachedNetworkImage(
+                      imageUrl: dish.imageUrl,
                       fit: BoxFit.cover,
-                      errorBuilder: (_, _, _) => Container(
+                      fadeInDuration: Duration.zero,
+                      placeholderFadeInDuration: Duration.zero,
+                      placeholder: (context, url) => Container(
+                        color: AppTheme.card,
+                        child: Center(
+                          child: Icon(
+                            CupertinoIcons.photo,
+                            color: AppTheme.textTertiary,
+                            size: 32,
+                          ),
+                        ),
+                      ),
+                      errorWidget: (context, url, error) => Container(
                         color: AppTheme.card,
                         child: Center(
                           child: Icon(
@@ -591,10 +620,22 @@ class _DishDetailSheet extends StatelessWidget {
                       child: SizedBox(
                         height: 200,
                         width: double.infinity,
-                        child: Image.network(
-                          dish.imageUrl,
+                        child: CachedNetworkImage(
+                          imageUrl: dish.imageUrl,
                           fit: BoxFit.cover,
-                          errorBuilder: (_, _, _) => Container(
+                          fadeInDuration: Duration.zero,
+                          placeholderFadeInDuration: Duration.zero,
+                          placeholder: (context, url) => Container(
+                            color: AppTheme.card,
+                            child: Center(
+                              child: Icon(
+                                CupertinoIcons.photo,
+                                color: AppTheme.textTertiary,
+                                size: 40,
+                              ),
+                            ),
+                          ),
+                          errorWidget: (context, url, error) => Container(
                             color: AppTheme.card,
                             child: Center(
                               child: Icon(

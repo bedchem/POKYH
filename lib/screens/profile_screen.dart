@@ -3,6 +3,7 @@ import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../config/app_config.dart';
@@ -143,6 +144,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove('mensa_cache');
+      await DefaultCacheManager().emptyCache();
+      imageCache.clear();
+      imageCache.clearLiveImages();
       await Future.delayed(const Duration(milliseconds: 400));
       if (!mounted) return;
       _showToast('Cache geleert');
