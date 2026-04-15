@@ -43,7 +43,7 @@ class AppTheme {
     'IT': Color.fromARGB(255, 231, 59, 223),
     'Bew.Sport': Color(0xFFAA8EE0),
     'ENGL': Color(0xFF3DC4CE),
-    'R': Color(0xFFE8B84A),
+    'R': Color.fromARGB(255, 198, 232, 74),
     'M5-M7': Color(0xFFE08899),
     'M8': Color(0xFFE89E6E),
     'Re-Wiku': Color(0xFF6AB87A),

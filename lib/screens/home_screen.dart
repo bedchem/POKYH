@@ -193,7 +193,22 @@ class _HomeScreenState extends State<HomeScreen> {
                   icon: CupertinoIcons.calendar,
                   label: 'Stundenplan',
                   active: _tab == 1,
-                  onTap: () => setState(() => _tab = 1),
+                  onTap: () {
+                    if (_tab == 1) {
+                      final timetableState = _timetableKey.currentState;
+                      if (timetableState != null) {
+                        final now = DateTime.now();
+                        final todayIndex = now.weekday <= 5
+                            ? now.weekday - 1
+                            : null;
+                        timetableState.jumpToWeekAndDay(
+                          weekOffset: 0,
+                          dayIndex: todayIndex,
+                        );
+                      }
+                    }
+                    setState(() => _tab = 1);
+                  },
                 ),
                 _TabItem(
                   icon: CupertinoIcons.chart_bar_fill,
@@ -295,9 +310,7 @@ class _MessageBadgeIcon extends StatelessWidget {
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: AppTheme.surface,
-              border: Border.all(
-                color: AppTheme.border.withValues(alpha: 0.4),
-              ),
+              border: Border.all(color: AppTheme.border.withValues(alpha: 0.4)),
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withValues(alpha: 0.2),

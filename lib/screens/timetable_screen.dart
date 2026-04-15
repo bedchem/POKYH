@@ -276,7 +276,8 @@ class TimetableScreenState extends State<TimetableScreen> {
     if (entries.isEmpty) return false;
 
     final active = entries.where((e) => !e.isCancelled).toList();
-    if (active.isEmpty) return false; // all cancelled → _isDayAllCancelled handles this
+    if (active.isEmpty)
+      return false; // all cancelled → _isDayAllCancelled handles this
 
     final hasCancelledOriginals = entries.any((e) => e.isCancelled);
     final allActiveAreSubstitutes = active.every(
@@ -376,27 +377,42 @@ class TimetableScreenState extends State<TimetableScreen> {
       repl = null;
       kind = _SlotKind.cancelled;
     } else {
-      final substitutionEntries =
-          active.where((e) => e.isSubstitution).toList();
-      final additionalEntries =
-          active.where((e) => e.isAdditional && !e.isSubstitution).toList();
-      final normalEntries =
-          active.where((e) => !e.isAdditional && !e.isSubstitution).toList();
+      final substitutionOnlyEntries = active
+          .where((e) => e.isSubstitution && !e.isAdditional)
+          .toList();
+      final additionalOnlyEntries = active
+          .where((e) => e.isAdditional && !e.isSubstitution)
+          .toList();
+      final ambiguousEntries = active
+          .where((e) => e.isSubstitution && e.isAdditional)
+          .toList();
+      final normalEntries = active
+          .where((e) => !e.isAdditional && !e.isSubstitution)
+          .toList();
 
       if (normalEntries.isNotEmpty &&
-          (substitutionEntries.isNotEmpty || additionalEntries.isNotEmpty)) {
+          (substitutionOnlyEntries.isNotEmpty ||
+              additionalOnlyEntries.isNotEmpty ||
+              ambiguousEntries.isNotEmpty)) {
         // Normal entry + special entry: show like Ersatz/Vertretung
         // (original struck through + replacement below).
         display = normalEntries.first;
-        repl = substitutionEntries.isNotEmpty
-            ? substitutionEntries.first
-            : additionalEntries.first;
+        repl = additionalOnlyEntries.isNotEmpty
+            ? additionalOnlyEntries.first
+            : ambiguousEntries.isNotEmpty
+            ? ambiguousEntries.first
+            : substitutionOnlyEntries.first;
         kind = _SlotKind.replacement;
       } else {
-        // All entries are special (or all normal). Prefer SUBSTITUTION
-        // over ADDITIONAL — substitution is the main lesson.
-        if (substitutionEntries.isNotEmpty) {
-          display = substitutionEntries.first;
+        // All entries are special (or all normal). Prefer ADDITIONAL when
+        // the API reports both flags, otherwise use SUBSTITUTION as the
+        // main lesson.
+        if (additionalOnlyEntries.isNotEmpty) {
+          display = additionalOnlyEntries.first;
+        } else if (ambiguousEntries.isNotEmpty) {
+          display = ambiguousEntries.first;
+        } else if (substitutionOnlyEntries.isNotEmpty) {
+          display = substitutionOnlyEntries.first;
         } else {
           display = active.first;
         }
@@ -528,30 +544,6 @@ class TimetableScreenState extends State<TimetableScreen> {
                   letterSpacing: -0.5,
                 ),
               ),
-              if (!_isThisWeek(_currentOffset)) ...[
-                const SizedBox(width: 10),
-                GestureDetector(
-                  onTap: _goToToday,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppTheme.accent.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Text(
-                      'Heute',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: AppTheme.accent,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
             ],
           ),
           const SizedBox(height: 10),
@@ -983,10 +975,8 @@ class _WeekPage extends StatelessWidget {
 
               if (isDayOff || isDayRepl) {
                 final entries = state._forDay(offset, dayIndex);
-                final cancelled =
-                    entries.where((e) => e.isCancelled).toList();
-                final active =
-                    entries.where((e) => !e.isCancelled).toList();
+                final cancelled = entries.where((e) => e.isCancelled).toList();
+                final active = entries.where((e) => !e.isCancelled).toList();
                 TimetableEntry? display;
                 TimetableEntry? replacement;
                 if (isDayOff && cancelled.isNotEmpty) {
@@ -1209,10 +1199,7 @@ class _TimeIndicator extends StatelessWidget {
                   top: 0,
                   bottom: 0,
                   child: Center(
-                    child: Container(
-                      height: thinLine,
-                      color: lineColor,
-                    ),
+                    child: Container(height: thinLine, color: lineColor),
                   ),
                 ),
                 // Thicker overlay on today's column only (no padding gaps)
@@ -1490,6 +1477,10 @@ class _SlotContent extends StatelessWidget {
     final entry = slot.display!;
     final replacement = slot.replacement;
     final hasReplacement = replacement != null;
+    final replIsAdditionalOnly =
+        replacement?.isAdditional == true &&
+        replacement?.isSubstitution == false &&
+        !entry.isCancelled;
 
     IconData? statusIcon;
     Color? statusIconColor;
@@ -1500,12 +1491,12 @@ class _SlotContent extends StatelessWidget {
       statusIcon = CupertinoIcons.doc_text_fill;
       statusIconColor = AppTheme.warning;
     } else if (hasReplacement) {
-      statusIcon = replacement.isAdditional
+      statusIcon = replIsAdditionalOnly
           ? CupertinoIcons.plus_circle_fill
           : CupertinoIcons.arrow_right_arrow_left;
-      statusIconColor = replacement.isAdditional
+      statusIconColor = replIsAdditionalOnly
           ? AppTheme.accent
-          : AppTheme.colorForSubject(replacement.subjectName);
+          : AppTheme.colorForSubject(replacement!.subjectName);
     } else if (entry.isAdditional) {
       // Substitute-only Zusatzstunde: no cancelled original in the response
       statusIcon = CupertinoIcons.plus_circle_fill;
@@ -1525,18 +1516,24 @@ class _SlotContent extends StatelessWidget {
         ? AppTheme.colorForSubject(replacement.subjectName)
         : AppTheme.orange;
 
-    // The display entry is being replaced (struck through) — either
-    // cancelled (classic Vertretung) or still active but superseded by a
-    // replacement entry (Zusatzstunde with two period entries).
-    final bool isReplaced = entry.isCancelled || hasReplacement;
+    final bool isCancelledReplacement = entry.isCancelled && hasReplacement;
+    final bool isReplaced =
+        !isCancelledReplacement && (entry.isCancelled || hasReplacement);
 
     // Single entry that carries both the original and the new subject
     // inside the same period (Zusatzstunde / Vertretung without a
     // separate cancelled entry).
-    final bool hasInlineOriginal = !hasReplacement &&
+    final bool hasInlineOriginal =
+        !hasReplacement &&
         (entry.isAdditional || entry.isSubstitution) &&
         entry.originalSubjectName.isNotEmpty &&
         entry.originalSubjectName != entry.subjectName;
+    final bool hideInlineOriginalSubject =
+        hasInlineOriginal && entry.isSubstitution && !entry.isAdditional;
+    final bool isPureSubstitution =
+        entry.isSubstitution && !entry.isAdditional && !hasReplacement;
+    final bool isPureAdditional =
+        entry.isAdditional && !entry.isSubstitution && !hasReplacement;
 
     return ClipRect(
       child: Padding(
@@ -1548,7 +1545,7 @@ class _SlotContent extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               mainAxisSize: MainAxisSize.min,
               children: [
-                if (hasInlineOriginal) ...[
+                if (hasInlineOriginal && !hideInlineOriginalSubject) ...[
                   // ── Inline original: original subject struck through ──────
                   Text(
                     entry.originalSubjectName,
@@ -1557,8 +1554,7 @@ class _SlotContent extends StatelessWidget {
                       fontWeight: FontWeight.w700,
                       color: AppTheme.danger.withValues(alpha: 0.65),
                       decoration: TextDecoration.lineThrough,
-                      decorationColor:
-                          AppTheme.danger.withValues(alpha: 0.75),
+                      decorationColor: AppTheme.danger.withValues(alpha: 0.75),
                       decorationThickness: 2.0,
                     ),
                     maxLines: 1,
@@ -1571,7 +1567,9 @@ class _SlotContent extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w700,
-                      color: AppTheme.colorForSubject(entry.subjectName),
+                      color: isPureAdditional
+                          ? AppTheme.accent
+                          : AppTheme.colorForSubject(entry.subjectName),
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -1581,8 +1579,11 @@ class _SlotContent extends StatelessWidget {
                       entry.teacherName,
                       style: TextStyle(
                         fontSize: 10,
-                        color: AppTheme.colorForSubject(entry.subjectName)
-                            .withValues(alpha: 0.75),
+                        color: isPureAdditional
+                            ? AppTheme.accent.withValues(alpha: 0.75)
+                            : AppTheme.colorForSubject(
+                                entry.subjectName,
+                              ).withValues(alpha: 0.75),
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -1590,59 +1591,98 @@ class _SlotContent extends StatelessWidget {
                 ] else ...[
                   // ── Original / normal subject (struck through when replaced)
                   Text(
-                    entry.subjectName.isNotEmpty
-                        ? entry.subjectName
-                        : entry.lessonText,
+                    hideInlineOriginalSubject
+                        ? entry.originalSubjectName
+                        : (entry.subjectName.isNotEmpty
+                              ? entry.subjectName
+                              : entry.lessonText),
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w700,
-                      color: isReplaced
+                      color:
+                          hideInlineOriginalSubject ||
+                              isPureSubstitution ||
+                              isPureAdditional
+                          ? (hideInlineOriginalSubject || isPureSubstitution
+                                ? AppTheme.orange
+                                : AppTheme.accent)
+                          : isCancelledReplacement
+                          ? AppTheme.danger
+                          : isReplaced
                           ? AppTheme.danger.withValues(alpha: 0.65)
                           : AppTheme.textPrimary,
-                      decoration: isReplaced
+                      decoration: hideInlineOriginalSubject
+                          ? TextDecoration.lineThrough
+                          : isReplaced
                           ? TextDecoration.lineThrough
                           : null,
-                      decorationColor:
-                          AppTheme.danger.withValues(alpha: 0.75),
+                      decorationColor: AppTheme.danger.withValues(alpha: 0.75),
                       decorationThickness: 2.0,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
-                  // ── Teacher of original (hidden when has replacement) ─────
-                  if (entry.teacherName.isNotEmpty && !hasReplacement) ...[
+                  // ── Teacher of original / substitution / additional entry
+                  if ((isPureSubstitution ||
+                          isPureAdditional ||
+                          (!hideInlineOriginalSubject &&
+                              entry.teacherName.isNotEmpty &&
+                              (!hasReplacement || isCancelledReplacement))) &&
+                      entry.teacherName.isNotEmpty) ...[
                     Text(
                       entry.teacherName,
                       style: TextStyle(
                         fontSize: 10,
-                        color: isReplaced
-                            ? AppTheme.danger.withValues(alpha: 0.65)
-                            : AppTheme.textTertiary,
-                        decoration: isReplaced
-                            ? TextDecoration.lineThrough
-                            : null,
-                        decorationColor:
-                            AppTheme.danger.withValues(alpha: 0.65),
+                        color: isPureSubstitution
+                            ? AppTheme.orange.withValues(alpha: 0.72)
+                            : isPureAdditional
+                                ? AppTheme.accent.withValues(alpha: 0.72)
+                                : isCancelledReplacement
+                                    ? AppTheme.danger.withValues(alpha: 0.72)
+                                    : isReplaced
+                                        ? AppTheme.danger.withValues(alpha: 0.65)
+                                        : AppTheme.textTertiary,
+                        decoration: isPureSubstitution
+                            ? null
+                            : isPureAdditional
+                                ? null
+                                : isReplaced
+                                    ? TextDecoration.lineThrough
+                                    : null,
+                        decorationColor: AppTheme.danger.withValues(
+                          alpha: 0.65,
+                        ),
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
                   ],
-                  if (entry.roomName.isNotEmpty && !hasReplacement) ...[
+                  if ((isPureSubstitution ||
+                          isPureAdditional ||
+                          (!hideInlineOriginalSubject &&
+                              entry.roomName.isNotEmpty &&
+                              (!hasReplacement || isCancelledReplacement))) &&
+                      entry.roomName.isNotEmpty) ...[
                     Text(
                       entry.roomName,
                       style: TextStyle(
                         fontSize: 10,
-                        color: isReplaced
-                            ? AppTheme.danger.withValues(alpha: 0.65)
-                            : AppTheme.textTertiary,
+                        color: isPureSubstitution
+                            ? AppTheme.orange.withValues(alpha: 0.72)
+                            : isPureAdditional
+                                ? AppTheme.accent.withValues(alpha: 0.72)
+                                : isCancelledReplacement
+                                    ? AppTheme.danger.withValues(alpha: 0.72)
+                                    : isReplaced
+                                        ? AppTheme.danger.withValues(alpha: 0.65)
+                                        : AppTheme.textTertiary,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
                   ],
                   // ── Replacement subject + teacher (Untis style) ───────────
-                  if (hasReplacement) ...[
+                  if (hasReplacement && !isCancelledReplacement) ...[
                     const SizedBox(height: 2),
                     Text(
                       replacement.subjectName.isNotEmpty
@@ -1715,10 +1755,17 @@ class _DetailSheet extends StatelessWidget {
   Widget build(BuildContext context) {
     // Single entry with both original + new subject inline (no separate
     // replacement entry). Common for Zusatzstunde / Vertretung in student view.
-    final bool hasInlineOriginal = replacement == null &&
+    final bool hasInlineOriginal =
+        replacement == null &&
         (entry.isAdditional || entry.isSubstitution) &&
         entry.originalSubjectName.isNotEmpty &&
         entry.originalSubjectName != entry.subjectName;
+    final replIsAdditionalOnly =
+        replacement?.isAdditional == true &&
+        replacement?.isSubstitution == false &&
+        !entry.isCancelled;
+    final entryIsAdditionalOnly =
+        entry.isAdditional && !entry.isSubstitution && !entry.isCancelled;
 
     final color = entry.isCancelled
         ? AppTheme.danger
@@ -1733,19 +1780,19 @@ class _DetailSheet extends StatelessWidget {
     // otherwise show the entry's own subject.
     final headerName = hasInlineOriginal
         ? (entry.originalSubjectLong.isNotEmpty
-            ? entry.originalSubjectLong
-            : entry.originalSubjectName)
+              ? entry.originalSubjectLong
+              : entry.originalSubjectName)
         : entry.displayName;
     final headerSub = hasInlineOriginal
         ? (entry.originalSubjectName != entry.originalSubjectLong &&
-                entry.originalSubjectLong.isNotEmpty
-            ? entry.originalSubjectLong
-            : '')
+                  entry.originalSubjectLong.isNotEmpty
+              ? entry.originalSubjectLong
+              : '')
         : (entry.subjectName.isNotEmpty &&
-                entry.subjectLong.isNotEmpty &&
-                entry.subjectName != entry.subjectLong
-            ? entry.subjectLong
-            : '');
+                  entry.subjectLong.isNotEmpty &&
+                  entry.subjectName != entry.subjectLong
+              ? entry.subjectLong
+              : '');
 
     return Container(
       decoration: BoxDecoration(
@@ -1783,8 +1830,8 @@ class _DetailSheet extends StatelessWidget {
                         (hasInlineOriginal
                             ? entry.originalSubjectName[0]
                             : (entry.subjectName.isNotEmpty
-                                ? entry.subjectName[0]
-                                : '?')),
+                                  ? entry.subjectName[0]
+                                  : '?')),
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.w700,
@@ -1809,8 +1856,9 @@ class _DetailSheet extends StatelessWidget {
                         decoration: hasInlineOriginal
                             ? TextDecoration.lineThrough
                             : null,
-                        decorationColor:
-                            AppTheme.danger.withValues(alpha: 0.75),
+                        decorationColor: AppTheme.danger.withValues(
+                          alpha: 0.75,
+                        ),
                         letterSpacing: -0.3,
                       ),
                     ),
@@ -1825,8 +1873,9 @@ class _DetailSheet extends StatelessWidget {
                           decoration: hasInlineOriginal
                               ? TextDecoration.lineThrough
                               : null,
-                          decorationColor:
-                              AppTheme.danger.withValues(alpha: 0.5),
+                          decorationColor: AppTheme.danger.withValues(
+                            alpha: 0.5,
+                          ),
                         ),
                       ),
                   ],
@@ -1844,21 +1893,21 @@ class _DetailSheet extends StatelessWidget {
                   color: AppTheme.warning,
                   icon: CupertinoIcons.doc_text_fill,
                 )
-              else if (entry.isSubstitution)
-                _SheetBadge(
-                  label: 'Vertretung',
-                  color: AppTheme.orange,
-                  icon: CupertinoIcons.arrow_right_arrow_left,
-                )
               else if (entry.isAdditional)
                 _SheetBadge(
                   label: 'Zusatzstunde',
                   color: AppTheme.accent,
                   icon: CupertinoIcons.plus_circle_fill,
                 )
+              else if (entry.isSubstitution)
+                _SheetBadge(
+                  label: 'Vertretung',
+                  color: AppTheme.orange,
+                  icon: CupertinoIcons.arrow_right_arrow_left,
+                )
               // When the display entry is the unchanged original and the
               // replacement holds the Zusatzstunde / Vertretung flag:
-              else if (replacement?.isAdditional == true)
+              else if (replIsAdditionalOnly)
                 _SheetBadge(
                   label: 'Zusatzstunde',
                   color: AppTheme.accent,
@@ -1888,8 +1937,13 @@ class _DetailSheet extends StatelessWidget {
             const SizedBox(height: 10),
             _InfoRow(
               icon: CupertinoIcons.person,
-              label: 'Lehrer',
+              label: entry.isSubstitution && !entry.isAdditional
+                  ? 'Vertretung'
+                  : 'Lehrer',
               value: entry.teacherName,
+              valueColor: entry.isSubstitution && !entry.isAdditional
+                  ? AppTheme.orange.withValues(alpha: 0.85)
+                  : null,
             ),
           ],
           if (entry.roomName.isNotEmpty && !hasInlineOriginal) ...[
@@ -2027,19 +2081,17 @@ class _DetailSheet extends StatelessWidget {
             Row(
               children: [
                 Icon(
-                  replacement!.isAdditional
+                  replIsAdditionalOnly
                       ? CupertinoIcons.plus_circle_fill
                       : CupertinoIcons.arrow_right_arrow_left,
                   size: 14,
-                  color: replacement!.isAdditional
+                  color: replIsAdditionalOnly
                       ? AppTheme.accent
                       : AppTheme.colorForSubject(replacement!.subjectName),
                 ),
                 const SizedBox(width: 6),
                 Text(
-                  replacement!.isAdditional
-                      ? 'Zusatzstunde'
-                      : 'Ersatz / Vertretung',
+                  replIsAdditionalOnly ? 'Zusatzstunde' : 'Ersatz',
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
@@ -2133,17 +2185,17 @@ class _DetailSheet extends StatelessWidget {
             Row(
               children: [
                 Icon(
-                  entry.isAdditional
+                  entryIsAdditionalOnly
                       ? CupertinoIcons.plus_circle_fill
                       : CupertinoIcons.arrow_right_arrow_left,
                   size: 14,
-                  color: entry.isAdditional
+                  color: entryIsAdditionalOnly
                       ? AppTheme.accent
                       : AppTheme.colorForSubject(entry.subjectName),
                 ),
                 const SizedBox(width: 6),
                 Text(
-                  entry.isAdditional
+                  entryIsAdditionalOnly
                       ? 'Zusatzstunde'
                       : 'Ersatz / Vertretung',
                   style: TextStyle(
@@ -2161,8 +2213,9 @@ class _DetailSheet extends StatelessWidget {
                 color: AppTheme.card,
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: AppTheme.colorForSubject(entry.subjectName)
-                      .withValues(alpha: 0.3),
+                  color: AppTheme.colorForSubject(
+                    entry.subjectName,
+                  ).withValues(alpha: 0.3),
                 ),
               ),
               child: Column(
@@ -2174,8 +2227,7 @@ class _DetailSheet extends StatelessWidget {
                         width: 8,
                         height: 8,
                         decoration: BoxDecoration(
-                          color:
-                              AppTheme.colorForSubject(entry.subjectName),
+                          color: AppTheme.colorForSubject(entry.subjectName),
                           shape: BoxShape.circle,
                         ),
                       ),
@@ -2273,11 +2325,13 @@ class _InfoRow extends StatelessWidget {
   final String label;
   final String value;
   final bool small;
+  final Color? valueColor;
   const _InfoRow({
     required this.icon,
     required this.label,
     required this.value,
     this.small = false,
+    this.valueColor,
   });
   @override
   Widget build(BuildContext context) => Row(
@@ -2297,7 +2351,7 @@ class _InfoRow extends StatelessWidget {
           style: TextStyle(
             fontSize: small ? 12 : 13,
             fontWeight: FontWeight.w500,
-            color: AppTheme.textSecondary,
+            color: valueColor ?? AppTheme.textSecondary,
           ),
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
