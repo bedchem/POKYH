@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
@@ -43,7 +44,9 @@ class _GradesScreenState extends State<GradesScreen> {
       _error = null;
     });
     try {
-      final grades = await widget.service.getAllGrades(forceRefresh: forceRefresh);
+      final grades = await widget.service.getAllGrades(
+        forceRefresh: forceRefresh,
+      );
       if (mounted) {
         setState(() {
           _subjects = grades;
@@ -91,138 +94,150 @@ class _GradesScreenState extends State<GradesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      child: CustomScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        slivers: [
-          // ── Header ──
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Noten',
-                    style: TextStyle(
-                      fontSize: 34,
-                      fontWeight: FontWeight.w700,
-                      color: AppTheme.textPrimary,
-                      letterSpacing: -0.5,
-                    ),
+    final scrollView = CustomScrollView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      slivers: [
+        if (Platform.isIOS)
+          CupertinoSliverRefreshControl(
+            onRefresh: () => _load(forceRefresh: true),
+          ),
+
+        // ── Header ──
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Noten',
+                  style: TextStyle(
+                    fontSize: 34,
+                    fontWeight: FontWeight.w700,
+                    color: AppTheme.textPrimary,
+                    letterSpacing: -0.5,
                   ),
-                  if (!_loading && _error == null && _subjects.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 4),
-                      child: Text(
-                        '${_subjects.length} Fächer · Schuljahr ${AppConfig.currentSchoolYear}',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: AppTheme.textSecondary,
-                        ),
+                ),
+                if (!_loading && _error == null && _subjects.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(
+                      '${_subjects.length} Fächer · Schuljahr ${AppConfig.currentSchoolYear}',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: AppTheme.textSecondary,
                       ),
                     ),
-                ],
+                  ),
+              ],
+            ),
+          ),
+        ),
+
+        // ── Overview + Notenverteilung (combined) ──
+        if (!_loading && _error == null && _subjects.isNotEmpty)
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+              child: _OverviewAndDistributionCard(
+                average: _totalAverage,
+                subjects: _subjects,
               ),
             ),
           ),
 
-          // ── Overview + Notenverteilung (combined) ──
-          if (!_loading && _error == null && _subjects.isNotEmpty)
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-                child: _OverviewAndDistributionCard(
-                  average: _totalAverage,
-                  subjects: _subjects,
-                ),
-              ),
-            ),
+        const SliverToBoxAdapter(child: SizedBox(height: 8)),
 
-          const SliverToBoxAdapter(child: SizedBox(height: 8)),
-
-          // ── Content ──
-          if (_loading)
-            SliverFillRemaining(
-              hasScrollBody: false,
-              child: Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    CupertinoActivityIndicator(radius: 14),
-                    SizedBox(height: 14),
-                    Text(
-                      'Noten werden geladen\u2026',
-                      style: TextStyle(
-                        color: AppTheme.textSecondary,
-                        fontSize: 14,
-                      ),
+        // ── Content ──
+        if (_loading)
+          SliverFillRemaining(
+            hasScrollBody: false,
+            child: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CupertinoActivityIndicator(radius: 14),
+                  const SizedBox(height: 14),
+                  Text(
+                    'Noten werden geladen…',
+                    style: TextStyle(
+                      color: AppTheme.textSecondary,
+                      fontSize: 14,
                     ),
-                  ],
-                ),
-              ),
-            )
-          else if (_error != null)
-            SliverFillRemaining(
-              hasScrollBody: false,
-              child: Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(
-                      CupertinoIcons.exclamationmark_triangle_fill,
-                      color: AppTheme.danger,
-                      size: 28,
-                    ),
-                    const SizedBox(height: 10),
-                    Text(
-                      _error!,
-                      style: TextStyle(color: AppTheme.textSecondary),
-                    ),
-                    const SizedBox(height: 14),
-                    CupertinoButton(
-                      color: AppTheme.accent,
-                      borderRadius: BorderRadius.circular(10),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 20,
-                        vertical: 8,
-                      ),
-                      minimumSize: Size.zero,
-                      onPressed: _load,
-                      child: const Text(
-                        'Erneut versuchen',
-                        style: TextStyle(fontSize: 14),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            )
-          else if (_subjects.isEmpty)
-            SliverFillRemaining(
-              hasScrollBody: false,
-              child: Center(
-                child: Text(
-                  'Keine Noten vorhanden',
-                  style: TextStyle(color: AppTheme.textSecondary, fontSize: 15),
-                ),
-              ),
-            )
-          else
-            SliverPadding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
-              sliver: SliverList(
-                delegate: SliverChildBuilderDelegate(
-                  (_, i) => Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: _SubjectCard(subject: _subjects[i]),
                   ),
-                  childCount: _subjects.length,
-                ),
+                ],
               ),
             ),
-        ],
-      ),
+          )
+        else if (_error != null)
+          SliverFillRemaining(
+            hasScrollBody: false,
+            child: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    CupertinoIcons.exclamationmark_triangle_fill,
+                    color: AppTheme.danger,
+                    size: 28,
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    _error!,
+                    style: TextStyle(color: AppTheme.textSecondary),
+                  ),
+                  const SizedBox(height: 14),
+                  CupertinoButton(
+                    color: AppTheme.accent,
+                    borderRadius: BorderRadius.circular(10),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 8,
+                    ),
+                    minimumSize: Size.zero,
+                    onPressed: _load,
+                    child: const Text(
+                      'Erneut versuchen',
+                      style: TextStyle(fontSize: 14),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          )
+        else if (_subjects.isEmpty)
+          SliverFillRemaining(
+            hasScrollBody: false,
+            child: Center(
+              child: Text(
+                'Keine Noten vorhanden',
+                style: TextStyle(color: AppTheme.textSecondary, fontSize: 15),
+              ),
+            ),
+          )
+        else
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
+            sliver: SliverList(
+              delegate: SliverChildBuilderDelegate(
+                (_, i) => Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: _SubjectCard(subject: _subjects[i]),
+                ),
+                childCount: _subjects.length,
+              ),
+            ),
+          ),
+      ],
+    );
+
+    return SafeArea(
+      child: Platform.isIOS
+          ? scrollView
+          : RefreshIndicator(
+              onRefresh: () => _load(forceRefresh: true),
+              child: scrollView,
+            ),
     );
   }
 }
@@ -925,543 +940,566 @@ class _SubjectDetailSheetState extends State<_SubjectDetailSheet> {
             ),
             child: Column(
               children: [
-              // Handle bar
-              Padding(
-                padding: const EdgeInsets.only(top: 10, bottom: 4),
-                child: Container(
-                  width: 36,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: AppTheme.border,
-                    borderRadius: BorderRadius.circular(2),
+                // Handle bar
+                Padding(
+                  padding: const EdgeInsets.only(top: 10, bottom: 4),
+                  child: Container(
+                    width: 36,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: AppTheme.border,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
                   ),
                 ),
-              ),
 
-              // Header
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 10,
-                      height: 10,
-                      decoration: BoxDecoration(
-                        color: color,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        widget.subject.subjectName,
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w700,
-                          color: AppTheme.textPrimary,
-                          letterSpacing: -0.3,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              Expanded(
-                child: NotificationListener<ScrollNotification>(
-                  onNotification: (notification) {
-                    if (notification is ScrollStartNotification) {
-                      _focusNode.unfocus();
-                    }
-                    return false;
-                  },
-                  child: ListView(
-                    controller: scrollCtrl,
-                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 40),
+                // Header
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+                  child: Row(
                     children: [
-                      // Stats row
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _MiniStatCard(
-                              label: 'Durchschnitt',
-                              value: origAvg != null
-                                  ? origAvg
-                                        .toStringAsFixed(3)
-                                        .replaceAll(RegExp(r'0+4'), '')
-                                        .replaceAll(RegExp(r'\.\$'), '')
-                                  : '—',
-                              valueColor: origAvg != null
-                                  ? _gradeColor(origAvg)
-                                  : AppTheme.textSecondary,
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: _MiniStatCard(
-                              label: 'Pos. / Neg.',
-                              value:
-                                  '${widget.subject.positiveCount} / ${widget.subject.negativeCount}',
-                              valueColor: AppTheme.textPrimary,
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: _MiniStatCard(
-                              label: 'Noten',
-                              value: '${widget.subject.grades.length}',
-                              valueColor: AppTheme.textPrimary,
-                            ),
-                          ),
-                        ],
-                      ),
-
-                      const SizedBox(height: 14),
-
-                      // Trend chart card
                       Container(
-                        padding: const EdgeInsets.all(16),
+                        width: 10,
+                        height: 10,
                         decoration: BoxDecoration(
-                          color: AppTheme.surface,
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        'Trend',
-                                        style: TextStyle(
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w600,
-                                          color: AppTheme.textPrimary,
-                                        ),
-                                      ),
-                                      Text(
-                                        'Notenentwicklung',
-                                        style: TextStyle(
-                                          fontSize: 11,
-                                          color: AppTheme.textSecondary,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                // Legend
-                                Row(
-                                  children: [
-                                    Container(
-                                      width: 14,
-                                      height: 2,
-                                      color: color,
-                                    ),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      'Noten',
-                                      style: TextStyle(
-                                        fontSize: 10,
-                                        color: AppTheme.textTertiary,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 10),
-                                    Container(
-                                      width: 14,
-                                      height: 2,
-                                      color: AppTheme.danger.withValues(
-                                        alpha: 0.5,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      'Trend',
-                                      style: TextStyle(
-                                        fontSize: 10,
-                                        color: AppTheme.textTertiary,
-                                      ),
-                                    ),
-                                    if (_extraGrades.isNotEmpty) ...[
-                                      const SizedBox(width: 10),
-                                      Container(
-                                        width: 14,
-                                        height: 2,
-                                        color: AppTheme.accent.withValues(
-                                          alpha: 0.7,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        'Simulation',
-                                        style: TextStyle(
-                                          fontSize: 10,
-                                          color: AppTheme.textTertiary,
-                                        ),
-                                      ),
-                                    ],
-                                  ],
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 14),
-                            SizedBox(
-                              height: 150,
-                              child: _TrendChart(
-                                grades: widget.subject.grades,
-                                extraGrades: _extraGrades,
-                                removedIndices: _removedIndices,
-                                color: color,
-                              ),
-                            ),
-                          ],
+                          color: color,
+                          shape: BoxShape.circle,
                         ),
                       ),
-
-                      const SizedBox(height: 12),
-
-                      // Mittelwert-Rechner card
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: AppTheme.surface,
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Mittelwert-Rechner',
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                                color: AppTheme.textPrimary,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              'Simuliere zukünftige Noten',
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: AppTheme.textSecondary,
-                              ),
-                            ),
-                            const SizedBox(height: 16),
-
-                            // Simulated average
-                            if (simAvg != null)
-                              Center(
-                                child: Column(
-                                  children: [
-                                    Text(
-                                      _fmtAvg(simAvg),
-                                      style: TextStyle(
-                                        fontSize: 40,
-                                        fontWeight: FontWeight.w700,
-                                        color: _gradeColor(simAvg),
-                                        fontFeatures: const [
-                                          FontFeature.tabularFigures(),
-                                        ],
-                                      ),
-                                    ),
-                                    if (_extraGrades.isNotEmpty &&
-                                        origAvg != null)
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 10,
-                                          vertical: 3,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color:
-                                              (simAvg >= origAvg
-                                                      ? AppTheme.success
-                                                      : AppTheme.danger)
-                                                  .withValues(alpha: 0.12),
-                                          borderRadius: BorderRadius.circular(
-                                            6,
-                                          ),
-                                        ),
-                                        child: Text(
-                                          simAvg > origAvg
-                                              ? '\u2191 ${(simAvg - origAvg).abs().toStringAsFixed(3).replaceAll(RegExp(r'0+\$'), '').replaceAll(RegExp(r'\.\$'), '')} besser'
-                                              : simAvg < origAvg
-                                              ? '\u2193 ${(origAvg - simAvg).abs().toStringAsFixed(3).replaceAll(RegExp(r'0+\$'), '').replaceAll(RegExp(r'\.\$'), '')} schlechter'
-                                              : 'Kein Unterschied',
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w600,
-                                            color: simAvg >= origAvg
-                                                ? AppTheme.success
-                                                : AppTheme.danger,
-                                          ),
-                                        ),
-                                      ),
-                                  ],
-                                ),
-                              ),
-
-                            const SizedBox(height: 16),
-
-                            // All grades display
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                // Real grades — tap to toggle out/in
-                                if (widget.subject.grades.isNotEmpty) ...[
-                                  Text(
-                                    'Vorhandene Noten',
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      color: AppTheme.textTertiary,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Wrap(
-                                    spacing: 8,
-                                    runSpacing: 7,
-                                    children: widget.subject.grades
-                                        .asMap()
-                                        .entries
-                                        .map((e) {
-                                          final removed = _removedIndices
-                                              .contains(e.key);
-                                          final raw = e.value.markDisplayValue;
-                                          final label = raw
-                                              .toStringAsFixed(3)
-                                              .replaceAll(RegExp(r'0+$'), '')
-                                              .replaceAll(RegExp(r'\.?$'), '');
-                                          final gc = removed
-                                              ? AppTheme.textTertiary
-                                              : _gradeColor(
-                                                  raw,
-                                                ).withValues(alpha: 0.85);
-                                          return GestureDetector(
-                                            onTap: () => setState(() {
-                                              if (removed) {
-                                                _removedIndices.remove(e.key);
-                                              } else {
-                                                _removedIndices.add(e.key);
-                                              }
-                                            }),
-                                            child: Container(
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                    horizontal: 12,
-                                                    vertical: 7,
-                                                  ),
-                                              decoration: BoxDecoration(
-                                                color: removed
-                                                    ? AppTheme.surface
-                                                    : gc.withValues(
-                                                        alpha: 0.12,
-                                                      ),
-                                                borderRadius:
-                                                    BorderRadius.circular(9),
-                                                border: Border.all(
-                                                  color: removed
-                                                      ? AppTheme.border
-                                                            .withValues(
-                                                              alpha: 0.35,
-                                                            )
-                                                      : gc.withValues(
-                                                          alpha: 0.35,
-                                                        ),
-                                                ),
-                                              ),
-                                              child: Row(
-                                                mainAxisSize: MainAxisSize.min,
-                                                children: [
-                                                  Text(
-                                                    label,
-                                                    style: TextStyle(
-                                                      fontSize: 15,
-                                                      fontWeight: removed
-                                                          ? FontWeight.w400
-                                                          : FontWeight.w600,
-                                                      color: gc,
-                                                      decoration: removed
-                                                          ? TextDecoration
-                                                                .lineThrough
-                                                          : null,
-                                                      decorationColor: AppTheme
-                                                          .textTertiary
-                                                          .withValues(
-                                                            alpha: 0.6,
-                                                          ),
-                                                    ),
-                                                  ),
-                                                  const SizedBox(width: 5),
-                                                  Icon(
-                                                    removed
-                                                        ? CupertinoIcons.plus
-                                                        : CupertinoIcons.xmark,
-                                                    size: 12,
-                                                    color: removed
-                                                        ? AppTheme.textTertiary
-                                                              .withValues(
-                                                                alpha: 0.5,
-                                                              )
-                                                        : AppTheme.danger,
-                                                  ),
-                                                ],
-                                              ),
-                                            ),
-                                          );
-                                        })
-                                        .toList(),
-                                  ),
-                                  const SizedBox(height: 14),
-                                ],
-                                // Test grades (colored, tappable to remove)
-                                if (_extraGrades.isNotEmpty) ...[
-                                  Text(
-                                    'Testnoten',
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      color: AppTheme.textTertiary,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 6),
-                                  Wrap(
-                                    spacing: 8,
-                                    runSpacing: 7,
-                                    children: _extraGrades.asMap().entries.map((
-                                      e,
-                                    ) {
-                                      final gc = _gradeColor(e.value);
-                                      final raw = e.value;
-                                      final label = raw
-                                          .toStringAsFixed(3)
-                                          .replaceAll(RegExp(r'0+$'), '')
-                                          .replaceAll(RegExp(r'\.?$'), '');
-                                      return GestureDetector(
-                                        onTap: () => setState(
-                                          () => _extraGrades.removeAt(e.key),
-                                        ),
-                                        child: Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 12,
-                                            vertical: 7,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: gc.withValues(alpha: 0.12),
-                                            borderRadius: BorderRadius.circular(
-                                              9,
-                                            ),
-                                            border: Border.all(
-                                              color: gc.withValues(alpha: 0.35),
-                                            ),
-                                          ),
-                                          child: Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              Text(
-                                                label,
-                                                style: TextStyle(
-                                                  fontSize: 13,
-                                                  fontWeight: FontWeight.w700,
-                                                  color: gc,
-                                                ),
-                                              ),
-                                              const SizedBox(width: 5),
-                                              Icon(
-                                                CupertinoIcons.xmark,
-                                                size: 11,
-                                                color: gc.withValues(
-                                                  alpha: 0.7,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      );
-                                    }).toList(),
-                                  ),
-                                  const SizedBox(height: 12),
-                                ],
-                              ],
-                            ),
-
-                            // Input row
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: GestureDetector(
-                                    onTap:
-                                        () {}, // Verhindert, dass der Tap auf das Textfeld den Fokus entfernt
-                                    child: CupertinoTextField(
-                                      focusNode:
-                                          _focusNode, // FocusNode zuweisen
-                                      controller: _inputCtrl,
-                                      placeholder: 'Note eingeben (1–10)',
-                                      keyboardType:
-                                          const TextInputType.numberWithOptions(
-                                            decimal: true,
-                                          ),
-                                      style: TextStyle(
-                                        color: AppTheme.textPrimary,
-                                        fontSize: 14,
-                                      ),
-                                      placeholderStyle: TextStyle(
-                                        color: AppTheme.textTertiary,
-                                        fontSize: 14,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: AppTheme.bg,
-                                        borderRadius: BorderRadius.circular(10),
-                                        border: Border.all(
-                                          color: _inputError != null
-                                              ? AppTheme.danger
-                                              : AppTheme.border,
-                                        ),
-                                      ),
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 12,
-                                        vertical: 10,
-                                      ),
-                                      onSubmitted: (_) => _addGrade(),
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                CupertinoButton(
-                                  color: AppTheme.accent,
-                                  borderRadius: BorderRadius.circular(10),
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 10,
-                                  ),
-                                  minimumSize: Size.zero,
-                                  onPressed: _addGrade,
-                                  child: const Icon(
-                                    CupertinoIcons.plus,
-                                    size: 18,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                              ],
-                            ),
-
-                            if (_inputError != null) ...[
-                              const SizedBox(height: 6),
-                              Text(
-                                _inputError!,
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  color: AppTheme.danger,
-                                ),
-                              ),
-                            ],
-                          ],
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          widget.subject.subjectName,
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w700,
+                            color: AppTheme.textPrimary,
+                            letterSpacing: -0.3,
+                          ),
                         ),
                       ),
                     ],
                   ),
                 ),
-              ),
+
+                Expanded(
+                  child: NotificationListener<ScrollNotification>(
+                    onNotification: (notification) {
+                      if (notification is ScrollStartNotification) {
+                        _focusNode.unfocus();
+                      }
+                      return false;
+                    },
+                    child: ListView(
+                      controller: scrollCtrl,
+                      padding: const EdgeInsets.fromLTRB(20, 16, 20, 40),
+                      children: [
+                        // Stats row
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _MiniStatCard(
+                                label: 'Durchschnitt',
+                                value: origAvg != null
+                                    ? origAvg
+                                          .toStringAsFixed(3)
+                                          .replaceAll(RegExp(r'0+4'), '')
+                                          .replaceAll(RegExp(r'\.\$'), '')
+                                    : '—',
+                                valueColor: origAvg != null
+                                    ? _gradeColor(origAvg)
+                                    : AppTheme.textSecondary,
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: _MiniStatCard(
+                                label: 'Pos. / Neg.',
+                                value:
+                                    '${widget.subject.positiveCount} / ${widget.subject.negativeCount}',
+                                valueColor: AppTheme.textPrimary,
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: _MiniStatCard(
+                                label: 'Noten',
+                                value: '${widget.subject.grades.length}',
+                                valueColor: AppTheme.textPrimary,
+                              ),
+                            ),
+                          ],
+                        ),
+
+                        const SizedBox(height: 14),
+
+                        // Trend chart card
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: AppTheme.surface,
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'Trend',
+                                          style: TextStyle(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w600,
+                                            color: AppTheme.textPrimary,
+                                          ),
+                                        ),
+                                        Text(
+                                          'Notenentwicklung',
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            color: AppTheme.textSecondary,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  // Legend
+                                  Row(
+                                    children: [
+                                      Container(
+                                        width: 14,
+                                        height: 2,
+                                        color: color,
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        'Noten',
+                                        style: TextStyle(
+                                          fontSize: 10,
+                                          color: AppTheme.textTertiary,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 10),
+                                      Container(
+                                        width: 14,
+                                        height: 2,
+                                        color: AppTheme.danger.withValues(
+                                          alpha: 0.5,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        'Trend',
+                                        style: TextStyle(
+                                          fontSize: 10,
+                                          color: AppTheme.textTertiary,
+                                        ),
+                                      ),
+                                      if (_extraGrades.isNotEmpty) ...[
+                                        const SizedBox(width: 10),
+                                        Container(
+                                          width: 14,
+                                          height: 2,
+                                          color: AppTheme.accent.withValues(
+                                            alpha: 0.7,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          'Simulation',
+                                          style: TextStyle(
+                                            fontSize: 10,
+                                            color: AppTheme.textTertiary,
+                                          ),
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 14),
+                              SizedBox(
+                                height: 150,
+                                child: _TrendChart(
+                                  grades: widget.subject.grades,
+                                  extraGrades: _extraGrades,
+                                  removedIndices: _removedIndices,
+                                  color: color,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        const SizedBox(height: 12),
+
+                        // Mittelwert-Rechner card
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: AppTheme.surface,
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Mittelwert-Rechner',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppTheme.textPrimary,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                'Simuliere zukünftige Noten',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: AppTheme.textSecondary,
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+
+                              // Simulated average
+                              if (simAvg != null)
+                                Center(
+                                  child: Column(
+                                    children: [
+                                      Text(
+                                        _fmtAvg(simAvg),
+                                        style: TextStyle(
+                                          fontSize: 40,
+                                          fontWeight: FontWeight.w700,
+                                          color: _gradeColor(simAvg),
+                                          fontFeatures: const [
+                                            FontFeature.tabularFigures(),
+                                          ],
+                                        ),
+                                      ),
+                                      if (_extraGrades.isNotEmpty &&
+                                          origAvg != null)
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 10,
+                                            vertical: 3,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color:
+                                                (simAvg >= origAvg
+                                                        ? AppTheme.success
+                                                        : AppTheme.danger)
+                                                    .withValues(alpha: 0.12),
+                                            borderRadius: BorderRadius.circular(
+                                              6,
+                                            ),
+                                          ),
+                                          child: Text(
+                                            simAvg > origAvg
+                                                ? '\u2191 ${(simAvg - origAvg).abs().toStringAsFixed(3).replaceAll(RegExp(r'0+\$'), '').replaceAll(RegExp(r'\.\$'), '')} besser'
+                                                : simAvg < origAvg
+                                                ? '\u2193 ${(origAvg - simAvg).abs().toStringAsFixed(3).replaceAll(RegExp(r'0+\$'), '').replaceAll(RegExp(r'\.\$'), '')} schlechter'
+                                                : 'Kein Unterschied',
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w600,
+                                              color: simAvg >= origAvg
+                                                  ? AppTheme.success
+                                                  : AppTheme.danger,
+                                            ),
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                ),
+
+                              const SizedBox(height: 16),
+
+                              // All grades display
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  // Real grades — tap to toggle out/in
+                                  if (widget.subject.grades.isNotEmpty) ...[
+                                    Text(
+                                      'Vorhandene Noten',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        color: AppTheme.textTertiary,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Wrap(
+                                      spacing: 8,
+                                      runSpacing: 7,
+                                      children: widget.subject.grades
+                                          .asMap()
+                                          .entries
+                                          .map((e) {
+                                            final removed = _removedIndices
+                                                .contains(e.key);
+                                            final raw =
+                                                e.value.markDisplayValue;
+                                            final label = raw
+                                                .toStringAsFixed(3)
+                                                .replaceAll(RegExp(r'0+$'), '')
+                                                .replaceAll(
+                                                  RegExp(r'\.?$'),
+                                                  '',
+                                                );
+                                            final gc = removed
+                                                ? AppTheme.textTertiary
+                                                : _gradeColor(
+                                                    raw,
+                                                  ).withValues(alpha: 0.85);
+                                            return GestureDetector(
+                                              onTap: () => setState(() {
+                                                if (removed) {
+                                                  _removedIndices.remove(e.key);
+                                                } else {
+                                                  _removedIndices.add(e.key);
+                                                }
+                                              }),
+                                              child: Container(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 12,
+                                                      vertical: 7,
+                                                    ),
+                                                decoration: BoxDecoration(
+                                                  color: removed
+                                                      ? AppTheme.surface
+                                                      : gc.withValues(
+                                                          alpha: 0.12,
+                                                        ),
+                                                  borderRadius:
+                                                      BorderRadius.circular(9),
+                                                  border: Border.all(
+                                                    color: removed
+                                                        ? AppTheme.border
+                                                              .withValues(
+                                                                alpha: 0.35,
+                                                              )
+                                                        : gc.withValues(
+                                                            alpha: 0.35,
+                                                          ),
+                                                  ),
+                                                ),
+                                                child: Row(
+                                                  mainAxisSize:
+                                                      MainAxisSize.min,
+                                                  children: [
+                                                    Text(
+                                                      label,
+                                                      style: TextStyle(
+                                                        fontSize: 15,
+                                                        fontWeight: removed
+                                                            ? FontWeight.w400
+                                                            : FontWeight.w600,
+                                                        color: gc,
+                                                        decoration: removed
+                                                            ? TextDecoration
+                                                                  .lineThrough
+                                                            : null,
+                                                        decorationColor:
+                                                            AppTheme
+                                                                .textTertiary
+                                                                .withValues(
+                                                                  alpha: 0.6,
+                                                                ),
+                                                      ),
+                                                    ),
+                                                    const SizedBox(width: 5),
+                                                    Icon(
+                                                      removed
+                                                          ? CupertinoIcons.plus
+                                                          : CupertinoIcons
+                                                                .xmark,
+                                                      size: 12,
+                                                      color: removed
+                                                          ? AppTheme
+                                                                .textTertiary
+                                                                .withValues(
+                                                                  alpha: 0.5,
+                                                                )
+                                                          : AppTheme.danger,
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            );
+                                          })
+                                          .toList(),
+                                    ),
+                                    const SizedBox(height: 14),
+                                  ],
+                                  // Test grades (colored, tappable to remove)
+                                  if (_extraGrades.isNotEmpty) ...[
+                                    Text(
+                                      'Testnoten',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        color: AppTheme.textTertiary,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    Wrap(
+                                      spacing: 8,
+                                      runSpacing: 7,
+                                      children: _extraGrades
+                                          .asMap()
+                                          .entries
+                                          .map((e) {
+                                            final gc = _gradeColor(e.value);
+                                            final raw = e.value;
+                                            final label = raw
+                                                .toStringAsFixed(3)
+                                                .replaceAll(RegExp(r'0+$'), '')
+                                                .replaceAll(
+                                                  RegExp(r'\.?$'),
+                                                  '',
+                                                );
+                                            return GestureDetector(
+                                              onTap: () => setState(
+                                                () => _extraGrades.removeAt(
+                                                  e.key,
+                                                ),
+                                              ),
+                                              child: Container(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 12,
+                                                      vertical: 7,
+                                                    ),
+                                                decoration: BoxDecoration(
+                                                  color: gc.withValues(
+                                                    alpha: 0.12,
+                                                  ),
+                                                  borderRadius:
+                                                      BorderRadius.circular(9),
+                                                  border: Border.all(
+                                                    color: gc.withValues(
+                                                      alpha: 0.35,
+                                                    ),
+                                                  ),
+                                                ),
+                                                child: Row(
+                                                  mainAxisSize:
+                                                      MainAxisSize.min,
+                                                  children: [
+                                                    Text(
+                                                      label,
+                                                      style: TextStyle(
+                                                        fontSize: 13,
+                                                        fontWeight:
+                                                            FontWeight.w700,
+                                                        color: gc,
+                                                      ),
+                                                    ),
+                                                    const SizedBox(width: 5),
+                                                    Icon(
+                                                      CupertinoIcons.xmark,
+                                                      size: 11,
+                                                      color: gc.withValues(
+                                                        alpha: 0.7,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            );
+                                          })
+                                          .toList(),
+                                    ),
+                                    const SizedBox(height: 12),
+                                  ],
+                                ],
+                              ),
+
+                              // Input row
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: GestureDetector(
+                                      onTap:
+                                          () {}, // Verhindert, dass der Tap auf das Textfeld den Fokus entfernt
+                                      child: CupertinoTextField(
+                                        focusNode:
+                                            _focusNode, // FocusNode zuweisen
+                                        controller: _inputCtrl,
+                                        placeholder: 'Note eingeben (1–10)',
+                                        keyboardType:
+                                            const TextInputType.numberWithOptions(
+                                              decimal: true,
+                                            ),
+                                        style: TextStyle(
+                                          color: AppTheme.textPrimary,
+                                          fontSize: 14,
+                                        ),
+                                        placeholderStyle: TextStyle(
+                                          color: AppTheme.textTertiary,
+                                          fontSize: 14,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: AppTheme.bg,
+                                          borderRadius: BorderRadius.circular(
+                                            10,
+                                          ),
+                                          border: Border.all(
+                                            color: _inputError != null
+                                                ? AppTheme.danger
+                                                : AppTheme.border,
+                                          ),
+                                        ),
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                          vertical: 10,
+                                        ),
+                                        onSubmitted: (_) => _addGrade(),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  CupertinoButton(
+                                    color: AppTheme.accent,
+                                    borderRadius: BorderRadius.circular(10),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 16,
+                                      vertical: 10,
+                                    ),
+                                    minimumSize: Size.zero,
+                                    onPressed: _addGrade,
+                                    child: const Icon(
+                                      CupertinoIcons.plus,
+                                      size: 18,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ],
+                              ),
+
+                              if (_inputError != null) ...[
+                                const SizedBox(height: 6),
+                                Text(
+                                  _inputError!,
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    color: AppTheme.danger,
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
