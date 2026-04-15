@@ -598,7 +598,15 @@ class _DashboardTabState extends State<_DashboardTab>
 
   _NextExam? _getNextExam(DateTime now) {
     final todayInt = _dateInt(now);
-    final exams = _allWeek.where((e) => e.isExam && e.date >= todayInt).toList()
+    final nowMins = now.hour * 60 + now.minute;
+    final exams = _allWeek.where((e) {
+      if (!e.isExam) return false;
+      if (e.date > todayInt) return true;
+      if (e.date < todayInt) return false;
+      // Same day: skip exams whose lesson time has already passed
+      final endMins = (e.endTime ~/ 100) * 60 + (e.endTime % 100);
+      return endMins > nowMins;
+    }).toList()
       ..sort(
         (a, b) => a.date == b.date
             ? a.startTime.compareTo(b.startTime)

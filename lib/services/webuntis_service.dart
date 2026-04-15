@@ -730,9 +730,12 @@ class TimetableEntry {
               originalSubjectLong = src['longName'] ?? src['displayname'] ?? '';
             }
           } else {
-            // Active subject (replacement or unchanged)
+            // Active subject (replacement or unchanged).
+            // Prefer SUBSTITUTED element over an unchanged one so that
+            // Zusatzstunde / Vertretung subjects aren't overwritten by the
+            // original subject when element order in the API response varies.
             final src = lookup ?? orgLookup;
-            if (src != null) {
+            if (src != null && (isSubstituted || subjectName.isEmpty)) {
               subjectName = src['name'] ?? '';
               subjectLong = src['longName'] ?? src['displayname'] ?? '';
             }

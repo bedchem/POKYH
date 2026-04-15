@@ -376,18 +376,41 @@ class TimetableScreenState extends State<TimetableScreen> {
       repl = null;
       kind = _SlotKind.cancelled;
     } else {
-      display = active.first;
-      repl = null;
-      if (display.isExam) {
-        kind = _SlotKind.exam;
-      } else if (display.isSubstitution || display.isAdditional) {
-        // Substitute-only: WebUntis sent the replacement without the original
-        // cancelled entry (common in student view). Still mark as replacement.
+      final substitutionEntries =
+          active.where((e) => e.isSubstitution).toList();
+      final additionalEntries =
+          active.where((e) => e.isAdditional && !e.isSubstitution).toList();
+      final normalEntries =
+          active.where((e) => !e.isAdditional && !e.isSubstitution).toList();
+
+      if (normalEntries.isNotEmpty &&
+          (substitutionEntries.isNotEmpty || additionalEntries.isNotEmpty)) {
+        // Normal entry + special entry: show like Ersatz/Vertretung
+        // (original struck through + replacement below).
+        display = normalEntries.first;
+        repl = substitutionEntries.isNotEmpty
+            ? substitutionEntries.first
+            : additionalEntries.first;
         kind = _SlotKind.replacement;
-      } else if (display.subjectName.isEmpty && display.lessonText.isNotEmpty) {
-        kind = _SlotKind.event;
       } else {
-        kind = _SlotKind.normal;
+        // All entries are special (or all normal). Prefer SUBSTITUTION
+        // over ADDITIONAL — substitution is the main lesson.
+        if (substitutionEntries.isNotEmpty) {
+          display = substitutionEntries.first;
+        } else {
+          display = active.first;
+        }
+        repl = null;
+        if (display.isExam) {
+          kind = _SlotKind.exam;
+        } else if (display.isSubstitution || display.isAdditional) {
+          kind = _SlotKind.replacement;
+        } else if (display.subjectName.isEmpty &&
+            display.lessonText.isNotEmpty) {
+          kind = _SlotKind.event;
+        } else {
+          kind = _SlotKind.normal;
+        }
       }
     }
 
@@ -1435,8 +1458,11 @@ class _MergedCell extends StatelessWidget {
                     ? AppTheme.warning.withValues(alpha: 0.8)
                     : (primary.kind == _SlotKind.replacement &&
                           !entry.isCancelled)
-                    // Substitute-only (no cancelled original): orange bar
-                    ? AppTheme.orange.withValues(alpha: 0.75)
+                    // Zusatzstunde → blue, Vertretung/Substitute-only → orange
+                    ? ((primary.replacement?.isAdditional == true ||
+                              entry.isAdditional)
+                          ? AppTheme.accent.withValues(alpha: 0.75)
+                          : AppTheme.orange.withValues(alpha: 0.75))
                     : subjectColor.withValues(alpha: 0.55),
               ),
               Expanded(
@@ -1474,10 +1500,18 @@ class _SlotContent extends StatelessWidget {
       statusIcon = CupertinoIcons.doc_text_fill;
       statusIconColor = AppTheme.warning;
     } else if (hasReplacement) {
-      statusIcon = CupertinoIcons.arrow_right_arrow_left;
-      statusIconColor = AppTheme.colorForSubject(replacement.subjectName);
-    } else if (entry.isSubstitution || entry.isAdditional) {
-      // Substitute-only: no cancelled original in the response
+      statusIcon = replacement.isAdditional
+          ? CupertinoIcons.plus_circle_fill
+          : CupertinoIcons.arrow_right_arrow_left;
+      statusIconColor = replacement.isAdditional
+          ? AppTheme.accent
+          : AppTheme.colorForSubject(replacement.subjectName);
+    } else if (entry.isAdditional) {
+      // Substitute-only Zusatzstunde: no cancelled original in the response
+      statusIcon = CupertinoIcons.plus_circle_fill;
+      statusIconColor = AppTheme.accent;
+    } else if (entry.isSubstitution) {
+      // Substitute-only Vertretung
       statusIcon = CupertinoIcons.arrow_right_arrow_left;
       statusIconColor = AppTheme.orange;
     } else if (entry.lessonText.isNotEmpty) {
@@ -1491,6 +1525,19 @@ class _SlotContent extends StatelessWidget {
         ? AppTheme.colorForSubject(replacement.subjectName)
         : AppTheme.orange;
 
+    // The display entry is being replaced (struck through) — either
+    // cancelled (classic Vertretung) or still active but superseded by a
+    // replacement entry (Zusatzstunde with two period entries).
+    final bool isReplaced = entry.isCancelled || hasReplacement;
+
+    // Single entry that carries both the original and the new subject
+    // inside the same period (Zusatzstunde / Vertretung without a
+    // separate cancelled entry).
+    final bool hasInlineOriginal = !hasReplacement &&
+        (entry.isAdditional || entry.isSubstitution) &&
+        entry.originalSubjectName.isNotEmpty &&
+        entry.originalSubjectName != entry.subjectName;
+
     return ClipRect(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(6, 3, 4, 3),
@@ -1501,83 +1548,125 @@ class _SlotContent extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               mainAxisSize: MainAxisSize.min,
               children: [
-                // ── Original (cancelled) or normal subject ──────────────────
-                Text(
-                  entry.subjectName.isNotEmpty
-                      ? entry.subjectName
-                      : entry.lessonText,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: entry.isCancelled
-                        ? AppTheme.danger.withValues(alpha: 0.65)
-                        : AppTheme.textPrimary,
-                    decoration: entry.isCancelled
-                        ? TextDecoration.lineThrough
-                        : null,
-                    decorationColor: AppTheme.danger.withValues(alpha: 0.75),
-                    decorationThickness: 2.0,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                // ── Teacher of original (greyed/red when cancelled) ─────────
-                if (entry.teacherName.isNotEmpty && !hasReplacement) ...[
+                if (hasInlineOriginal) ...[
+                  // ── Inline original: original subject struck through ──────
                   Text(
-                    entry.teacherName,
-                    style: TextStyle(
-                      fontSize: 10,
-                      color: entry.isCancelled
-                          ? AppTheme.danger.withValues(alpha: 0.65)
-                          : AppTheme.textTertiary,
-                      decoration: entry.isCancelled
-                          ? TextDecoration.lineThrough
-                          : null,
-                      decorationColor:
-                          AppTheme.danger.withValues(alpha: 0.65),
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-                if (entry.roomName.isNotEmpty && !hasReplacement) ...[
-                  Text(
-                    entry.roomName,
-                    style: TextStyle(
-                      fontSize: 10,
-                      color: entry.isCancelled
-                          ? AppTheme.danger.withValues(alpha: 0.65)
-                          : AppTheme.textTertiary,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-                // ── Replacement subject + teacher (Untis style) ─────────────
-                if (hasReplacement) ...[
-                  const SizedBox(height: 2),
-                  Text(
-                    replacement.subjectName.isNotEmpty
-                        ? replacement.subjectName
-                        : replacement.lessonText,
+                    entry.originalSubjectName,
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w700,
-                      color: replColor,
+                      color: AppTheme.danger.withValues(alpha: 0.65),
+                      decoration: TextDecoration.lineThrough,
+                      decorationColor:
+                          AppTheme.danger.withValues(alpha: 0.75),
+                      decorationThickness: 2.0,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
-                  if (replacement.teacherName.isNotEmpty)
+                  const SizedBox(height: 2),
+                  // ── New subject in its subject color ──────────────────────
+                  Text(
+                    entry.subjectName,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: AppTheme.colorForSubject(entry.subjectName),
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  if (entry.teacherName.isNotEmpty)
                     Text(
-                      replacement.teacherName,
+                      entry.teacherName,
                       style: TextStyle(
                         fontSize: 10,
-                        color: replColor.withValues(alpha: 0.75),
+                        color: AppTheme.colorForSubject(entry.subjectName)
+                            .withValues(alpha: 0.75),
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
+                ] else ...[
+                  // ── Original / normal subject (struck through when replaced)
+                  Text(
+                    entry.subjectName.isNotEmpty
+                        ? entry.subjectName
+                        : entry.lessonText,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: isReplaced
+                          ? AppTheme.danger.withValues(alpha: 0.65)
+                          : AppTheme.textPrimary,
+                      decoration: isReplaced
+                          ? TextDecoration.lineThrough
+                          : null,
+                      decorationColor:
+                          AppTheme.danger.withValues(alpha: 0.75),
+                      decorationThickness: 2.0,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  // ── Teacher of original (hidden when has replacement) ─────
+                  if (entry.teacherName.isNotEmpty && !hasReplacement) ...[
+                    Text(
+                      entry.teacherName,
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: isReplaced
+                            ? AppTheme.danger.withValues(alpha: 0.65)
+                            : AppTheme.textTertiary,
+                        decoration: isReplaced
+                            ? TextDecoration.lineThrough
+                            : null,
+                        decorationColor:
+                            AppTheme.danger.withValues(alpha: 0.65),
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                  if (entry.roomName.isNotEmpty && !hasReplacement) ...[
+                    Text(
+                      entry.roomName,
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: isReplaced
+                            ? AppTheme.danger.withValues(alpha: 0.65)
+                            : AppTheme.textTertiary,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                  // ── Replacement subject + teacher (Untis style) ───────────
+                  if (hasReplacement) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      replacement.subjectName.isNotEmpty
+                          ? replacement.subjectName
+                          : replacement.lessonText,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: replColor,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    if (replacement.teacherName.isNotEmpty)
+                      Text(
+                        replacement.teacherName,
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: replColor.withValues(alpha: 0.75),
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                  ],
                 ],
               ],
             ),
@@ -1624,12 +1713,39 @@ class _DetailSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Single entry with both original + new subject inline (no separate
+    // replacement entry). Common for Zusatzstunde / Vertretung in student view.
+    final bool hasInlineOriginal = replacement == null &&
+        (entry.isAdditional || entry.isSubstitution) &&
+        entry.originalSubjectName.isNotEmpty &&
+        entry.originalSubjectName != entry.subjectName;
+
     final color = entry.isCancelled
         ? AppTheme.danger
         : entry.isExam
         ? AppTheme.warning
+        : hasInlineOriginal
+        ? AppTheme.colorForSubject(entry.originalSubjectName)
         : AppTheme.colorForSubject(entry.subjectName);
     final lessonNr = service.getLessonNumber(entry.startTime);
+
+    // Header subject: show the original (struck through) when inline original,
+    // otherwise show the entry's own subject.
+    final headerName = hasInlineOriginal
+        ? (entry.originalSubjectLong.isNotEmpty
+            ? entry.originalSubjectLong
+            : entry.originalSubjectName)
+        : entry.displayName;
+    final headerSub = hasInlineOriginal
+        ? (entry.originalSubjectName != entry.originalSubjectLong &&
+                entry.originalSubjectLong.isNotEmpty
+            ? entry.originalSubjectLong
+            : '')
+        : (entry.subjectName.isNotEmpty &&
+                entry.subjectLong.isNotEmpty &&
+                entry.subjectName != entry.subjectLong
+            ? entry.subjectLong
+            : '');
 
     return Container(
       decoration: BoxDecoration(
@@ -1664,9 +1780,11 @@ class _DetailSheet extends StatelessWidget {
                 child: Center(
                   child: Text(
                     lessonNr ??
-                        (entry.subjectName.isNotEmpty
-                            ? entry.subjectName[0]
-                            : '?'),
+                        (hasInlineOriginal
+                            ? entry.originalSubjectName[0]
+                            : (entry.subjectName.isNotEmpty
+                                ? entry.subjectName[0]
+                                : '?')),
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.w700,
@@ -1681,22 +1799,34 @@ class _DetailSheet extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      entry.displayName,
+                      headerName,
                       style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.w700,
-                        color: AppTheme.textPrimary,
+                        color: hasInlineOriginal
+                            ? AppTheme.danger.withValues(alpha: 0.65)
+                            : AppTheme.textPrimary,
+                        decoration: hasInlineOriginal
+                            ? TextDecoration.lineThrough
+                            : null,
+                        decorationColor:
+                            AppTheme.danger.withValues(alpha: 0.75),
                         letterSpacing: -0.3,
                       ),
                     ),
-                    if (entry.subjectName.isNotEmpty &&
-                        entry.subjectLong.isNotEmpty &&
-                        entry.subjectName != entry.subjectLong)
+                    if (headerSub.isNotEmpty)
                       Text(
-                        entry.subjectLong,
+                        headerSub,
                         style: TextStyle(
                           fontSize: 13,
-                          color: AppTheme.textSecondary,
+                          color: hasInlineOriginal
+                              ? AppTheme.danger.withValues(alpha: 0.5)
+                              : AppTheme.textSecondary,
+                          decoration: hasInlineOriginal
+                              ? TextDecoration.lineThrough
+                              : null,
+                          decorationColor:
+                              AppTheme.danger.withValues(alpha: 0.5),
                         ),
                       ),
                   ],
@@ -1725,6 +1855,20 @@ class _DetailSheet extends StatelessWidget {
                   label: 'Zusatzstunde',
                   color: AppTheme.accent,
                   icon: CupertinoIcons.plus_circle_fill,
+                )
+              // When the display entry is the unchanged original and the
+              // replacement holds the Zusatzstunde / Vertretung flag:
+              else if (replacement?.isAdditional == true)
+                _SheetBadge(
+                  label: 'Zusatzstunde',
+                  color: AppTheme.accent,
+                  icon: CupertinoIcons.plus_circle_fill,
+                )
+              else if (replacement?.isSubstitution == true)
+                _SheetBadge(
+                  label: 'Vertretung',
+                  color: AppTheme.orange,
+                  icon: CupertinoIcons.arrow_right_arrow_left,
                 ),
             ],
           ),
@@ -1738,7 +1882,9 @@ class _DetailSheet extends StatelessWidget {
                 '${entry.startFormatted} – ${entry.endFormatted}'
                 '${lessonNr != null ? '  ·  $lessonNr. Stunde' : ''}',
           ),
-          if (entry.teacherName.isNotEmpty) ...[
+          // When hasInlineOriginal the teacher/room belong to the NEW
+          // subject and are shown inside the Zusatzstunde card below.
+          if (entry.teacherName.isNotEmpty && !hasInlineOriginal) ...[
             const SizedBox(height: 10),
             _InfoRow(
               icon: CupertinoIcons.person,
@@ -1746,7 +1892,7 @@ class _DetailSheet extends StatelessWidget {
               value: entry.teacherName,
             ),
           ],
-          if (entry.roomName.isNotEmpty) ...[
+          if (entry.roomName.isNotEmpty && !hasInlineOriginal) ...[
             const SizedBox(height: 10),
             _InfoRow(
               icon: CupertinoIcons.location,
@@ -1881,13 +2027,19 @@ class _DetailSheet extends StatelessWidget {
             Row(
               children: [
                 Icon(
-                  CupertinoIcons.arrow_right_arrow_left,
+                  replacement!.isAdditional
+                      ? CupertinoIcons.plus_circle_fill
+                      : CupertinoIcons.arrow_right_arrow_left,
                   size: 14,
-                  color: AppTheme.colorForSubject(replacement!.subjectName),
+                  color: replacement!.isAdditional
+                      ? AppTheme.accent
+                      : AppTheme.colorForSubject(replacement!.subjectName),
                 ),
                 const SizedBox(width: 6),
                 Text(
-                  'Ersatz / Vertretung',
+                  replacement!.isAdditional
+                      ? 'Zusatzstunde'
+                      : 'Ersatz / Vertretung',
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
@@ -1960,6 +2112,110 @@ class _DetailSheet extends StatelessWidget {
                     const SizedBox(height: 8),
                     Text(
                       replacement!.lessonText,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: AppTheme.textSecondary,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+          // ── Inline original → new subject (single entry with both) ────
+          if (hasInlineOriginal) ...[
+            const SizedBox(height: 16),
+            Container(
+              height: 0.5,
+              color: AppTheme.border.withValues(alpha: 0.4),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Icon(
+                  entry.isAdditional
+                      ? CupertinoIcons.plus_circle_fill
+                      : CupertinoIcons.arrow_right_arrow_left,
+                  size: 14,
+                  color: entry.isAdditional
+                      ? AppTheme.accent
+                      : AppTheme.colorForSubject(entry.subjectName),
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  entry.isAdditional
+                      ? 'Zusatzstunde'
+                      : 'Ersatz / Vertretung',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: AppTheme.card,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: AppTheme.colorForSubject(entry.subjectName)
+                      .withValues(alpha: 0.3),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        width: 8,
+                        height: 8,
+                        decoration: BoxDecoration(
+                          color:
+                              AppTheme.colorForSubject(entry.subjectName),
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          entry.displayName,
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            color: AppTheme.textPrimary,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (entry.teacherName.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    _InfoRow(
+                      icon: CupertinoIcons.person,
+                      label: 'Lehrer',
+                      value: entry.teacherName,
+                      small: true,
+                    ),
+                  ],
+                  if (entry.roomName.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    _InfoRow(
+                      icon: CupertinoIcons.location,
+                      label: 'Raum',
+                      value: entry.roomName,
+                      small: true,
+                    ),
+                  ],
+                  if (entry.lessonText.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      entry.lessonText,
                       style: TextStyle(
                         fontSize: 13,
                         color: AppTheme.textSecondary,
