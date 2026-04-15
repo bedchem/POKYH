@@ -194,6 +194,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final bottomInset = MediaQuery.of(context).padding.bottom;
+    final navContentHeight = (54.0 + bottomInset * 0.15).clamp(54.0, 62.0).toDouble();
+
     return Scaffold(
       backgroundColor: AppTheme.bg,
       body: Stack(
@@ -231,49 +234,57 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         child: SafeArea(
           top: false,
-          child: Padding(
-            padding: const EdgeInsets.only(top: 5, bottom: 2),
+          child: SizedBox(
+            height: navContentHeight,
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                _TabItem(
-                  icon: CupertinoIcons.house_fill,
-                  label: 'Home',
-                  active: _tab == 0,
-                  onTap: () => setState(() => _tab = 0),
+                Expanded(
+                  child: _TabItem(
+                    icon: CupertinoIcons.house_fill,
+                    label: 'Home',
+                    active: _tab == 0,
+                    onTap: () => setState(() => _tab = 0),
+                  ),
                 ),
-                _TabItem(
-                  icon: CupertinoIcons.calendar,
-                  label: 'Stundenplan',
-                  active: _tab == 1,
-                  onTap: () {
-                    if (_tab == 1) {
-                      final timetableState = _timetableKey.currentState;
-                      if (timetableState != null) {
-                        final now = DateTime.now();
-                        final todayIndex = now.weekday <= 5
-                            ? now.weekday - 1
-                            : null;
-                        timetableState.jumpToWeekAndDay(
-                          weekOffset: 0,
-                          dayIndex: todayIndex,
-                        );
+                Expanded(
+                  child: _TabItem(
+                    icon: CupertinoIcons.calendar,
+                    label: 'Stundenplan',
+                    active: _tab == 1,
+                    onTap: () {
+                      if (_tab == 1) {
+                        final timetableState = _timetableKey.currentState;
+                        if (timetableState != null) {
+                          final now = DateTime.now();
+                          final todayIndex = now.weekday <= 5
+                              ? now.weekday - 1
+                              : null;
+                          timetableState.jumpToWeekAndDay(
+                            weekOffset: 0,
+                            dayIndex: todayIndex,
+                          );
+                        }
                       }
-                    }
-                    setState(() => _tab = 1);
-                  },
+                      setState(() => _tab = 1);
+                    },
+                  ),
                 ),
-                _TabItem(
-                  icon: CupertinoIcons.chart_bar_fill,
-                  label: 'Noten',
-                  active: _tab == 2,
-                  onTap: () => setState(() => _tab = 2),
+                Expanded(
+                  child: _TabItem(
+                    icon: CupertinoIcons.chart_bar_fill,
+                    label: 'Noten',
+                    active: _tab == 2,
+                    onTap: () => setState(() => _tab = 2),
+                  ),
                 ),
-                _TabItem(
-                  icon: CupertinoIcons.flame_fill,
-                  label: 'Mensa',
-                  active: _tab == 3,
-                  onTap: _showMensaTab,
+                Expanded(
+                  child: _TabItem(
+                    icon: CupertinoIcons.flame_fill,
+                    label: 'Mensa',
+                    active: _tab == 3,
+                    onTap: _showMensaTab,
+                  ),
                 ),
               ],
             ),
@@ -430,28 +441,29 @@ class _TabItem extends StatelessWidget {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: onTap,
-      child: SizedBox(
-        width: 68,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Icon(
-              icon,
-              size: 20,
-              color: active ? AppTheme.accent : AppTheme.textTertiary,
-            ),
-            const SizedBox(height: 2),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 9,
-                fontWeight: active ? FontWeight.w600 : FontWeight.w400,
+      child: SizedBox.expand(
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Icon(
+                icon,
+                size: 20,
                 color: active ? AppTheme.accent : AppTheme.textTertiary,
               ),
-            ),
-          ],
+              const SizedBox(height: 2),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 9,
+                  fontWeight: active ? FontWeight.w600 : FontWeight.w400,
+                  color: active ? AppTheme.accent : AppTheme.textTertiary,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
