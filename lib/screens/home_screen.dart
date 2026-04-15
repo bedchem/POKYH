@@ -860,29 +860,6 @@ class _DashboardTabState extends State<_DashboardTab>
   @override
   Widget build(BuildContext context) {
     final now = DateTime.now();
-    final weekdays = [
-      'Montag',
-      'Dienstag',
-      'Mittwoch',
-      'Donnerstag',
-      'Freitag',
-      'Samstag',
-      'Sonntag',
-    ];
-    final months = [
-      'Januar',
-      'Februar',
-      'März',
-      'April',
-      'Mai',
-      'Juni',
-      'Juli',
-      'August',
-      'September',
-      'Oktober',
-      'November',
-      'Dezember',
-    ];
 
     // Build the visible list of (section, widget) pairs
     final visibleCards = _cardOrder
@@ -915,14 +892,6 @@ class _DashboardTabState extends State<_DashboardTab>
                       ),
                     ),
                     const Spacer(),
-                    Text(
-                      '${weekdays[now.weekday - 1]}, ${now.day}. ${months[now.month - 1]}',
-                      textAlign: TextAlign.right,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: AppTheme.textSecondary,
-                      ),
-                    ),
                   ],
                 ),
               ),
@@ -1170,6 +1139,29 @@ class _WeekOverviewCard extends StatelessWidget {
   });
 
   static const _dayLabels = ['Mo', 'Di', 'Mi', 'Do', 'Fr'];
+  static const _weekdays = [
+    'Montag',
+    'Dienstag',
+    'Mittwoch',
+    'Donnerstag',
+    'Freitag',
+    'Samstag',
+    'Sonntag',
+  ];
+  static const _months = [
+    'Januar',
+    'Februar',
+    'März',
+    'April',
+    'Mai',
+    'Juni',
+    'Juli',
+    'August',
+    'September',
+    'Oktober',
+    'November',
+    'Dezember',
+  ];
 
   int _dateInt(DateTime d) => int.parse(
     '${d.year}${d.month.toString().padLeft(2, '0')}${d.day.toString().padLeft(2, '0')}',
@@ -1206,13 +1198,27 @@ class _WeekOverviewCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 7),
-              Text(
-                'Diese Woche',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: AppTheme.textSecondary,
-                ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Diese Woche',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: AppTheme.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '${_weekdays[now.weekday - 1]}, ${now.day}. ${_months[now.month - 1]}',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w500,
+                      color: AppTheme.textTertiary,
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
