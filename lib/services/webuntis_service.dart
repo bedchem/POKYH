@@ -492,6 +492,54 @@ class WebUntisService {
     }
   }
 
+  // ── HOMEWORK ──────────────────────────────────────────────────────────────
+
+  final Map<String, _CachedData<List<HomeworkEntry>>> _homeworkCache = {};
+
+  /// Returns homework for the week containing [weekStart].
+  /// Keyed by the Monday date string; expires with the same TTL as the timetable.
+  Future<List<HomeworkEntry>> getHomework({DateTime? weekStart}) async {
+    final start = weekStart ?? _getMonday(DateTime.now());
+    final key = _weekKey(start);
+
+    final cached = _homeworkCache[key];
+    if (cached != null && !cached.isExpired(_timetableTTL)) return cached.data;
+
+    try {
+      final end = start.add(const Duration(days: 6));
+      final startStr =
+          '${start.year}${start.month.toString().padLeft(2, '0')}${start.day.toString().padLeft(2, '0')}';
+      final endStr =
+          '${end.year}${end.month.toString().padLeft(2, '0')}${end.day.toString().padLeft(2, '0')}';
+
+      final response = await _client
+          .get(
+            Uri.parse(
+              '$_baseUrl/api/homeworks/lessons?startDate=$startStr&endDate=$endStr',
+            ),
+            headers: {'Cookie': _cookieHeader},
+          )
+          .timeout(_timeout);
+
+      if (response.statusCode != 200) {
+        _homeworkCache[key] = _CachedData([]);
+        return [];
+      }
+
+      final data = jsonDecode(response.body);
+      final list = data['data']?['homeworks'] as List? ?? [];
+      final entries = list
+          .map((h) => HomeworkEntry.fromJson(h as Map<String, dynamic>))
+          .toList();
+
+      _homeworkCache[key] = _CachedData(entries);
+      return entries;
+    } catch (_) {
+      _homeworkCache[key] = _CachedData([]);
+      return [];
+    }
+  }
+
   // ── GRADES DISK CACHE ─────────────────────────────────────────────────────
 
   static const _kGradesCacheKey = 'grades_cache_v1';
@@ -824,5 +872,41 @@ class TimeGridUnit {
     final h = endTime ~/ 100;
     final m = endTime % 100;
     return '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}';
+  }
+}
+
+// ── HOMEWORK MODEL ────────────────────────────────────────────────────────────
+
+class HomeworkEntry {
+  final int id;
+  final int lessonId;
+  final int date;
+  final int dueDate;
+  final String text;
+  final bool completed;
+
+  const HomeworkEntry({
+    required this.id,
+    required this.lessonId,
+    required this.date,
+    required this.dueDate,
+    required this.text,
+    required this.completed,
+  });
+
+  factory HomeworkEntry.fromJson(Map<String, dynamic> j) => HomeworkEntry(
+    id: j['id'] ?? 0,
+    lessonId: j['lessonId'] ?? 0,
+    date: j['date'] ?? 0,
+    dueDate: j['dueDate'] ?? 0,
+    text: j['text']?.toString() ?? '',
+    completed: j['completed'] == true,
+  );
+
+  /// Due-date formatted as DD.MM.YYYY
+  String get dueDateFormatted {
+    final s = dueDate.toString();
+    if (s.length != 8) return s;
+    return '${s.substring(6)}.${s.substring(4, 6)}.${s.substring(0, 4)}';
   }
 }
