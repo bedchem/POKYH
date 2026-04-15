@@ -1846,12 +1846,15 @@ class _DetailSheet extends StatelessWidget {
                 ),
                 child: Center(
                   child: Text(
-                    lessonNr ??
-                        (hasInlineOriginal
-                            ? entry.originalSubjectName[0]
-                            : (entry.subjectName.isNotEmpty
-                                  ? entry.subjectName[0]
-                                  : '?')),
+                    (hasInlineOriginal
+                                ? entry.originalSubjectName
+                                : entry.subjectName)
+                            .trim()
+                            .isNotEmpty
+                        ? (hasInlineOriginal
+                              ? entry.originalSubjectName[0]
+                              : entry.subjectName[0])
+                        : '?',
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.w700,
