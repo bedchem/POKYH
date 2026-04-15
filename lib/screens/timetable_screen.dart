@@ -269,17 +269,23 @@ class TimetableScreenState extends State<TimetableScreen> {
     return hasCancelled && !hasActive;
   }
 
-  /// Returns true if every entry for this day is cancelled (replaced) and there are also active entries.
+  /// Returns true when every active (non-cancelled) lesson for this day is a
+  /// substitution or additional entry — i.e. the whole day is substituted.
   bool _isDayAllReplacement(int offset, int dayIndex) {
     final entries = _forDay(offset, dayIndex);
     if (entries.isEmpty) return false;
 
-    final total = entries.length;
-    final replaced = entries.where((e) => e.isCancelled).length;
-    final active = entries.where((e) => !e.isCancelled).length;
+    final active = entries.where((e) => !e.isCancelled).toList();
+    if (active.isEmpty) return false; // all cancelled → _isDayAllCancelled handles this
 
-    // nur wenn wirklich ALLES ersetzt wurde
-    return replaced == total && active > 0;
+    final hasCancelledOriginals = entries.any((e) => e.isCancelled);
+    final allActiveAreSubstitutes = active.every(
+      (e) => e.isSubstitution || e.isAdditional,
+    );
+
+    // Show whole-day replacement column only when every lesson is a substitute
+    // AND there are matching cancellations (classic full-day substitution).
+    return hasCancelledOriginals && allActiveAreSubstitutes;
   }
 
   // ── Time maths ─────────────────────────────────────────────────────────────
@@ -361,6 +367,7 @@ class TimetableScreenState extends State<TimetableScreen> {
     _SlotKind kind;
 
     if (cancelled.isNotEmpty && active.isNotEmpty) {
+      // Classic case: original cancelled + substitute active
       display = cancelled.first;
       repl = active.first;
       kind = _SlotKind.replacement;
@@ -373,6 +380,10 @@ class TimetableScreenState extends State<TimetableScreen> {
       repl = null;
       if (display.isExam) {
         kind = _SlotKind.exam;
+      } else if (display.isSubstitution || display.isAdditional) {
+        // Substitute-only: WebUntis sent the replacement without the original
+        // cancelled entry (common in student view). Still mark as replacement.
+        kind = _SlotKind.replacement;
       } else if (display.subjectName.isEmpty && display.lessonText.isNotEmpty) {
         kind = _SlotKind.event;
       } else {
@@ -1415,13 +1426,17 @@ class _MergedCell extends StatelessWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Left accent bar — more opaque for cancelled so it reads clearly
+              // Left accent bar
               Container(
                 width: 3,
                 color: entry.isCancelled
                     ? AppTheme.danger.withValues(alpha: 0.7)
                     : entry.isExam
                     ? AppTheme.warning.withValues(alpha: 0.8)
+                    : (primary.kind == _SlotKind.replacement &&
+                          !entry.isCancelled)
+                    // Substitute-only (no cancelled original): orange bar
+                    ? AppTheme.orange.withValues(alpha: 0.75)
                     : subjectColor.withValues(alpha: 0.55),
               ),
               Expanded(
@@ -1461,12 +1476,20 @@ class _SlotContent extends StatelessWidget {
     } else if (hasReplacement) {
       statusIcon = CupertinoIcons.arrow_right_arrow_left;
       statusIconColor = AppTheme.colorForSubject(replacement.subjectName);
+    } else if (entry.isSubstitution || entry.isAdditional) {
+      // Substitute-only: no cancelled original in the response
+      statusIcon = CupertinoIcons.arrow_right_arrow_left;
+      statusIconColor = AppTheme.orange;
     } else if (entry.lessonText.isNotEmpty) {
       statusIcon = CupertinoIcons.doc_plaintext;
       statusIconColor = AppTheme.tint;
     }
 
     final hasHomework = slot.homework.isNotEmpty;
+
+    final replColor = hasReplacement
+        ? AppTheme.colorForSubject(replacement.subjectName)
+        : AppTheme.orange;
 
     return ClipRect(
       child: Padding(
@@ -1478,6 +1501,7 @@ class _SlotContent extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               mainAxisSize: MainAxisSize.min,
               children: [
+                // ── Original (cancelled) or normal subject ──────────────────
                 Text(
                   entry.subjectName.isNotEmpty
                       ? entry.subjectName
@@ -1485,22 +1509,20 @@ class _SlotContent extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
-                    // Reddish tint instead of gray so "Entfall" reads clearly
                     color: entry.isCancelled
                         ? AppTheme.danger.withValues(alpha: 0.65)
                         : AppTheme.textPrimary,
                     decoration: entry.isCancelled
                         ? TextDecoration.lineThrough
                         : null,
-                    // Thicker, red-tinted strikethrough
                     decorationColor: AppTheme.danger.withValues(alpha: 0.75),
                     decorationThickness: 2.0,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-                if (entry.teacherName.isNotEmpty) ...[
-                  const SizedBox(height: 0),
+                // ── Teacher of original (greyed/red when cancelled) ─────────
+                if (entry.teacherName.isNotEmpty && !hasReplacement) ...[
                   Text(
                     entry.teacherName,
                     style: TextStyle(
@@ -1508,13 +1530,17 @@ class _SlotContent extends StatelessWidget {
                       color: entry.isCancelled
                           ? AppTheme.danger.withValues(alpha: 0.65)
                           : AppTheme.textTertiary,
+                      decoration: entry.isCancelled
+                          ? TextDecoration.lineThrough
+                          : null,
+                      decorationColor:
+                          AppTheme.danger.withValues(alpha: 0.65),
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
                 ],
-                if (entry.roomName.isNotEmpty) ...[
-                  const SizedBox(height: 0),
+                if (entry.roomName.isNotEmpty && !hasReplacement) ...[
                   Text(
                     entry.roomName,
                     style: TextStyle(
@@ -1526,6 +1552,32 @@ class _SlotContent extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
+                ],
+                // ── Replacement subject + teacher (Untis style) ─────────────
+                if (hasReplacement) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    replacement.subjectName.isNotEmpty
+                        ? replacement.subjectName
+                        : replacement.lessonText,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: replColor,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  if (replacement.teacherName.isNotEmpty)
+                    Text(
+                      replacement.teacherName,
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: replColor.withValues(alpha: 0.75),
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                 ],
               ],
             ),
@@ -1661,6 +1713,18 @@ class _DetailSheet extends StatelessWidget {
                   label: 'Prüfung',
                   color: AppTheme.warning,
                   icon: CupertinoIcons.doc_text_fill,
+                )
+              else if (entry.isSubstitution)
+                _SheetBadge(
+                  label: 'Vertretung',
+                  color: AppTheme.orange,
+                  icon: CupertinoIcons.arrow_right_arrow_left,
+                )
+              else if (entry.isAdditional)
+                _SheetBadge(
+                  label: 'Zusatzstunde',
+                  color: AppTheme.accent,
+                  icon: CupertinoIcons.plus_circle_fill,
                 ),
             ],
           ),

@@ -652,6 +652,18 @@ class TimetableEntry {
   final String lessonText;
   final bool isCancelled;
   final bool isExam;
+  /// True when the API marks this period as a substitution
+  /// (cellState == 'SUBSTITUTION' or is.substitution == true).
+  final bool isSubstitution;
+  /// True when this period was added on top of the normal schedule
+  /// (cellState == 'ADDITIONAL' or is.additional == true).
+  final bool isAdditional;
+  /// Original subject short name before substitution (from element state=='ABSENT').
+  final String originalSubjectName;
+  /// Original subject long name before substitution.
+  final String originalSubjectLong;
+  /// Original teacher name before substitution (from element state=='ABSENT').
+  final String originalTeacherName;
 
   TimetableEntry({
     required this.id,
@@ -667,6 +679,11 @@ class TimetableEntry {
     required this.lessonText,
     required this.isCancelled,
     required this.isExam,
+    this.isSubstitution = false,
+    this.isAdditional = false,
+    this.originalSubjectName = '',
+    this.originalSubjectLong = '',
+    this.originalTeacherName = '',
   });
 
   factory TimetableEntry.fromWeeklyApi(
@@ -679,29 +696,86 @@ class TimetableEntry {
     String subjectLong = '';
     String teacherName = '';
     String roomName = '';
+    String originalSubjectName = '';
+    String originalSubjectLong = '';
+    String originalTeacherName = '';
 
     for (final el in elements) {
       final type = el['type'];
       final id = el['id'];
+      final state = el['orgId'] != null
+          ? (el['state']?.toString() ?? '')
+          : (el['state']?.toString() ?? '');
+      final elState = el['state']?.toString() ?? '';
       final lookup = elementMap['$type-$id'];
-      if (lookup == null) continue;
+      // Also look up the original element via orgId if present
+      final orgId = el['orgId'];
+      final orgLookup = orgId != null ? elementMap['$type-$orgId'] : null;
+
+      if (lookup == null && orgLookup == null) continue;
+
+      // 'ABSENT' = this is the original element that is absent/changed
+      // 'SUBSTITUTED' = this is the replacement element
+      // '' / null = normal (no change)
+      final isAbsent = elState == 'ABSENT';
+      final isSubstituted = elState == 'SUBSTITUTED';
 
       switch (type) {
         case 3: // SUBJECT
-          subjectName = lookup['name'] ?? '';
-          subjectLong = lookup['longName'] ?? lookup['displayname'] ?? '';
+          if (isAbsent) {
+            // Original subject (absent/changed)
+            final src = lookup ?? orgLookup;
+            if (src != null) {
+              originalSubjectName = src['name'] ?? '';
+              originalSubjectLong = src['longName'] ?? src['displayname'] ?? '';
+            }
+          } else {
+            // Active subject (replacement or unchanged)
+            final src = lookup ?? orgLookup;
+            if (src != null) {
+              subjectName = src['name'] ?? '';
+              subjectLong = src['longName'] ?? src['displayname'] ?? '';
+            }
+          }
           break;
         case 2: // TEACHER
-          if (teacherName.isNotEmpty) {
-            teacherName += ', ${lookup['name'] ?? ''}';
+          if (isAbsent) {
+            final src = lookup ?? orgLookup;
+            if (src != null) {
+              final name = src['name'] ?? '';
+              if (originalTeacherName.isNotEmpty) {
+                originalTeacherName += ', $name';
+              } else {
+                originalTeacherName = name;
+              }
+            }
           } else {
-            teacherName = lookup['name'] ?? '';
+            final src = lookup ?? orgLookup;
+            if (src != null) {
+              final name = src['name'] ?? '';
+              if (teacherName.isNotEmpty) {
+                teacherName += ', $name';
+              } else {
+                teacherName = name;
+              }
+            }
           }
           break;
         case 4: // ROOM
-          roomName = lookup['name'] ?? '';
+          if (!isAbsent) {
+            final src = lookup ?? orgLookup;
+            if (src != null) roomName = src['name'] ?? '';
+          }
           break;
       }
+    }
+
+    // Fallback: if we have original info but no active subject (same subject, teacher substituted)
+    // keep the subject showing normally (subject didn't change, only teacher did)
+    if (subjectName.isEmpty && originalSubjectName.isNotEmpty) {
+      subjectName = originalSubjectName;
+      subjectLong = originalSubjectLong;
+      // Don't clear originalSubjectName — we still want the strikethrough for teacher change
     }
 
     final isMap = j['is'] as Map<String, dynamic>? ?? {};
@@ -723,6 +797,12 @@ class TimetableEntry {
           j['code']?.toString() == 'cancelled' ||
           (isMap['cancelled'] == true),
       isExam: isMap['exam'] == true,
+      isSubstitution:
+          j['cellState'] == 'SUBSTITUTION' ||
+          (isMap['substitution'] == true),
+      isAdditional:
+          j['cellState'] == 'ADDITIONAL' ||
+          (isMap['additional'] == true),
     );
   }
 
