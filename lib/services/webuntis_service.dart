@@ -256,11 +256,13 @@ class WebUntisService {
     final prefs = await SharedPreferences.getInstance();
     if (_sessionId != null) await prefs.setString('sessionId', _sessionId!);
     if (_studentId != null) await prefs.setInt('studentId', _studentId!);
-    if (_bearerToken != null)
+    if (_bearerToken != null) {
       await prefs.setString('bearerToken', _bearerToken!);
+    }
     if (_klasseId != null) await prefs.setInt('klasseId', _klasseId!);
-    if (_schoolYearId != null)
+    if (_schoolYearId != null) {
       await prefs.setInt('schoolYearId', _schoolYearId!);
+    }
     if (_username != null) await prefs.setString('username', _username!);
   }
 
@@ -652,16 +654,21 @@ class TimetableEntry {
   final String lessonText;
   final bool isCancelled;
   final bool isExam;
+
   /// True when the API marks this period as a substitution
   /// (cellState == 'SUBSTITUTION' or is.substitution == true).
   final bool isSubstitution;
+
   /// True when this period was added on top of the normal schedule
   /// (cellState == 'ADDITIONAL' or is.additional == true).
   final bool isAdditional;
+
   /// Original subject short name before substitution (from element state=='ABSENT').
   final String originalSubjectName;
+
   /// Original subject long name before substitution.
   final String originalSubjectLong;
+
   /// Original teacher name before substitution (from element state=='ABSENT').
   final String originalTeacherName;
 
@@ -801,11 +808,9 @@ class TimetableEntry {
           (isMap['cancelled'] == true),
       isExam: isMap['exam'] == true,
       isSubstitution:
-          j['cellState'] == 'SUBSTITUTION' ||
-          (isMap['substitution'] == true),
+          j['cellState'] == 'SUBSTITUTION' || (isMap['substitution'] == true),
       isAdditional:
-          j['cellState'] == 'ADDITIONAL' ||
-          (isMap['additional'] == true),
+          j['cellState'] == 'ADDITIONAL' || (isMap['additional'] == true),
     );
   }
 

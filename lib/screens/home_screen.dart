@@ -87,8 +87,8 @@ class _HomeScreenState extends State<HomeScreen> {
     Navigator.pushReplacement(
       context,
       PageRouteBuilder(
-        pageBuilder: (_, __, ___) => const LoginScreen(),
-        transitionsBuilder: (_, a, __, child) =>
+        pageBuilder: (_, _, _) => const LoginScreen(),
+        transitionsBuilder: (_, a, _, child) =>
             FadeTransition(opacity: a, child: child),
         transitionDuration: const Duration(milliseconds: 300),
       ),
@@ -216,7 +216,7 @@ class _SmallProfileAvatarState extends State<_SmallProfileAvatar> {
           ? Image.memory(
               bytes,
               fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => _fallback(),
+              errorBuilder: (_, _, _) => _fallback(),
             )
           : _fallback(),
     );
@@ -599,19 +599,19 @@ class _DashboardTabState extends State<_DashboardTab>
   _NextExam? _getNextExam(DateTime now) {
     final todayInt = _dateInt(now);
     final nowMins = now.hour * 60 + now.minute;
-    final exams = _allWeek.where((e) {
-      if (!e.isExam) return false;
-      if (e.date > todayInt) return true;
-      if (e.date < todayInt) return false;
-      // Same day: skip exams whose lesson time has already passed
-      final endMins = (e.endTime ~/ 100) * 60 + (e.endTime % 100);
-      return endMins > nowMins;
-    }).toList()
-      ..sort(
-        (a, b) => a.date == b.date
-            ? a.startTime.compareTo(b.startTime)
-            : a.date.compareTo(b.date),
-      );
+    final exams =
+        _allWeek.where((e) {
+          if (!e.isExam) return false;
+          if (e.date > todayInt) return true;
+          if (e.date < todayInt) return false;
+          // Same day: skip exams whose lesson time has already passed
+          final endMins = (e.endTime ~/ 100) * 60 + (e.endTime % 100);
+          return endMins > nowMins;
+        }).toList()..sort(
+          (a, b) => a.date == b.date
+              ? a.startTime.compareTo(b.startTime)
+              : a.date.compareTo(b.date),
+        );
     if (exams.isEmpty) return null;
     final e = exams.first;
     final d = e.date.toString();
@@ -944,7 +944,7 @@ class _CardReorderListState extends State<_CardReorderList> {
             hapticFeedbackOnStart: true,
             onDragStarted: () => _startDrag(index),
             onDragEnd: (_) => _endDrag(),
-            onDraggableCanceled: (_, __) => _endDrag(),
+            onDraggableCanceled: (_, _) => _endDrag(),
             // Ghost following finger
             feedback: Material(
               color: Colors.transparent,
@@ -1210,10 +1210,7 @@ class _WeekOverviewCard extends StatelessWidget {
               const Spacer(),
               Text(
                 '${allWeek.length} Std. diese Woche',
-                style: TextStyle(
-                  fontSize: 10,
-                  color: AppTheme.textTertiary,
-                ),
+                style: TextStyle(fontSize: 10, color: AppTheme.textTertiary),
               ),
             ],
           ),

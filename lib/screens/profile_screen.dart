@@ -199,7 +199,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
       path: 'feedback@plattnericus.dev',
       queryParameters: {
         'subject': '[${AppConfig.appName}] Feedback',
-        'body': '\n\n---\nVersion: $_appVersion\nSchule: ${AppConfig.schoolName}',
+        'body':
+            '\n\n---\nVersion: $_appVersion\nSchule: ${AppConfig.schoolName}',
       },
     );
     if (await canLaunchUrl(uri)) {
@@ -253,7 +254,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
-          title: Text(AppConfig.appName, style: TextStyle(color: AppTheme.textPrimary)),
+          title: Text(
+            AppConfig.appName,
+            style: TextStyle(color: AppTheme.textPrimary),
+          ),
           content: Text(
             'Version $_appVersion\n\n'
             'Die All‑in‑One Schul‑App für die ${AppConfig.schoolName}.\n\n'

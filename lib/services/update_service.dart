@@ -78,7 +78,8 @@ class UpdateService {
       }
 
       if (Platform.isAndroid && downloadUrl == null) return false;
-      if (Platform.isIOS && downloadUrl == null && plistUrl == null) return false;
+      if (Platform.isIOS && downloadUrl == null && plistUrl == null)
+        return false;
 
       if (!context.mounted) return false;
 
@@ -88,7 +89,8 @@ class UpdateService {
         builder: (_) => _UpdateDialog(
           newVersion: remoteVersion,
           downloadUrl: downloadUrl,
-          fileName: fileName ?? (Platform.isAndroid ? 'update.apk' : 'update.ipa'),
+          fileName:
+              fileName ?? (Platform.isAndroid ? 'update.apk' : 'update.ipa'),
           plistUrl: plistUrl,
           prefs: prefs,
         ),
@@ -164,16 +166,18 @@ class _UpdateDialogState extends State<_UpdateDialog> {
   Future<void> _snoozeUntilTomorrow() async {
     final now = DateTime.now();
     final tomorrow = DateTime(now.year, now.month, now.day + 1); // midnight
-    await widget.prefs.setInt(_kSnoozedUntilKey, tomorrow.millisecondsSinceEpoch);
+    await widget.prefs.setInt(
+      _kSnoozedUntilKey,
+      tomorrow.millisecondsSinceEpoch,
+    );
   }
 
   // ── Helper: canLaunchUrl with timeout ────────────────────────────────────
   Future<bool> _canLaunch(Uri uri) async {
     try {
-      return await canLaunchUrl(uri).timeout(
-        const Duration(seconds: 3),
-        onTimeout: () => false,
-      );
+      return await canLaunchUrl(
+        uri,
+      ).timeout(const Duration(seconds: 3), onTimeout: () => false);
     } catch (_) {
       return false;
     }
@@ -190,8 +194,9 @@ class _UpdateDialogState extends State<_UpdateDialog> {
 
     try {
       final request = http.Request('GET', Uri.parse(widget.downloadUrl!));
-      final streamedResponse =
-          await client.send(request).timeout(AppConfig.downloadTimeout);
+      final streamedResponse = await client
+          .send(request)
+          .timeout(AppConfig.downloadTimeout);
 
       if (streamedResponse.statusCode != 200) {
         throw Exception('HTTP ${streamedResponse.statusCode}');
@@ -231,11 +236,16 @@ class _UpdateDialogState extends State<_UpdateDialog> {
 
       final fileToClean = downloadedFile;
       Future.delayed(const Duration(minutes: 2), () {
-        try { fileToClean.deleteSync(); } catch (_) {}
+        try {
+          fileToClean.deleteSync();
+        } catch (_) {}
       });
     } catch (e) {
       if (mounted) {
-        setState(() { _phase = _Phase.error; _errorMsg = e.toString(); });
+        setState(() {
+          _phase = _Phase.error;
+          _errorMsg = e.toString();
+        });
       }
     } finally {
       _httpClient = null;
@@ -251,7 +261,9 @@ class _UpdateDialogState extends State<_UpdateDialog> {
     // Tier 1: SideStore
     if (url != null) {
       try {
-        final uri = Uri.parse('sidestore://install?url=${Uri.encodeComponent(url)}');
+        final uri = Uri.parse(
+          'sidestore://install?url=${Uri.encodeComponent(url)}',
+        );
         if (await _canLaunch(uri)) {
           await launchUrl(uri);
           await _snoozeUntilTomorrow();
@@ -264,7 +276,9 @@ class _UpdateDialogState extends State<_UpdateDialog> {
     // Tier 2: AltStore
     if (url != null) {
       try {
-        final uri = Uri.parse('altstore://install?url=${Uri.encodeComponent(url)}');
+        final uri = Uri.parse(
+          'altstore://install?url=${Uri.encodeComponent(url)}',
+        );
         if (await _canLaunch(uri)) {
           await launchUrl(uri);
           await _snoozeUntilTomorrow();
@@ -278,7 +292,9 @@ class _UpdateDialogState extends State<_UpdateDialog> {
     if (widget.plistUrl != null) {
       try {
         final encoded = Uri.encodeComponent(widget.plistUrl!);
-        final uri = Uri.parse('itms-services://?action=download-manifest&url=$encoded');
+        final uri = Uri.parse(
+          'itms-services://?action=download-manifest&url=$encoded',
+        );
         if (await launchUrl(uri)) {
           await _snoozeUntilTomorrow();
           if (mounted) Navigator.pop(context);
@@ -306,10 +322,18 @@ class _UpdateDialogState extends State<_UpdateDialog> {
   }
 
   void _startUpdate() {
-    if (Platform.isIOS) _installIOS(); else _installAndroid();
+    if (Platform.isIOS) {
+      _installIOS();
+    } else {
+      _installAndroid();
+    }
   }
 
-  void _retry() => setState(() { _phase = _Phase.prompt; _progress = 0; _errorMsg = ''; });
+  void _retry() => setState(() {
+    _phase = _Phase.prompt;
+    _progress = 0;
+    _errorMsg = '';
+  });
 
   // ── Build ────────────────────────────────────────────────────────────────
   @override
@@ -333,11 +357,17 @@ class _UpdateDialogState extends State<_UpdateDialog> {
               await _snoozeUntilTomorrow();
               if (mounted) Navigator.pop(context);
             },
-            child: Text('Morgen', style: TextStyle(color: AppTheme.textTertiary)),
+            child: Text(
+              'Morgen',
+              style: TextStyle(color: AppTheme.textTertiary),
+            ),
           ),
           TextButton(
             onPressed: _startUpdate,
-            child: const Text('Aktualisieren', style: TextStyle(color: AppTheme.accent)),
+            child: const Text(
+              'Aktualisieren',
+              style: TextStyle(color: AppTheme.accent),
+            ),
           ),
         ];
       case _Phase.downloading:
@@ -350,11 +380,17 @@ class _UpdateDialogState extends State<_UpdateDialog> {
               await _snoozeUntilTomorrow();
               if (mounted) Navigator.pop(context);
             },
-            child: Text('Morgen', style: TextStyle(color: AppTheme.textTertiary)),
+            child: Text(
+              'Morgen',
+              style: TextStyle(color: AppTheme.textTertiary),
+            ),
           ),
           TextButton(
             onPressed: _retry,
-            child: const Text('Erneut versuchen', style: TextStyle(color: AppTheme.accent)),
+            child: const Text(
+              'Erneut versuchen',
+              style: TextStyle(color: AppTheme.accent),
+            ),
           ),
         ];
     }
@@ -417,10 +453,14 @@ class _UpdateDialogState extends State<_UpdateDialog> {
 
   String _title() {
     switch (_phase) {
-      case _Phase.prompt:      return 'Update verfügbar';
-      case _Phase.downloading: return 'Wird heruntergeladen…';
-      case _Phase.installing:  return Platform.isIOS ? 'Wird übergeben…' : 'Wird installiert…';
-      case _Phase.error:       return 'Update fehlgeschlagen';
+      case _Phase.prompt:
+        return 'Update verfügbar';
+      case _Phase.downloading:
+        return 'Wird heruntergeladen…';
+      case _Phase.installing:
+        return Platform.isIOS ? 'Wird übergeben…' : 'Wird installiert…';
+      case _Phase.error:
+        return 'Update fehlgeschlagen';
     }
   }
 
@@ -444,7 +484,9 @@ class _UpdateDialogState extends State<_UpdateDialog> {
               borderRadius: BorderRadius.circular(4),
               child: LinearProgressIndicator(
                 value: _progress > 0 ? _progress : null,
-                backgroundColor: cupertino ? CupertinoColors.systemGrey5 : AppTheme.border,
+                backgroundColor: cupertino
+                    ? CupertinoColors.systemGrey5
+                    : AppTheme.border,
                 valueColor: AlwaysStoppedAnimation(
                   cupertino ? CupertinoColors.activeBlue : AppTheme.accent,
                 ),
@@ -467,12 +509,18 @@ class _UpdateDialogState extends State<_UpdateDialog> {
               const CupertinoActivityIndicator(radius: 14)
             else
               const SizedBox(
-                width: 28, height: 28,
-                child: CircularProgressIndicator(strokeWidth: 2.5, color: AppTheme.accent),
+                width: 28,
+                height: 28,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.5,
+                  color: AppTheme.accent,
+                ),
               ),
             const SizedBox(height: 14),
             Text(
-              Platform.isIOS ? 'Wird an SideStore übergeben…' : 'Update wird vorbereitet…',
+              Platform.isIOS
+                  ? 'Wird an SideStore übergeben…'
+                  : 'Update wird vorbereitet…',
               style: secondaryStyle ?? const TextStyle(fontSize: 14),
             ),
           ],
