@@ -215,48 +215,30 @@ class _LoginScreenState extends State<LoginScreen>
     });
 
     try {
-      bool canCheck = false;
-      try {
-        canCheck = await _localAuth.canCheckBiometrics;
-      } catch (_) {
-        canCheck = false;
-      }
-
-      if (!canCheck) {
+      // Biometrie-Verfügbarkeit wurde bereits in _detectBiometrics() geprüft.
+      // Keine erneuten canCheckBiometrics/isDeviceSupported-Aufrufe,
+      // da diese auf iOS einen zusätzlichen System-Dialog auslösen können.
+      if (!_hasAnyBiometric) {
         _setError('Biometrie nicht verfügbar. Bitte manuell anmelden.');
-        return;
-      }
-
-      bool isSupported = false;
-      try {
-        isSupported = await _localAuth.isDeviceSupported();
-      } catch (_) {
-        isSupported = false;
-      }
-
-      if (!isSupported) {
-        _setError('Gerätesicherheit nicht unterstützt.');
         return;
       }
 
       bool authenticated = false;
 
-      if (_hasAnyBiometric) {
-        try {
-          authenticated = await _localAuth.authenticate(
-            localizedReason: _biometricReason(account.username),
-            options: AuthenticationOptions(
-              biometricOnly: true,
-              stickyAuth: true,
-              useErrorDialogs: _useErrorDialogs,
-              sensitiveTransaction: true,
-            ),
-          );
-        } catch (e) {
-          // Bei Abbruch oder Fehler - keinen Fehler anzeigen, einfach zurück
-          if (mounted) setState(() => _loading = false);
-          return;
-        }
+      try {
+        authenticated = await _localAuth.authenticate(
+          localizedReason: _biometricReason(account.username),
+          options: AuthenticationOptions(
+            biometricOnly: true,
+            stickyAuth: true,
+            useErrorDialogs: _useErrorDialogs,
+            sensitiveTransaction: false,
+          ),
+        );
+      } catch (e) {
+        // Bei Abbruch oder Fehler - keinen Fehler anzeigen, einfach zurück
+        if (mounted) setState(() => _loading = false);
+        return;
       }
 
       if (!authenticated) {
