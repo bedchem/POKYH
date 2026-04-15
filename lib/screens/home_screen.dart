@@ -127,11 +127,7 @@ class _HomeScreenState extends State<HomeScreen> {
       SnackBar(
         content: Row(
           children: [
-            const Icon(
-              CupertinoIcons.bell_fill,
-              color: Colors.white,
-              size: 18,
-            ),
+            const Icon(CupertinoIcons.bell_fill, color: Colors.white, size: 18),
             const SizedBox(width: 10),
             Expanded(
               child: Text(
@@ -438,6 +434,8 @@ class _TabItem extends StatelessWidget {
         width: 68,
         child: Column(
           mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Icon(
               icon,
