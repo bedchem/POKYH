@@ -194,8 +194,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final bottomInset = MediaQuery.of(context).padding.bottom;
-    final navContentHeight = (54.0 + bottomInset * 0.15).clamp(54.0, 62.0).toDouble();
+    const navContentHeight = 40.0;
 
     return Scaffold(
       backgroundColor: AppTheme.bg,
@@ -443,26 +442,31 @@ class _TabItem extends StatelessWidget {
       onTap: onTap,
       child: SizedBox.expand(
         child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Icon(
-                icon,
-                size: 20,
-                color: active ? AppTheme.accent : AppTheme.textTertiary,
-              ),
-              const SizedBox(height: 2),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 9,
-                  fontWeight: active ? FontWeight.w600 : FontWeight.w400,
+          child: Transform.translate(
+            offset: const Offset(0, 10),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Icon(
+                  icon,
+                  size: 24,
                   color: active ? AppTheme.accent : AppTheme.textTertiary,
                 ),
-              ),
-            ],
+                const SizedBox(height: 2),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 9,
+                    height: 1,
+                    fontWeight: active ? FontWeight.w600 : FontWeight.w400,
+                    color: active ? AppTheme.accent : AppTheme.textTertiary,
+                  ),
+                  strutStyle: const StrutStyle(forceStrutHeight: true, height: 1),
+                ),
+              ],
+            ),
           ),
         ),
       ),
