@@ -39,6 +39,10 @@ class _LoginScreenState extends State<LoginScreen>
   List<SavedAccount> _savedAccounts = [];
   List<BiometricType> _availableBiometrics = [];
 
+  /// Guards against the auto-biometric firing after the user already
+  /// tapped an account manually (or after the auto-attempt itself).
+  bool _biometricAttempted = false;
+
   final Map<String, int> _failedAttempts = {};
   final Map<String, DateTime> _lockoutUntil = {};
 
@@ -73,16 +77,21 @@ class _LoginScreenState extends State<LoginScreen>
 
   Future<void> _init() async {
     try {
-      await _loadSavedAccounts();
-      await _detectBiometrics();
+      // Run both in parallel – _detectBiometrics doesn't depend on accounts.
+      await Future.wait([_loadSavedAccounts(), _detectBiometrics()]);
+
       // Automatischer biometrischer Login, wenn genau ein Account vorhanden ist
-      if (_savedAccounts.length == 1 && _hasAnyBiometric) {
+      if (_savedAccounts.length == 1 &&
+          _hasAnyBiometric &&
+          !_biometricAttempted) {
         final onlyAccount = _savedAccounts.first;
         // Nicht automatisch, wenn gesperrt
         if (!_isLockedOut(onlyAccount.username)) {
           // Leicht verzögern, damit Build fertig ist
           Future.delayed(const Duration(milliseconds: 300), () {
-            if (mounted) _biometricLogin(onlyAccount);
+            if (mounted && !_biometricAttempted) {
+              _biometricLogin(onlyAccount);
+            }
           });
         }
       }
@@ -191,6 +200,9 @@ class _LoginScreenState extends State<LoginScreen>
   Future<void> _biometricLogin(SavedAccount account) async {
     if (_loading) return;
     if (!mounted) return;
+
+    // Prevent any subsequent auto/manual biometric from overlapping.
+    _biometricAttempted = true;
 
     if (_isLockedOut(account.username)) {
       _setError(_lockoutMessage(account.username));

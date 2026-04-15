@@ -820,111 +820,118 @@ class _WeekPage extends StatelessWidget {
     final n = sortedTimes.length;
     final now = DateTime.now();
 
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    // Check if today is visible in this week
+    final hasTodayColumn = List.generate(
+      5,
+      (i) => state._isToday(offset, i),
+    ).any((v) => v);
+
+    return Stack(
+      clipBehavior: Clip.none,
       children: [
-        // Time labels column
-        SizedBox(
-          width: 44,
-          child: Column(
-            children: [
-              for (int i = 0; i < n; i++) ...[
-                _TimeLabel(
-                  startTime: sortedTimes[i],
-                  lessonNr: state.widget.service.getLessonNumber(
-                    sortedTimes[i],
-                  ),
-                  height: TimetableScreenState._rowMinHeight,
-                ),
-                if (i < n - 1) SizedBox(height: gapAfter(i)),
-              ],
-            ],
-          ),
-        ),
-        // Day columns
-        ...List.generate(5, (dayIndex) {
-          final isHoliday = state._isSingleHolidayDay(offset, dayIndex);
-          final isDayOff = state._isDayAllCancelled(offset, dayIndex);
-          final isDayRepl =
-              !isDayOff && state._isDayAllReplacement(offset, dayIndex);
-          final isToday = state._isToday(offset, dayIndex);
-
-          final totalHeight =
-              n * TimetableScreenState._rowMinHeight +
-              List.generate(
-                n - 1,
-                (i) => gapAfter(i),
-              ).fold(0.0, (a, b) => a + b);
-
-          if (isHoliday) {
-            return Expanded(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 2),
-                child: _HolidayColumn(totalHeight: totalHeight),
-              ),
-            );
-          }
-
-          if (isDayOff || isDayRepl) {
-            // Ermögliche Tap für Detailansicht bei ganztägigem Entfall/Vertretung
-            final entries = state._forDay(offset, dayIndex);
-            final cancelled = entries.where((e) => e.isCancelled).toList();
-            final active = entries.where((e) => !e.isCancelled).toList();
-            TimetableEntry? display;
-            TimetableEntry? replacement;
-            if (isDayOff && cancelled.isNotEmpty) {
-              display = cancelled.first;
-            } else if (isDayRepl && cancelled.isNotEmpty && active.isNotEmpty) {
-              display = cancelled.first;
-              replacement = active.first;
-            }
-            return Expanded(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 2),
-                child: GestureDetector(
-                  onTap: display != null
-                      ? () => state._showDetail(display!, replacement)
-                      : null,
-                  behavior: HitTestBehavior.opaque,
-                  child: _DayStatusColumn(
-                    totalHeight: totalHeight,
-                    kind: isDayOff
-                        ? _DayStatus.cancelled
-                        : _DayStatus.replacement,
-                  ),
-                ),
-              ),
-            );
-          }
-
-          return Expanded(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 2),
-              child: Stack(
-                clipBehavior: Clip.none,
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Time labels column
+            SizedBox(
+              width: 44,
+              child: Column(
                 children: [
-                  _buildDayColumn(
+                  for (int i = 0; i < n; i++) ...[
+                    _TimeLabel(
+                      startTime: sortedTimes[i],
+                      lessonNr: state.widget.service.getLessonNumber(
+                        sortedTimes[i],
+                      ),
+                      height: TimetableScreenState._rowMinHeight,
+                    ),
+                    if (i < n - 1) SizedBox(height: gapAfter(i)),
+                  ],
+                ],
+              ),
+            ),
+            // Day columns
+            ...List.generate(5, (dayIndex) {
+              final isHoliday = state._isSingleHolidayDay(offset, dayIndex);
+              final isDayOff = state._isDayAllCancelled(offset, dayIndex);
+              final isDayRepl =
+                  !isDayOff && state._isDayAllReplacement(offset, dayIndex);
+
+              final totalHeight =
+                  n * TimetableScreenState._rowMinHeight +
+                  List.generate(
+                    n - 1,
+                    (i) => gapAfter(i),
+                  ).fold(0.0, (a, b) => a + b);
+
+              if (isHoliday) {
+                return Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 2),
+                    child: _HolidayColumn(totalHeight: totalHeight),
+                  ),
+                );
+              }
+
+              if (isDayOff || isDayRepl) {
+                final entries = state._forDay(offset, dayIndex);
+                final cancelled =
+                    entries.where((e) => e.isCancelled).toList();
+                final active =
+                    entries.where((e) => !e.isCancelled).toList();
+                TimetableEntry? display;
+                TimetableEntry? replacement;
+                if (isDayOff && cancelled.isNotEmpty) {
+                  display = cancelled.first;
+                } else if (isDayRepl &&
+                    cancelled.isNotEmpty &&
+                    active.isNotEmpty) {
+                  display = cancelled.first;
+                  replacement = active.first;
+                }
+                return Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 2),
+                    child: GestureDetector(
+                      onTap: display != null
+                          ? () => state._showDetail(display!, replacement)
+                          : null,
+                      behavior: HitTestBehavior.opaque,
+                      child: _DayStatusColumn(
+                        totalHeight: totalHeight,
+                        kind: isDayOff
+                            ? _DayStatus.cancelled
+                            : _DayStatus.replacement,
+                      ),
+                    ),
+                  ),
+                );
+              }
+
+              return Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 2),
+                  child: _buildDayColumn(
                     dayIndex: dayIndex,
                     sortedTimes: sortedTimes,
                     timeConnected: timeConnected,
                     gapAfter: gapAfter,
                     now: now,
                   ),
-                  // Time indicator — only rendered when isToday
-                  if (isToday)
-                    _TimeIndicator(
-                      offset: offset,
-                      dayIndex: dayIndex,
-                      sortedTimes: sortedTimes,
-                      endTimeForStart: endTimeForStart,
-                      gapAfter: gapAfter,
-                      state: state,
-                    ),
-                ],
-              ),
-            ),
-          );
-        }),
+                ),
+              );
+            }),
+          ],
+        ),
+        // Full-width time indicator — spans across all columns
+        if (hasTodayColumn)
+          _TimeIndicator(
+            offset: offset,
+            sortedTimes: sortedTimes,
+            endTimeForStart: endTimeForStart,
+            gapAfter: gapAfter,
+            state: state,
+          ),
       ],
     );
   }
@@ -996,7 +1003,6 @@ class _WeekPage extends StatelessWidget {
 
 class _TimeIndicator extends StatelessWidget {
   final int offset;
-  final int dayIndex;
   final List<int> sortedTimes;
   final Map<int, int> endTimeForStart;
   final double Function(int) gapAfter;
@@ -1004,7 +1010,6 @@ class _TimeIndicator extends StatelessWidget {
 
   const _TimeIndicator({
     required this.offset,
-    required this.dayIndex,
     required this.sortedTimes,
     required this.endTimeForStart,
     required this.gapAfter,
@@ -1048,31 +1053,77 @@ class _TimeIndicator extends StatelessWidget {
       }
     }
 
+    final todayIndex = List.generate(
+      5,
+      (i) => state._isToday(offset, i),
+    ).indexWhere((v) => v);
+
+    const double thinLine = 1.5;
+    const double thickLine = 3.5;
+    const double dotSize = 7.0;
+    // 44px time-label column + 2px padding on each side of each day column
+    const double timeLabelWidth = 44.0;
+    const double colPadding = 2.0;
+    final lineColor = AppTheme.accent.withValues(alpha: 0.85);
+
     return Positioned(
       top: y - 1,
       left: 0,
       right: 0,
       child: IgnorePointer(
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            // Leading dot
-            Container(
-              width: 7,
-              height: 7,
-              decoration: const BoxDecoration(
-                color: AppTheme.accent,
-                shape: BoxShape.circle,
-              ),
-            ),
-            // Horizontal line
-            Expanded(
-              child: Container(
-                height: 2.0,
-                color: AppTheme.accent.withValues(alpha: 0.85),
-              ),
-            ),
-          ],
+        child: LayoutBuilder(
+          builder: (_, constraints) {
+            final totalWidth = constraints.maxWidth;
+            // Width available for the 5 day columns (after time-label area)
+            final dayAreaWidth = totalWidth - timeLabelWidth;
+            final colWidth = dayAreaWidth / 5;
+
+            return Stack(
+              clipBehavior: Clip.none,
+              alignment: Alignment.centerLeft,
+              children: [
+                // Single continuous thin line across full width
+                Positioned(
+                  left: dotSize,
+                  right: 0,
+                  top: 0,
+                  bottom: 0,
+                  child: Center(
+                    child: Container(
+                      height: thinLine,
+                      color: lineColor,
+                    ),
+                  ),
+                ),
+                // Thicker overlay on today's column only (no padding gaps)
+                if (todayIndex >= 0)
+                  Positioned(
+                    left: timeLabelWidth + todayIndex * colWidth + colPadding,
+                    width: colWidth - colPadding * 2,
+                    top: 0,
+                    bottom: 0,
+                    child: Center(
+                      child: Container(
+                        height: thickLine,
+                        decoration: BoxDecoration(
+                          color: lineColor,
+                          borderRadius: BorderRadius.circular(thickLine / 2),
+                        ),
+                      ),
+                    ),
+                  ),
+                // Leading dot (on top of everything)
+                Container(
+                  width: dotSize,
+                  height: dotSize,
+                  decoration: const BoxDecoration(
+                    color: AppTheme.accent,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              ],
+            );
+          },
         ),
       ),
     );

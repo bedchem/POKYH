@@ -12,7 +12,6 @@ import 'package:url_launcher/url_launcher.dart';
 import '../config/app_config.dart';
 import '../theme/app_theme.dart';
 
-const _kLastInstalledVersionKey = 'last_installed_version';
 const _kSnoozedUntilKey = 'update_snoozed_until_ms';
 
 class UpdateService {
@@ -22,9 +21,9 @@ class UpdateService {
   /// Checks GitHub for a newer release and shows the update dialog if found.
   ///
   /// – Returns immediately (no dialog) if the user snoozed until tomorrow.
-  /// – Once installed the version is marked and the dialog never shows again
-  ///   for that version.
-  /// – "Später" schedules the next reminder for tomorrow 00:00.
+  /// – When the update is actually installed, [currentVersion] matches the
+  ///   remote version and [_isNewer] returns false — no dialog needed.
+  /// – "Später" / launching the installer snoozes until tomorrow 00:00.
   static Future<bool> checkForUpdate(
     BuildContext context, {
     required String currentVersion,
@@ -48,11 +47,7 @@ class UpdateService {
 
       final prefs = await SharedPreferences.getInstance();
 
-      // Already fully installed this version → never show again.
-      final lastInstalled = prefs.getString(_kLastInstalledVersionKey);
-      if (lastInstalled == remoteVersion) return false;
-
-      // User chose "Später" — respect snooze until tomorrow.
+      // User chose "Später" / installer was launched — respect snooze.
       final snoozedUntilMs = prefs.getInt(_kSnoozedUntilKey) ?? 0;
       if (snoozedUntilMs > DateTime.now().millisecondsSinceEpoch) return false;
 
@@ -165,13 +160,7 @@ class _UpdateDialogState extends State<_UpdateDialog> {
 
   // ── Persistence helpers ──────────────────────────────────────────────────
 
-  /// Called after successful install: this version is done, never remind again.
-  Future<void> _markInstalled() async {
-    await widget.prefs.setString(_kLastInstalledVersionKey, widget.newVersion);
-    await widget.prefs.remove(_kSnoozedUntilKey);
-  }
-
-  /// "Später": snooze until tomorrow 00:00, so the reminder comes the next day.
+  /// Snooze until tomorrow 00:00, so the reminder comes the next day.
   Future<void> _snoozeUntilTomorrow() async {
     final now = DateTime.now();
     final tomorrow = DateTime(now.year, now.month, now.day + 1); // midnight
@@ -231,7 +220,13 @@ class _UpdateDialogState extends State<_UpdateDialog> {
         throw Exception(result.message);
       }
 
-      await _markInstalled();
+      // Don't call _markInstalled() here — OpenFilex.open returns as soon as
+      // the system installer is launched, NOT after the user finishes installing.
+      // If the user cancels, marking it "installed" suppresses all future
+      // reminders. Instead, snooze until tomorrow so they'll be reminded.
+      // When the new version actually runs, _isNewer() will return false
+      // and the dialog won't appear at all — no need to mark anything.
+      await _snoozeUntilTomorrow();
       if (mounted) Navigator.pop(context);
 
       final fileToClean = downloadedFile;
@@ -259,7 +254,7 @@ class _UpdateDialogState extends State<_UpdateDialog> {
         final uri = Uri.parse('sidestore://install?url=${Uri.encodeComponent(url)}');
         if (await _canLaunch(uri)) {
           await launchUrl(uri);
-          await _markInstalled();
+          await _snoozeUntilTomorrow();
           if (mounted) Navigator.pop(context);
           return;
         }
@@ -272,7 +267,7 @@ class _UpdateDialogState extends State<_UpdateDialog> {
         final uri = Uri.parse('altstore://install?url=${Uri.encodeComponent(url)}');
         if (await _canLaunch(uri)) {
           await launchUrl(uri);
-          await _markInstalled();
+          await _snoozeUntilTomorrow();
           if (mounted) Navigator.pop(context);
           return;
         }
@@ -285,7 +280,7 @@ class _UpdateDialogState extends State<_UpdateDialog> {
         final encoded = Uri.encodeComponent(widget.plistUrl!);
         final uri = Uri.parse('itms-services://?action=download-manifest&url=$encoded');
         if (await launchUrl(uri)) {
-          await _markInstalled();
+          await _snoozeUntilTomorrow();
           if (mounted) Navigator.pop(context);
           return;
         }
@@ -296,7 +291,7 @@ class _UpdateDialogState extends State<_UpdateDialog> {
     if (url != null) {
       try {
         await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
-        await _markInstalled();
+        await _snoozeUntilTomorrow();
         if (mounted) Navigator.pop(context);
         return;
       } catch (_) {}
