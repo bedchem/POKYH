@@ -409,13 +409,6 @@ class _UpdateDialogState extends State<_UpdateDialog> {
         }
       }
 
-      // Don't call _markInstalled() here — OpenFilex.open returns as soon as
-      // the system installer is launched, NOT after the user finishes installing.
-      // If the user cancels, marking it "installed" suppresses all future
-      // reminders. Instead, snooze until tomorrow so they'll be reminded.
-      // When the new version actually runs, _isNewer() will return false
-      // and the dialog won't appear at all — no need to mark anything.
-      await _snoozeUntilTomorrow();
       if (mounted) Navigator.pop(context);
 
       final fileToClean = downloadedFile;
@@ -457,7 +450,6 @@ class _UpdateDialogState extends State<_UpdateDialog> {
       if (!opened) {
         throw Exception('release-page-launch-failed');
       }
-      await _snoozeUntilTomorrow();
       if (mounted) Navigator.pop(context);
     } catch (_) {
       if (!mounted) return;
@@ -479,7 +471,6 @@ class _UpdateDialogState extends State<_UpdateDialog> {
         try {
           final uri = AppConfig.buildIosInstallerUri(scheme, url);
           if (await _launchStoreInstaller(uri)) {
-            await _snoozeUntilTomorrow();
             if (mounted) Navigator.pop(context);
             return;
           }
@@ -495,7 +486,6 @@ class _UpdateDialogState extends State<_UpdateDialog> {
           'itms-services://?action=download-manifest&url=$encoded',
         );
         if (await launchUrl(uri)) {
-          await _snoozeUntilTomorrow();
           if (mounted) Navigator.pop(context);
           return;
         }
@@ -510,7 +500,6 @@ class _UpdateDialogState extends State<_UpdateDialog> {
           mode: LaunchMode.externalApplication,
         );
         if (opened) {
-          await _snoozeUntilTomorrow();
           if (mounted) Navigator.pop(context);
           return;
         }
