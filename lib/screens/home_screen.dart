@@ -194,7 +194,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    const navContentHeight = 40.0;
+    final navLayout = _HomeNavLayout.forPlatform(Theme.of(context).platform);
     final bottomInset = MediaQuery.of(context).padding.bottom;
 
     return Scaffold(
@@ -223,7 +223,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
       ),
       bottomNavigationBar: Container(
-        padding: EdgeInsets.only(bottom: bottomInset + 16),
+        padding: EdgeInsets.only(bottom: bottomInset + navLayout.bottomPadding),
         decoration: BoxDecoration(
           color: AppTheme.surface,
           border: Border(
@@ -237,12 +237,13 @@ class _HomeScreenState extends State<HomeScreen> {
           top: false,
           bottom: false,
           child: SizedBox(
-            height: navContentHeight,
+            height: navLayout.barHeight,
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 Expanded(
                   child: _TabItem(
+                    layout: navLayout,
                     icon: CupertinoIcons.house_fill,
                     label: 'Home',
                     active: _tab == 0,
@@ -251,6 +252,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 Expanded(
                   child: _TabItem(
+                    layout: navLayout,
                     icon: CupertinoIcons.calendar,
                     label: 'Stundenplan',
                     active: _tab == 1,
@@ -274,6 +276,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 Expanded(
                   child: _TabItem(
+                    layout: navLayout,
                     icon: CupertinoIcons.chart_bar_fill,
                     label: 'Noten',
                     active: _tab == 2,
@@ -282,6 +285,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 Expanded(
                   child: _TabItem(
+                    layout: navLayout,
                     icon: CupertinoIcons.flame_fill,
                     label: 'Mensa',
                     active: _tab == 3,
@@ -425,13 +429,58 @@ class _MessageBadgeIcon extends StatelessWidget {
 
 // ── Tab Item ──────────────────────────────────────────────────────────────────
 
+class _HomeNavLayout {
+  final double barHeight;
+  final double bottomPadding;
+  final double contentYOffset;
+  final double iconSize;
+  final double iconLabelSpacing;
+  final double labelFontSize;
+
+  const _HomeNavLayout({
+    required this.barHeight,
+    required this.bottomPadding,
+    required this.contentYOffset,
+    required this.iconSize,
+    required this.iconLabelSpacing,
+    required this.labelFontSize,
+  });
+
+  // Android keeps the current visual design.
+  static const android = _HomeNavLayout(
+    barHeight: 400q,
+    bottomPadding: 16,
+    contentYOffset: 10,
+    iconSize: 24,
+    iconLabelSpacing: 2,
+    labelFontSize: 9,
+  );
+
+  // iOS is intentionally a bit more compact.
+  static const ios = _HomeNavLayout(
+    barHeight: 30,
+    bottomPadding: 5,
+    contentYOffset: 10,
+    iconSize: 22,
+    iconLabelSpacing: 1,
+    labelFontSize: 8,
+  );
+
+  static _HomeNavLayout forPlatform(TargetPlatform platform) {
+    if (platform == TargetPlatform.iOS) return ios;
+    return android;
+  }
+}
+
 class _TabItem extends StatelessWidget {
+  final _HomeNavLayout layout;
   final IconData icon;
   final String label;
   final bool active;
   final VoidCallback onTap;
 
   const _TabItem({
+    required this.layout,
     required this.icon,
     required this.label,
     required this.active,
@@ -446,7 +495,7 @@ class _TabItem extends StatelessWidget {
       child: SizedBox.expand(
         child: Center(
           child: Transform.translate(
-            offset: const Offset(0, 10),
+            offset: Offset(0, layout.contentYOffset),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               mainAxisAlignment: MainAxisAlignment.center,
@@ -454,14 +503,14 @@ class _TabItem extends StatelessWidget {
               children: [
                 Icon(
                   icon,
-                  size: 24,
+                  size: layout.iconSize,
                   color: active ? AppTheme.accent : AppTheme.textTertiary,
                 ),
-                const SizedBox(height: 2),
+                SizedBox(height: layout.iconLabelSpacing),
                 Text(
                   label,
                   style: TextStyle(
-                    fontSize: 9,
+                    fontSize: layout.labelFontSize,
                     height: 1,
                     fontWeight: active ? FontWeight.w600 : FontWeight.w400,
                     color: active ? AppTheme.accent : AppTheme.textTertiary,
