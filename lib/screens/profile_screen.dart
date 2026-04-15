@@ -783,7 +783,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       icon: _isIOS
                           ? CupertinoIcons.info_circle
                           : Icons.info_outline,
-                      title: 'Über POCKYH',
+                      title: 'Über POKYH',
                       subtitle: _appVersion.isNotEmpty
                           ? 'Version $_appVersion · MIT Lizenz'
                           : 'MIT Lizenz',
