@@ -1705,7 +1705,7 @@ class _GradeRow extends StatelessWidget {
 
   Color _gradeColor(double v) {
     if (v >= 9) return AppTheme.success;
-    if (v >= 7) return const Color(0xFF86EFAC);
+    if (v >= 6.5) return const Color(0xFF86EFAC);
     if (v >= 6) return AppTheme.warning;
     if (v >= 4) return const Color(0xFFFF9F0A);
     return AppTheme.danger;
