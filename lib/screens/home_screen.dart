@@ -448,10 +448,10 @@ class _HomeNavLayout {
 
   // Android keeps the current visual design.
   static const android = _HomeNavLayout(
-    barHeight: 400,
+    barHeight: 35,
     bottomPadding: 16,
     contentYOffset: 10,
-    iconSize: 24,
+    iconSize: 18,
     iconLabelSpacing: 2,
     labelFontSize: 9,
   );
