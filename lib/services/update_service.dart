@@ -1,10 +1,12 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:open_filex/open_filex.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -14,9 +16,20 @@ import '../theme/app_theme.dart';
 
 const _kSnoozedUntilKey = 'update_snoozed_until_ms';
 
+enum UpdateCheckSource { homeAuto, settingsManual }
+
 class UpdateService {
   static const _latestReleaseUrl =
       'https://api.github.com/repos/${AppConfig.githubOwner}/${AppConfig.githubRepo}/releases/latest';
+  static const _tagsUrl =
+      'https://api.github.com/repos/${AppConfig.githubOwner}/${AppConfig.githubRepo}/tags?per_page=30';
+  static const _releasePageUrl =
+      'https://github.com/${AppConfig.githubOwner}/${AppConfig.githubRepo}/releases/latest';
+  static const Map<String, String> _githubHeaders = {
+    'Accept': 'application/vnd.github+json',
+    'X-GitHub-Api-Version': '2022-11-28',
+    'User-Agent': '${AppConfig.githubRepo}-update-check',
+  };
 
   /// Checks GitHub for a newer release and shows the update dialog if found.
   ///
@@ -26,60 +39,61 @@ class UpdateService {
   /// – "Später" / launching the installer snoozes until tomorrow 00:00.
   static Future<bool> checkForUpdate(
     BuildContext context, {
-    required String currentVersion,
+    String? currentVersion,
+    http.Client? httpClient,
+    UpdateCheckSource source = UpdateCheckSource.homeAuto,
   }) async {
     try {
-      final response = await http
-          .get(
-            Uri.parse(_latestReleaseUrl),
-            headers: {'Accept': 'application/vnd.github+json'},
-          )
-          .timeout(AppConfig.updateCheckTimeout);
+      final localVersion = await _resolveCurrentVersion(currentVersion);
+      if (localVersion == null || localVersion.isEmpty) return false;
 
-      if (response.statusCode != 200) return false;
+      final latest = await _fetchLatestInfo(client: httpClient);
+      if (latest == null) return false;
 
-      final data = jsonDecode(response.body) as Map<String, dynamic>;
-      final tagName = data['tag_name'] as String?;
-      if (tagName == null) return false;
-
-      final remoteVersion = tagName.replaceFirst(RegExp(r'^v'), '');
-      if (!_isNewer(remoteVersion, currentVersion)) return false;
+      final remoteVersion = latest.version;
+      if (!_isNewer(remoteVersion, localVersion)) return false;
 
       final prefs = await SharedPreferences.getInstance();
 
-      // User chose "Später" / installer was launched — respect snooze.
-      final snoozedUntilMs = prefs.getInt(_kSnoozedUntilKey) ?? 0;
-      if (snoozedUntilMs > DateTime.now().millisecondsSinceEpoch) return false;
-
-      final assets = data['assets'] as List<dynamic>?;
-      if (assets == null || assets.isEmpty) return false;
-
-      String? downloadUrl;
-      String? fileName;
-      String? plistUrl;
-
-      for (final raw in assets) {
-        final asset = raw as Map<String, dynamic>;
-        final name = (asset['name'] as String? ?? '').toLowerCase();
-        final url = asset['browser_download_url'] as String?;
-        if (url == null) continue;
-
-        if (Platform.isAndroid && name.endsWith('.apk')) {
-          downloadUrl = url;
-          fileName = asset['name'] as String;
-        } else if (Platform.isIOS) {
-          if (name.endsWith('.ipa')) {
-            downloadUrl = url;
-            fileName = asset['name'] as String;
-          } else if (name.endsWith('.plist')) {
-            plistUrl = url;
-          }
+      if (source == UpdateCheckSource.homeAuto) {
+        // Auto-check respects snooze. Manual check from settings bypasses it.
+        final snoozedUntilMs = prefs.getInt(_kSnoozedUntilKey) ?? 0;
+        if (snoozedUntilMs > DateTime.now().millisecondsSinceEpoch) {
+          return false;
         }
       }
 
-      if (Platform.isAndroid && downloadUrl == null) return false;
-      if (Platform.isIOS && downloadUrl == null && plistUrl == null)
+      final assets = latest.assets;
+
+      final androidAsset = Platform.isAndroid
+          ? _pickNewestAssetByExtension(assets, '.apk')
+          : null;
+      final iosIpaAsset = Platform.isIOS
+          ? _pickNewestAssetByExtension(assets, '.ipa')
+          : null;
+      final iosPlistAsset = Platform.isIOS
+          ? _pickNewestAssetByExtension(assets, '.plist')
+          : null;
+
+      final downloadUrl = Platform.isAndroid
+          ? androidAsset?.url
+          : iosIpaAsset?.url;
+      final fileName = Platform.isAndroid
+          ? androidAsset?.name
+          : iosIpaAsset?.name;
+      final plistUrl = iosPlistAsset?.url;
+
+      if (Platform.isAndroid &&
+          downloadUrl == null &&
+          latest.releasePageUrl == null) {
         return false;
+      }
+      if (Platform.isIOS &&
+          downloadUrl == null &&
+          plistUrl == null &&
+          latest.releasePageUrl == null) {
+        return false;
+      }
 
       if (!context.mounted) return false;
 
@@ -92,34 +106,191 @@ class UpdateService {
           fileName:
               fileName ?? (Platform.isAndroid ? 'update.apk' : 'update.ipa'),
           plistUrl: plistUrl,
+          releasePageUrl: latest.releasePageUrl,
           prefs: prefs,
         ),
       );
       return true;
-    } catch (_) {
+    } catch (e) {
+      debugPrint('Update check failed: $e');
       return false;
     }
   }
 
+  static Future<String?> _resolveCurrentVersion(String? explicitVersion) async {
+    final cleaned = explicitVersion?.trim() ?? '';
+    if (cleaned.isNotEmpty) return cleaned;
+    try {
+      final info = await PackageInfo.fromPlatform();
+      final version = info.version.trim();
+      if (version.isEmpty) return null;
+      return version;
+    } catch (e) {
+      debugPrint('Could not resolve app version: $e');
+      return null;
+    }
+  }
+
+  static Future<_LatestInfo?> _fetchLatestInfo({http.Client? client}) async {
+    final effectiveClient = client ?? http.Client();
+    final ownsClient = client == null;
+
+    try {
+      final releaseResponse = await effectiveClient
+          .get(Uri.parse(_latestReleaseUrl), headers: _githubHeaders)
+          .timeout(AppConfig.updateCheckTimeout);
+
+      if (releaseResponse.statusCode == 200) {
+        final data = jsonDecode(releaseResponse.body) as Map<String, dynamic>;
+        final tagName = (data['tag_name'] as String?)?.trim();
+        if (tagName != null && tagName.isNotEmpty) {
+          final remoteVersion = _normalizeVersion(tagName);
+          final rawAssets = data['assets'] as List<dynamic>? ?? const [];
+          final assets = rawAssets
+              .whereType<Map<String, dynamic>>()
+              .toList(growable: false);
+          return _LatestInfo(
+            version: remoteVersion,
+            assets: assets,
+            releasePageUrl: data['html_url'] as String? ?? _releasePageUrl,
+          );
+        }
+      }
+    } catch (_) {}
+
+    // Fallback: if latest release endpoint fails (or no release exists),
+    // use tags for version detection and open releases page in browser.
+    try {
+      final tagsResponse = await effectiveClient
+          .get(Uri.parse(_tagsUrl), headers: _githubHeaders)
+          .timeout(AppConfig.updateCheckTimeout);
+      if (tagsResponse.statusCode != 200) return null;
+
+      final raw = jsonDecode(tagsResponse.body);
+      if (raw is! List) return null;
+
+      String? newest;
+      for (final entry in raw) {
+        if (entry is! Map<String, dynamic>) continue;
+        final name = (entry['name'] as String?)?.trim();
+        if (name == null || name.isEmpty) continue;
+        final candidate = _normalizeVersion(name);
+        if (_extractVersionNumbers(candidate).isEmpty) continue;
+        if (newest == null || _isNewer(candidate, newest)) {
+          newest = candidate;
+        }
+      }
+
+      if (newest == null) return null;
+      return const _LatestInfo(
+        version: '',
+        assets: <Map<String, dynamic>>[],
+        releasePageUrl: _releasePageUrl,
+      ).copyWith(version: newest);
+    } catch (_) {
+      return null;
+    } finally {
+      if (ownsClient) {
+        effectiveClient.close();
+      }
+    }
+  }
+
+  @visibleForTesting
+  static bool debugIsRemoteNewer(String remote, String local) =>
+      _isNewer(remote, local);
+
+  @visibleForTesting
+  static Future<Map<String, Object?>?> debugFetchLatestInfo(http.Client client) async {
+    final info = await _fetchLatestInfo(client: client);
+    if (info == null) return null;
+    return {
+      'version': info.version,
+      'assetsCount': info.assets.length,
+      'releasePageUrl': info.releasePageUrl,
+    };
+  }
+
   static bool _isNewer(String remote, String local) {
-    final r = _parseVersion(remote);
-    final l = _parseVersion(local);
-    if (r == null || l == null) return false;
-    for (var i = 0; i < 3; i++) {
-      if (r[i] > l[i]) return true;
-      if (r[i] < l[i]) return false;
+    final r = _extractVersionNumbers(remote);
+    final l = _extractVersionNumbers(local);
+    if (r.isEmpty || l.isEmpty) return false;
+
+    final length = r.length > l.length ? r.length : l.length;
+    for (var i = 0; i < length; i++) {
+      final rv = i < r.length ? r[i] : 0;
+      final lv = i < l.length ? l[i] : 0;
+      if (rv > lv) return true;
+      if (rv < lv) return false;
     }
     return false;
   }
 
-  static List<int>? _parseVersion(String v) {
-    final parts = v.split('.');
-    if (parts.length != 3) return null;
-    try {
-      return parts.map(int.parse).toList();
-    } catch (_) {
-      return null;
+  static String _normalizeVersion(String value) =>
+      value.trim().replaceFirst(RegExp(r'^[vV]'), '');
+
+  static List<int> _extractVersionNumbers(String value) =>
+      RegExp(r'\d+').allMatches(value).map((m) => int.parse(m.group(0)!)).toList();
+
+  static _DownloadAsset? _pickNewestAssetByExtension(
+    List<Map<String, dynamic>> assets,
+    String extension,
+  ) {
+    _DownloadAsset? best;
+    for (final asset in assets) {
+      final name = (asset['name'] as String? ?? '').trim();
+      final url = (asset['browser_download_url'] as String? ?? '').trim();
+      if (name.isEmpty || url.isEmpty) continue;
+      if (!name.toLowerCase().endsWith(extension)) continue;
+
+      final updatedAtRaw = asset['updated_at'] as String?;
+      final updatedAt = updatedAtRaw == null
+          ? DateTime.fromMillisecondsSinceEpoch(0)
+          : (DateTime.tryParse(updatedAtRaw) ??
+                DateTime.fromMillisecondsSinceEpoch(0));
+      final candidate = _DownloadAsset(name: name, url: url, updatedAt: updatedAt);
+
+      if (best == null || candidate.updatedAt.isAfter(best.updatedAt)) {
+        best = candidate;
+      }
     }
+    return best;
+  }
+}
+
+class _DownloadAsset {
+  final String name;
+  final String url;
+  final DateTime updatedAt;
+
+  const _DownloadAsset({
+    required this.name,
+    required this.url,
+    required this.updatedAt,
+  });
+}
+
+class _LatestInfo {
+  final String version;
+  final List<Map<String, dynamic>> assets;
+  final String? releasePageUrl;
+
+  const _LatestInfo({
+    required this.version,
+    required this.assets,
+    required this.releasePageUrl,
+  });
+
+  _LatestInfo copyWith({
+    String? version,
+    List<Map<String, dynamic>>? assets,
+    String? releasePageUrl,
+  }) {
+    return _LatestInfo(
+      version: version ?? this.version,
+      assets: assets ?? this.assets,
+      releasePageUrl: releasePageUrl ?? this.releasePageUrl,
+    );
   }
 }
 
@@ -134,6 +305,7 @@ class _UpdateDialog extends StatefulWidget {
   final String? downloadUrl;
   final String fileName;
   final String? plistUrl;
+  final String? releasePageUrl;
   final SharedPreferences prefs;
 
   const _UpdateDialog({
@@ -141,6 +313,7 @@ class _UpdateDialog extends StatefulWidget {
     this.downloadUrl,
     required this.fileName,
     this.plistUrl,
+    this.releasePageUrl,
     required this.prefs,
   });
 
@@ -153,6 +326,7 @@ class _UpdateDialogState extends State<_UpdateDialog> {
   double _progress = 0;
   String _errorMsg = '';
   http.Client? _httpClient;
+  bool _busy = false;
 
   @override
   void dispose() {
@@ -185,7 +359,10 @@ class _UpdateDialogState extends State<_UpdateDialog> {
 
   // ── Android ──────────────────────────────────────────────────────────────
   Future<void> _installAndroid() async {
-    if (widget.downloadUrl == null) return;
+    if (widget.downloadUrl == null) {
+      await _openReleasePageFallback();
+      return;
+    }
     setState(() => _phase = _Phase.downloading);
 
     final client = http.Client();
@@ -222,7 +399,14 @@ class _UpdateDialogState extends State<_UpdateDialog> {
 
       final result = await OpenFilex.open(downloadedFile.path);
       if (result.type != ResultType.done && mounted) {
-        throw Exception(result.message);
+        final fallbackUri = Uri.parse(widget.downloadUrl!);
+        final openedFallback = await launchUrl(
+          fallbackUri,
+          mode: LaunchMode.externalApplication,
+        );
+        if (!openedFallback) {
+          throw Exception(result.message);
+        }
       }
 
       // Don't call _markInstalled() here — OpenFilex.open returns as soon as
@@ -253,42 +437,57 @@ class _UpdateDialogState extends State<_UpdateDialog> {
     }
   }
 
+  Future<void> _openReleasePageFallback() async {
+    final url = widget.releasePageUrl;
+    if (url == null) {
+      if (!mounted) return;
+      setState(() {
+        _phase = _Phase.error;
+        _errorMsg = 'Kein Download-Link für dieses Update gefunden';
+      });
+      return;
+    }
+
+    try {
+      setState(() => _phase = _Phase.installing);
+      final opened = await launchUrl(
+        Uri.parse(url),
+        mode: LaunchMode.externalApplication,
+      );
+      if (!opened) {
+        throw Exception('release-page-launch-failed');
+      }
+      await _snoozeUntilTomorrow();
+      if (mounted) Navigator.pop(context);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _phase = _Phase.error;
+        _errorMsg = 'Release-Seite konnte nicht geöffnet werden';
+      });
+    }
+  }
+
   // ── iOS ──────────────────────────────────────────────────────────────────
   Future<void> _installIOS() async {
     setState(() => _phase = _Phase.installing);
     final url = widget.downloadUrl;
 
-    // Tier 1: SideStore
+    // Tier 1: Configured store installers (SideStore, AltStore, ...)
     if (url != null) {
-      try {
-        final uri = Uri.parse(
-          'sidestore://install?url=${Uri.encodeComponent(url)}',
-        );
-        if (await _canLaunch(uri)) {
-          await launchUrl(uri);
-          await _snoozeUntilTomorrow();
-          if (mounted) Navigator.pop(context);
-          return;
-        }
-      } catch (_) {}
+      for (final scheme in AppConfig.iosInstallerSchemes) {
+        try {
+          final uri = AppConfig.buildIosInstallerUri(scheme, url);
+          if (await _launchStoreInstaller(uri)) {
+            await _snoozeUntilTomorrow();
+            if (mounted) Navigator.pop(context);
+            return;
+          }
+        } catch (_) {}
+      }
     }
 
-    // Tier 2: AltStore
-    if (url != null) {
-      try {
-        final uri = Uri.parse(
-          'altstore://install?url=${Uri.encodeComponent(url)}',
-        );
-        if (await _canLaunch(uri)) {
-          await launchUrl(uri);
-          await _snoozeUntilTomorrow();
-          if (mounted) Navigator.pop(context);
-          return;
-        }
-      } catch (_) {}
-    }
-
-    // Tier 3: itms-services (manifest.plist)
+    // Tier 2: itms-services (manifest.plist)
     if (widget.plistUrl != null) {
       try {
         final encoded = Uri.encodeComponent(widget.plistUrl!);
@@ -303,14 +502,24 @@ class _UpdateDialogState extends State<_UpdateDialog> {
       } catch (_) {}
     }
 
-    // Tier 4: Browser fallback
+    // Tier 3: Browser fallback
     if (url != null) {
       try {
-        await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
-        await _snoozeUntilTomorrow();
-        if (mounted) Navigator.pop(context);
-        return;
+        final opened = await launchUrl(
+          Uri.parse(url),
+          mode: LaunchMode.externalApplication,
+        );
+        if (opened) {
+          await _snoozeUntilTomorrow();
+          if (mounted) Navigator.pop(context);
+          return;
+        }
       } catch (_) {}
+    }
+
+    if (widget.releasePageUrl != null) {
+      await _openReleasePageFallback();
+      return;
     }
 
     if (mounted) {
@@ -321,11 +530,32 @@ class _UpdateDialogState extends State<_UpdateDialog> {
     }
   }
 
+  Future<bool> _launchStoreInstaller(Uri uri) async {
+    try {
+      final opened = await launchUrl(
+        uri,
+        mode: LaunchMode.externalNonBrowserApplication,
+      );
+      if (opened) return true;
+    } catch (_) {}
+
+    try {
+      if (!await _canLaunch(uri)) return false;
+      return launchUrl(uri);
+    } catch (_) {
+      return false;
+    }
+  }
+
   void _startUpdate() {
+    if (_busy || _phase == _Phase.downloading || _phase == _Phase.installing) {
+      return;
+    }
+    _busy = true;
     if (Platform.isIOS) {
-      _installIOS();
+      _installIOS().whenComplete(() => _busy = false);
     } else {
-      _installAndroid();
+      _installAndroid().whenComplete(() => _busy = false);
     }
   }
 

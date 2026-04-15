@@ -5,7 +5,6 @@ import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config/app_config.dart';
-import '../main.dart' show appVersion;
 import '../services/update_service.dart';
 import '../services/notification_service.dart';
 import '../services/webuntis_service.dart';
@@ -41,7 +40,7 @@ class _HomeScreenState extends State<HomeScreen> {
     NotificationService().startPolling(widget.service);
     // Trigger update check after the first frame so the UI is fully visible.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _checkForUpdate();
+      Future.delayed(const Duration(milliseconds: 900), _checkForUpdate);
       _fetchUnreadCount();
     });
     _screens = [
@@ -89,9 +88,14 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _checkForUpdate() async {
-    if (!mounted || appVersion.isEmpty) return;
+    if (!mounted) return;
+    final route = ModalRoute.of(context);
+    if (route != null && !route.isCurrent) return;
     try {
-      await UpdateService.checkForUpdate(context, currentVersion: appVersion);
+      await UpdateService.checkForUpdate(
+        context,
+        source: UpdateCheckSource.homeAuto,
+      );
     } catch (_) {}
   }
 

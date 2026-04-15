@@ -66,4 +66,12 @@ class AppConfig {
   static const Duration mensaTimeout = Duration(seconds: 6);
   static const Duration messagesCacheTTL = Duration(minutes: 5);
   static const Duration messagesCheckInterval = Duration(minutes: 5);
+
+  // ── Update installers ──────────────────────────────────────────────────────
+  /// Ordered iOS installer targets: first match that can be opened is used.
+  static const List<String> iosInstallerSchemes = ['sidestore', 'altstore'];
+
+  static Uri buildIosInstallerUri(String scheme, String ipaUrl) {
+    return Uri.parse('$scheme://install?url=${Uri.encodeComponent(ipaUrl)}');
+  }
 }

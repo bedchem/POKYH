@@ -177,12 +177,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
   // Update Check
   // ──────────────────────────────────────────────────────────────────────────
   Future<void> _checkForUpdate() async {
-    if (_checkingUpdate || _appVersion.isEmpty) return;
+    if (_checkingUpdate) return;
     setState(() => _checkingUpdate = true);
     try {
       final found = await UpdateService.checkForUpdate(
         context,
-        currentVersion: _appVersion,
+        source: UpdateCheckSource.settingsManual,
       );
       if (mounted && !found) {
         _showToast('Kein Update verfügbar');
