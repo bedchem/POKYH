@@ -195,6 +195,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     const navContentHeight = 40.0;
+    final bottomInset = MediaQuery.of(context).padding.bottom;
 
     return Scaffold(
       backgroundColor: AppTheme.bg,
@@ -222,6 +223,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
       ),
       bottomNavigationBar: Container(
+        padding: EdgeInsets.only(bottom: bottomInset + 16),
         decoration: BoxDecoration(
           color: AppTheme.surface,
           border: Border(
@@ -233,6 +235,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         child: SafeArea(
           top: false,
+          bottom: false,
           child: SizedBox(
             height: navContentHeight,
             child: Row(
@@ -463,7 +466,10 @@ class _TabItem extends StatelessWidget {
                     fontWeight: active ? FontWeight.w600 : FontWeight.w400,
                     color: active ? AppTheme.accent : AppTheme.textTertiary,
                   ),
-                  strutStyle: const StrutStyle(forceStrutHeight: true, height: 1),
+                  strutStyle: const StrutStyle(
+                    forceStrutHeight: true,
+                    height: 1,
+                  ),
                 ),
               ],
             ),
