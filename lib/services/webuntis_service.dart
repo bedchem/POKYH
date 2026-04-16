@@ -708,9 +708,7 @@ class WebUntisService {
     if (_readMessageIds.isEmpty) return messages;
     return messages
         .map(
-          (m) => _readMessageIds.contains(m.id)
-              ? m.copyWith(isRead: true)
-              : m,
+          (m) => _readMessageIds.contains(m.id) ? m.copyWith(isRead: true) : m,
         )
         .toList();
   }
@@ -754,7 +752,8 @@ class WebUntisService {
       messageList = data;
     } else if (data is Map) {
       // Handle various WebUntis response wrappers
-      messageList = (data['incomingMessages'] as List?) ??
+      messageList =
+          (data['incomingMessages'] as List?) ??
           (data['messages'] as List?) ??
           (data['data']?['incomingMessages'] as List?) ??
           (data['data']?['messages'] as List?) ??
@@ -1249,7 +1248,8 @@ class MessagePreview {
 
     // Parse date — may be ISO string or epoch millis
     DateTime sentDate;
-    final dateField = j['sentDateTime'] ?? j['sentDate'] ?? j['date'] ?? j['createDate'];
+    final dateField =
+        j['sentDateTime'] ?? j['sentDate'] ?? j['date'] ?? j['createDate'];
     if (dateField is String) {
       sentDate = DateTime.tryParse(dateField) ?? DateTime.now();
     } else if (dateField is int) {
@@ -1263,12 +1263,18 @@ class MessagePreview {
     return MessagePreview(
       id: (j['id'] ?? 0) as int,
       subject: (j['subject'] ?? j['title'] ?? '').toString(),
-      contentPreview: (j['contentPreview'] ?? j['preview'] ?? j['content'] ?? '').toString(),
+      contentPreview:
+          (j['contentPreview'] ?? j['preview'] ?? j['content'] ?? '')
+              .toString(),
       senderName: senderName,
       senderId: senderId,
       sentDate: sentDate,
       isRead: (j['isRead'] ?? j['read'] ?? j['readDate'] != null) == true,
-      hasAttachments: (j['hasAttachments'] ?? j['attachmentCount'] != null && (j['attachmentCount'] ?? 0) > 0) == true,
+      hasAttachments:
+          (j['hasAttachments'] ??
+              j['attachmentCount'] != null &&
+                  (j['attachmentCount'] ?? 0) > 0) ==
+          true,
       recipientGroup: (j['recipientGroup'] ?? j['group'] ?? '').toString(),
     );
   }
@@ -1348,7 +1354,8 @@ class MessageDetail {
     }
 
     DateTime sentDate;
-    final dateField = j['sentDateTime'] ?? j['sentDate'] ?? j['date'] ?? j['createDate'];
+    final dateField =
+        j['sentDateTime'] ?? j['sentDate'] ?? j['date'] ?? j['createDate'];
     if (dateField is String) {
       sentDate = DateTime.tryParse(dateField) ?? DateTime.now();
     } else if (dateField is int) {
@@ -1360,7 +1367,9 @@ class MessageDetail {
     }
 
     // Parse body — may be HTML or plain text
-    String body = (j['body'] ?? j['content'] ?? j['text'] ?? j['contentPreview'] ?? '').toString();
+    String body =
+        (j['body'] ?? j['content'] ?? j['text'] ?? j['contentPreview'] ?? '')
+            .toString();
     // Strip HTML tags for clean display
     body = body.replaceAll(RegExp(r'<br\s*/?>'), '\n');
     body = body.replaceAll(RegExp(r'<[^>]*>'), '');

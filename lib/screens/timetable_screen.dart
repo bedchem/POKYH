@@ -133,15 +133,22 @@ class TimetableScreenState extends State<TimetableScreen> {
 
   DateTime _mondayForOffset(int offset) {
     final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
+    // Use noon to avoid DST boundary issues at midnight.
+    final today = DateTime(now.year, now.month, now.day, 12);
     final thisMonday = today.subtract(Duration(days: today.weekday - 1));
-    return thisMonday.add(Duration(days: offset * 7));
+    final result = thisMonday.add(Duration(days: offset * 7));
+    return DateTime(result.year, result.month, result.day);
+  }
+
+  DateTime _dayForOffset(int offset, int dayIndex) {
+    final monday = _mondayForOffset(offset);
+    return DateTime(monday.year, monday.month, monday.day + dayIndex);
   }
 
   bool _isThisWeek(int offset) => offset == 0;
 
   bool _isToday(int offset, int dayIndex) {
-    final date = _mondayForOffset(offset).add(Duration(days: dayIndex));
+    final date = _dayForOffset(offset, dayIndex);
     final now = DateTime.now();
     return date.year == now.year &&
         date.month == now.month &&
@@ -234,7 +241,7 @@ class TimetableScreenState extends State<TimetableScreen> {
   // ── Entry helpers ──────────────────────────────────────────────────────────
 
   List<TimetableEntry> _forDay(int offset, int dayIndex) {
-    final date = _mondayForOffset(offset).add(Duration(days: dayIndex));
+    final date = _dayForOffset(offset, dayIndex);
     final dateInt = int.parse(
       '${date.year}${date.month.toString().padLeft(2, '0')}${date.day.toString().padLeft(2, '0')}',
     );
@@ -774,9 +781,7 @@ class _WeekPage extends StatelessWidget {
             children: [
               const SizedBox(width: 44),
               ...List.generate(5, (i) {
-                final date = state
-                    ._mondayForOffset(offset)
-                    .add(Duration(days: i));
+                final date = state._dayForOffset(offset, i);
                 final isToday = state._isToday(offset, i);
                 final isHoliday = state._isSingleHolidayDay(offset, i);
                 final isDayOff = state._isDayAllCancelled(offset, i);
