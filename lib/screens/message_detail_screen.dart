@@ -1,6 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:open_filex/open_filex.dart';
 
 import '../services/webuntis_service.dart';
 import '../theme/app_theme.dart';
@@ -255,6 +255,7 @@ class _MessageDetailScreenState extends State<MessageDetailScreen> {
                     _AttachmentTile(
                       attachment: attachment,
                       service: widget.service,
+                      messageId: detail.id,
                     ),
                 ],
               ),
@@ -417,14 +418,26 @@ class _SenderAvatar extends StatelessWidget {
 
 // ── Attachment Tile ──────────────────────────────────────────────────────────
 
-class _AttachmentTile extends StatelessWidget {
+class _AttachmentTile extends StatefulWidget {
   final MessageAttachment attachment;
   final WebUntisService service;
+  final int messageId;
 
-  const _AttachmentTile({required this.attachment, required this.service});
+  const _AttachmentTile({
+    required this.attachment,
+    required this.service,
+    required this.messageId,
+  });
+
+  @override
+  State<_AttachmentTile> createState() => _AttachmentTileState();
+}
+
+class _AttachmentTileState extends State<_AttachmentTile> {
+  bool _downloading = false;
 
   IconData get _icon {
-    final name = attachment.name.toLowerCase();
+    final name = widget.attachment.name.toLowerCase();
     if (name.endsWith('.pdf')) return CupertinoIcons.doc_fill;
     if (name.endsWith('.jpg') ||
         name.endsWith('.jpeg') ||
@@ -441,28 +454,37 @@ class _AttachmentTile extends StatelessWidget {
     return CupertinoIcons.paperclip;
   }
 
-  void _openAttachment(BuildContext context) async {
-    final url = attachment.url;
-    if (url == null || url.isEmpty) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('Anhang kann nicht geöffnet werden'),
-            backgroundColor: AppTheme.danger,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
-            ),
-          ),
-        );
+  Future<void> _open() async {
+    if (_downloading) return;
+    setState(() => _downloading = true);
+    try {
+      final path = await widget.service.downloadAttachment(
+        messageId: widget.messageId,
+        attachmentId: widget.attachment.id,
+        fileName: widget.attachment.name,
+      );
+      final result = await OpenFilex.open(path);
+      if (result.type != ResultType.done && mounted) {
+        _showError('Datei konnte nicht geöffnet werden');
       }
-      return;
+    } on WebUntisException catch (e) {
+      if (mounted) _showError(e.message);
+    } catch (_) {
+      if (mounted) _showError('Anhang konnte nicht geladen werden');
+    } finally {
+      if (mounted) setState(() => _downloading = false);
     }
+  }
 
-    final uri = Uri.tryParse(url);
-    if (uri != null && await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    }
+  void _showError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: AppTheme.danger,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
   }
 
   @override
@@ -473,7 +495,7 @@ class _AttachmentTile extends StatelessWidget {
         color: AppTheme.card,
         borderRadius: BorderRadius.circular(10),
         child: InkWell(
-          onTap: () => _openAttachment(context),
+          onTap: _downloading ? null : _open,
           borderRadius: BorderRadius.circular(10),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -483,31 +505,34 @@ class _AttachmentTile extends StatelessWidget {
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    attachment.name,
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: AppTheme.textPrimary,
-                    ),
+                    widget.attachment.name,
+                    style: TextStyle(fontSize: 13, color: AppTheme.textPrimary),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                if (attachment.size != null) ...[
+                if (widget.attachment.size != null) ...[
                   const SizedBox(width: 8),
                   Text(
-                    _formatSize(attachment.size!),
+                    _formatSize(widget.attachment.size!),
                     style: TextStyle(
                       fontSize: 11,
                       color: AppTheme.textTertiary,
                     ),
                   ),
                 ],
-                const SizedBox(width: 4),
-                Icon(
-                  CupertinoIcons.arrow_down_circle,
-                  size: 16,
-                  color: AppTheme.textTertiary,
-                ),
+                const SizedBox(width: 8),
+                _downloading
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CupertinoActivityIndicator(radius: 8),
+                      )
+                    : Icon(
+                        CupertinoIcons.arrow_down_circle,
+                        size: 16,
+                        color: AppTheme.accent,
+                      ),
               ],
             ),
           ),

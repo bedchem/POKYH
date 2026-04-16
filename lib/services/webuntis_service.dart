@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 import 'package:http/http.dart' as http;
+import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config/app_config.dart';
 
@@ -655,6 +657,51 @@ class WebUntisService {
     } catch (e) {
       if (e is WebUntisException) rethrow;
       throw WebUntisException('Fehler beim Laden der Nachricht: $e');
+    }
+  }
+
+  /// Downloads an attachment and saves it to the temp directory.
+  /// Returns the local file path ready for opening with open_filex.
+  Future<String> downloadAttachment({
+    required int messageId,
+    required int attachmentId,
+    required String fileName,
+  }) async {
+    if (_bearerToken == null) {
+      throw WebUntisException('Nicht angemeldet', isAuthError: true);
+    }
+    try {
+      final response = await _client
+          .get(
+            Uri.parse(
+              '$_baseUrl/api/rest/view/v1/messages/$messageId/attachments/$attachmentId',
+            ),
+            headers: {
+              'Authorization': 'Bearer $_bearerToken',
+              'Cookie': _cookieHeader,
+            },
+          )
+          .timeout(AppConfig.downloadTimeout);
+
+      if (response.statusCode == 401 || response.statusCode == 403) {
+        throw WebUntisException('Sitzung abgelaufen', isAuthError: true);
+      }
+      if (response.statusCode != 200) {
+        throw WebUntisException('Anhang konnte nicht geladen werden (${response.statusCode})');
+      }
+
+      final dir = await getTemporaryDirectory();
+      // Keep the original extension intact so the OS knows how to open it.
+      // Only strip characters that are truly invalid on the file system.
+      final safeName = fileName.replaceAll(RegExp(r'[/\\:*?"<>|]'), '_');
+      final file = File('${dir.path}/$safeName');
+      await file.writeAsBytes(response.bodyBytes);
+      return file.path;
+    } on TimeoutException {
+      throw WebUntisException('Verbindung abgelaufen');
+    } catch (e) {
+      if (e is WebUntisException) rethrow;
+      throw WebUntisException('Fehler beim Herunterladen: $e');
     }
   }
 
@@ -1417,10 +1464,10 @@ class MessageAttachment {
 
   factory MessageAttachment.fromJson(Map<String, dynamic> j) {
     return MessageAttachment(
-      id: (j['id'] ?? 0) as int,
-      name: (j['name'] ?? j['fileName'] ?? 'Anhang').toString(),
-      url: j['url']?.toString() ?? j['downloadUrl']?.toString(),
-      size: j['size'] as int?,
+      id: (j['id'] ?? j['storageId'] ?? 0) as int,
+      name: (j['name'] ?? j['fileName'] ?? j['src'] ?? 'Anhang').toString(),
+      url: j['url']?.toString() ?? j['downloadUrl']?.toString() ?? j['src']?.toString(),
+      size: (j['size'] ?? j['fileSize']) as int?,
     );
   }
 }

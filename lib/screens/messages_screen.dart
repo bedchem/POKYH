@@ -74,10 +74,11 @@ class _MessagesScreenState extends State<MessagesScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppTheme.bg,
-      body: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+      body: ClipRect(
+        child: SafeArea(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
             // Header
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
@@ -124,6 +125,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
             // Content
             Expanded(child: _buildContent()),
           ],
+        ),
         ),
       ),
     );

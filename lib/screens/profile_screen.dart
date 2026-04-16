@@ -1098,6 +1098,7 @@ class _ToastOverlayState extends State<_ToastOverlay>
               fontSize: 14,
               fontWeight: FontWeight.w500,
               color: AppTheme.textPrimary,
+              decoration: TextDecoration.none,
             ),
           ),
         ),
