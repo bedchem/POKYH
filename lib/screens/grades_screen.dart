@@ -771,7 +771,7 @@ class _SubjectCardState extends State<_SubjectCard>
                           child: Row(
                             children: [
                               Container(
-                                width: 40,
+                                constraints: const BoxConstraints(minWidth: 40),
                                 padding: const EdgeInsets.symmetric(
                                   horizontal: 6,
                                   vertical: 4,
@@ -796,15 +796,18 @@ class _SubjectCardState extends State<_SubjectCard>
                               const SizedBox(width: 12),
                               Expanded(
                                 child: Text(
-                                  g.examType.isNotEmpty
-                                      ? g.examType
-                                      : (g.text.isNotEmpty ? g.text : '\u2014'),
+                                  g.text.isNotEmpty
+                                      ? g.text
+                                      : (g.examType.isNotEmpty
+                                            ? g.examType
+                                            : '\u2014'),
                                   style: TextStyle(
-                                    fontSize: 14,
+                                    fontSize: 13,
                                     color: AppTheme.textSecondary,
                                   ),
                                 ),
                               ),
+                              const SizedBox(width: 14),
                               Text(
                                 g.dateFormatted,
                                 style: TextStyle(
