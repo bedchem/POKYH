@@ -89,10 +89,30 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     super.dispose();
   }
 
+  bool _sessionCleared = false;
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.paused) {
-      _logout();
+    if (state == AppLifecycleState.paused && !_sessionCleared) {
+      // App goes to background: clear session immediately (no network call —
+      // network calls in background hang on iOS and are unreliable on Android).
+      _sessionCleared = true;
+      NotificationService().stopPolling();
+      widget.service.clearSession(); // clears in-memory state synchronously
+    } else if (state == AppLifecycleState.resumed && _sessionCleared) {
+      // App comes back to foreground: now safely navigate to LoginScreen.
+      // Use pushAndRemoveUntil to clear the entire navigation stack
+      // (handles cases where sub-screens like Profile/Messages are open).
+      if (!mounted) return;
+      Navigator.of(context).pushAndRemoveUntil(
+        PageRouteBuilder(
+          pageBuilder: (_, _, _) => const LoginScreen(),
+          transitionsBuilder: (_, a, _, child) =>
+              FadeTransition(opacity: a, child: child),
+          transitionDuration: const Duration(milliseconds: 300),
+        ),
+        (route) => false,
+      );
     }
   }
 
