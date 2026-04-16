@@ -1090,12 +1090,27 @@ class _WeekPage extends StatelessWidget {
           _MergedCell(
             slots: groupSlots,
             height: groupHeight,
-            onTap: (slot) {
-              if (slot.display != null) {
+            onTap: (slotGroup) {
+              final displaySlot = slotGroup.firstWhere(
+                (s) => s.display != null,
+                orElse: () => slotGroup.first,
+              );
+              if (displaySlot.display != null) {
+                final mergedHomework = <HomeworkEntry>[];
+                final seenHomeworkIds = <int>{};
+                for (final slot in slotGroup) {
+                  for (final hw in slot.homework) {
+                    if (seenHomeworkIds.add(hw.id)) {
+                      mergedHomework.add(hw);
+                    }
+                  }
+                }
+
+                final mergedEntry = _buildMergedEntry(slotGroup);
                 state._showDetail(
-                  slot.display!,
-                  slot.replacement,
-                  homework: slot.homework,
+                  mergedEntry,
+                  displaySlot.replacement,
+                  homework: mergedHomework,
                 );
               }
             },
@@ -1112,6 +1127,31 @@ class _WeekPage extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: widgets,
+    );
+  }
+
+  TimetableEntry _buildMergedEntry(List<_SlotInfo> slots) {
+    final first = slots.firstWhere((s) => s.display != null).display!;
+    final last = slots.lastWhere((s) => s.display != null).display!;
+    return TimetableEntry(
+      id: first.id,
+      lessonId: first.lessonId,
+      date: first.date,
+      startTime: first.startTime,
+      endTime: last.endTime,
+      subjectName: first.subjectName,
+      subjectLong: first.subjectLong,
+      teacherName: first.teacherName,
+      roomName: first.roomName,
+      cellState: first.cellState,
+      lessonText: first.lessonText,
+      isCancelled: first.isCancelled,
+      isExam: first.isExam,
+      isSubstitution: first.isSubstitution,
+      isAdditional: first.isAdditional,
+      originalSubjectName: first.originalSubjectName,
+      originalSubjectLong: first.originalSubjectLong,
+      originalTeacherName: first.originalTeacherName,
     );
   }
 }
@@ -1402,7 +1442,7 @@ class _EventColumn extends StatelessWidget {
 class _MergedCell extends StatelessWidget {
   final List<_SlotInfo> slots;
   final double height;
-  final void Function(_SlotInfo slot) onTap;
+  final void Function(List<_SlotInfo> slots) onTap;
   const _MergedCell({
     required this.slots,
     required this.height,
@@ -1425,7 +1465,7 @@ class _MergedCell extends StatelessWidget {
     final isTappable = !primary.isEmpty;
 
     return GestureDetector(
-      onTap: isTappable ? () => onTap(primary) : null,
+      onTap: isTappable ? () => onTap(slots) : null,
       child: Container(
         height: height,
         decoration: BoxDecoration(
@@ -1799,7 +1839,6 @@ class _DetailSheet extends StatelessWidget {
         : hasInlineOriginal
         ? AppTheme.colorForSubject(entry.originalSubjectName)
         : AppTheme.colorForSubject(entry.subjectName);
-    final lessonNr = service.getLessonNumber(entry.startTime);
 
     // Header subject: show the original (struck through) when inline original,
     // otherwise show the entry's own subject.
@@ -1851,12 +1890,11 @@ class _DetailSheet extends StatelessWidget {
                 ),
                 child: Center(
                   child: Text(
-                    lessonNr ??
-                        (hasInlineOriginal
-                            ? entry.originalSubjectName[0]
-                            : (entry.subjectName.isNotEmpty
-                                  ? entry.subjectName[0]
-                                  : '?')),
+                    hasInlineOriginal
+                        ? entry.originalSubjectName[0]
+                        : (entry.subjectName.isNotEmpty
+                              ? entry.subjectName[0]
+                              : '?'),
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.w700,
@@ -1952,9 +1990,7 @@ class _DetailSheet extends StatelessWidget {
           _InfoRow(
             icon: CupertinoIcons.clock,
             label: 'Zeit',
-            value:
-                '${entry.startFormatted} – ${entry.endFormatted}'
-                '${lessonNr != null ? '  ·  $lessonNr. Stunde' : ''}',
+            value: '${entry.startFormatted} – ${entry.endFormatted}',
           ),
           // When hasInlineOriginal the teacher/room belong to the NEW
           // subject and are shown inside the Zusatzstunde card below.
