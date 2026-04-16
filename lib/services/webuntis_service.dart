@@ -642,9 +642,15 @@ class WebUntisService {
       }
 
       final data = jsonDecode(response.body);
-      final detail = MessageDetail.fromJson(
-        data is Map<String, dynamic> ? data : (data['data'] ?? data),
-      );
+      // Unwrap server envelope: {"data": {...}} → use inner map.
+      final Map<String, dynamic> messageJson;
+      if (data is Map<String, dynamic>) {
+        messageJson =
+            (data['data'] as Map<String, dynamic>?) ?? data;
+      } else {
+        messageJson = {};
+      }
+      final detail = MessageDetail.fromJson(messageJson);
 
       // Mark as read locally in the cached list
       await _markReadInCache(messageId);
@@ -660,49 +666,188 @@ class WebUntisService {
     }
   }
 
+  /// Fetches the attachment list for a message separately.
+  /// Used as a fallback when the detail endpoint returns no attachments
+  /// but the list endpoint indicates attachments exist.
+  Future<List<MessageAttachment>> getMessageAttachments(int messageId) async {
+    if (_bearerToken == null) return [];
+
+    final headers = {
+      'Authorization': 'Bearer $_bearerToken',
+      'Cookie': _cookieHeader,
+    };
+
+    final urls = [
+      '$_baseUrl/api/rest/view/v1/messages/$messageId/attachments',
+      // Some servers only include file metadata in the message detail payload.
+      '$_baseUrl/api/rest/view/v1/messages/$messageId',
+    ];
+
+    try {
+      for (final url in urls) {
+        final response = await _client
+            .get(Uri.parse(url), headers: headers)
+            .timeout(_timeout);
+
+        if (response.statusCode == 401 || response.statusCode == 403) {
+          return [];
+        }
+        if (response.statusCode != 200) {
+          continue;
+        }
+
+        final data = jsonDecode(response.body);
+        final list = _extractAttachmentList(data);
+        if (list.isEmpty) continue;
+
+        return list
+            .whereType<Map>()
+            .map((a) => MessageAttachment.fromJson(Map<String, dynamic>.from(a)))
+            .toList();
+      }
+
+      return [];
+    } catch (_) {
+      return [];
+    }
+  }
+
+  List<dynamic> _extractAttachmentList(dynamic raw) {
+    if (raw is List) return raw;
+    if (raw is! Map) return const [];
+
+    List<dynamic>? listFrom(dynamic source) {
+      if (source is List) return source;
+      if (source is! Map) return null;
+
+      const keys = [
+        'attachments',
+        'messageFile',
+        'files',
+        'fileAttachments',
+        'attachment',
+        'items',
+        'content',
+      ];
+
+      for (final k in keys) {
+        final v = source[k];
+        if (v is List) return v;
+      }
+
+      final data = source['data'];
+      if (data is List) return data;
+      if (data is Map) {
+        final nested = listFrom(data);
+        if (nested != null) return nested;
+      }
+
+      final result = source['result'];
+      if (result is Map) {
+        final nested = listFrom(result);
+        if (nested != null) return nested;
+      }
+
+      return null;
+    }
+
+    return listFrom(raw) ?? const [];
+  }
+
   /// Downloads an attachment and saves it to the temp directory.
   /// Returns the local file path ready for opening with open_filex.
+  ///
+  /// Tries URLs in order:
+  ///   1. [directUrl]  — if the API returned a ready-made download URL
+  ///   2. /messages/{id}/attachments/{attachmentId}
+  ///   3. /messages/{id}/attachments/{attachmentId}/content
   Future<String> downloadAttachment({
     required int messageId,
     required int attachmentId,
     required String fileName,
+    String? directUrl,
   }) async {
     if (_bearerToken == null) {
       throw WebUntisException('Nicht angemeldet', isAuthError: true);
     }
-    try {
-      final response = await _client
-          .get(
-            Uri.parse(
-              '$_baseUrl/api/rest/view/v1/messages/$messageId/attachments/$attachmentId',
-            ),
-            headers: {
-              'Authorization': 'Bearer $_bearerToken',
-              'Cookie': _cookieHeader,
-            },
-          )
-          .timeout(AppConfig.downloadTimeout);
 
-      if (response.statusCode == 401 || response.statusCode == 403) {
-        throw WebUntisException('Sitzung abgelaufen', isAuthError: true);
-      }
-      if (response.statusCode != 200) {
-        throw WebUntisException('Anhang konnte nicht geladen werden (${response.statusCode})');
-      }
+    final baseUri = Uri.parse(
+      _baseUrl.endsWith('/') ? _baseUrl : '$_baseUrl/',
+    );
 
-      final dir = await getTemporaryDirectory();
-      // Keep the original extension intact so the OS knows how to open it.
-      // Only strip characters that are truly invalid on the file system.
-      final safeName = fileName.replaceAll(RegExp(r'[/\\:*?"<>|]'), '_');
-      final file = File('${dir.path}/$safeName');
-      await file.writeAsBytes(response.bodyBytes);
-      return file.path;
-    } on TimeoutException {
-      throw WebUntisException('Verbindung abgelaufen');
-    } catch (e) {
-      if (e is WebUntisException) rethrow;
-      throw WebUntisException('Fehler beim Herunterladen: $e');
+    String? normalizedDirectUrl;
+    if (directUrl != null && directUrl.trim().isNotEmpty) {
+      final trimmed = directUrl.trim();
+      normalizedDirectUrl = trimmed.startsWith('http')
+          ? trimmed
+          : baseUri.resolve(trimmed).toString();
     }
+
+    final candidates = <String>[
+      if (attachmentId > 0)
+        '$_baseUrl/api/rest/view/v1/messages/$messageId/attachments/$attachmentId',
+      if (attachmentId > 0)
+        '$_baseUrl/api/rest/view/v1/messages/$messageId/attachments/$attachmentId/content',
+    ];
+    if (normalizedDirectUrl != null) {
+      candidates.insert(0, normalizedDirectUrl);
+    }
+
+    if (candidates.isEmpty) {
+      throw WebUntisException('Anhang hat keine gueltige Download-URL/ID');
+    }
+
+    final headers = {
+      'Authorization': 'Bearer $_bearerToken',
+      'Cookie': _cookieHeader,
+    };
+
+    http.Response? lastResponse;
+    for (final urlString in candidates) {
+      try {
+        final response = await _client
+            .get(Uri.parse(urlString), headers: headers)
+            .timeout(AppConfig.downloadTimeout);
+
+        if (response.statusCode == 401 || response.statusCode == 403) {
+          throw WebUntisException('Sitzung abgelaufen', isAuthError: true);
+        }
+
+        final contentType = response.headers['content-type'] ?? '';
+        if (response.statusCode == 200 && !contentType.contains('text/html')) {
+          // Success — save to temp dir and return path.
+          final dir = await getTemporaryDirectory();
+          final safeName = fileName.replaceAll(RegExp(r'[/\\:*?"<>|]'), '_');
+          final file = File('${dir.path}/$safeName');
+          await file.writeAsBytes(response.bodyBytes);
+          return file.path;
+        }
+
+        // HTML redirect or non-200: remember for error message, try next.
+        lastResponse = response;
+      } on WebUntisException {
+        rethrow;
+      } on TimeoutException {
+        throw WebUntisException('Verbindung abgelaufen');
+      } catch (_) {
+        // Network error on this candidate — try the next one.
+      }
+    }
+
+    // All candidates failed.
+    if (lastResponse != null) {
+      final ct = lastResponse.headers['content-type'] ?? '';
+      if (ct.contains('text/html')) {
+        throw WebUntisException(
+          'Anhang nicht verfügbar – bitte neu anmelden',
+          isAuthError: true,
+        );
+      }
+      throw WebUntisException(
+        'Anhang konnte nicht geladen werden (HTTP ${lastResponse.statusCode})',
+      );
+    }
+    throw WebUntisException('Anhang konnte nicht heruntergeladen werden');
   }
 
   Future<void> markMessageAsRead(int messageId) async {
@@ -1427,7 +1572,15 @@ class MessageDetail {
     body = body.replaceAll('&quot;', '"');
     body = body.trim();
 
-    final attachmentList = (j['attachments'] as List?) ?? [];
+    // WebUntis uses different field names/wrappers depending on server version.
+    final attachmentList =
+        _coerceList(j['attachments']) ??
+        _coerceList(j['messageFile']) ??
+        _coerceList(j['files']) ??
+        _coerceList(j['fileAttachments']) ??
+        _coerceList(j['attachment']) ??
+        _coerceList(j['data']) ??
+        const [];
 
     return MessageDetail(
       id: (j['id'] ?? 0) as int,
@@ -1438,9 +1591,28 @@ class MessageDetail {
       sentDate: sentDate,
       isRead: (j['isRead'] ?? j['read'] ?? true) == true,
       attachments: attachmentList
-          .map((a) => MessageAttachment.fromJson(a as Map<String, dynamic>))
+          .whereType<Map>()
+          .map((a) => MessageAttachment.fromJson(Map<String, dynamic>.from(a)))
           .toList(),
     );
+  }
+
+  static List<dynamic>? _coerceList(dynamic value) {
+    if (value is List) return value;
+    if (value is Map) {
+      final direct = value['attachments'];
+      if (direct is List) return direct;
+      final messageFile = value['messageFile'];
+      if (messageFile is List) return messageFile;
+      final files = value['files'];
+      if (files is List) return files;
+      final data = value['data'];
+      if (data is List) return data;
+      if (data is Map) return _coerceList(data);
+      final result = value['result'];
+      if (result is Map) return _coerceList(result);
+    }
+    return null;
   }
 
   String get sentDateFormatted {
@@ -1463,12 +1635,42 @@ class MessageAttachment {
   });
 
   factory MessageAttachment.fromJson(Map<String, dynamic> j) {
+    final resolvedUrl =
+        j['url']?.toString() ??
+        j['downloadUrl']?.toString() ??
+        j['href']?.toString() ??
+        j['src']?.toString();
+
+    final parsedId = _parseInt(j['id'] ?? j['storageId'] ?? j['fileId'] ?? 0);
+
     return MessageAttachment(
-      id: (j['id'] ?? j['storageId'] ?? 0) as int,
-      name: (j['name'] ?? j['fileName'] ?? j['src'] ?? 'Anhang').toString(),
-      url: j['url']?.toString() ?? j['downloadUrl']?.toString() ?? j['src']?.toString(),
-      size: (j['size'] ?? j['fileSize']) as int?,
+      id: parsedId > 0 ? parsedId : _parseIdFromUrl(resolvedUrl),
+      name: (j['name'] ?? j['fileName'] ?? j['originalName'] ?? j['src'] ?? 'Anhang').toString(),
+      url: resolvedUrl,
+      size: _parseInt2(j['size'] ?? j['fileSize'] ?? j['length']),
     );
+  }
+
+  static int _parseInt(dynamic v) {
+    if (v is int) return v;
+    if (v is double) return v.toInt();
+    if (v is String) return int.tryParse(v) ?? 0;
+    return 0;
+  }
+
+  static int? _parseInt2(dynamic v) {
+    if (v == null) return null;
+    if (v is int) return v;
+    if (v is double) return v.toInt();
+    if (v is String) return int.tryParse(v);
+    return null;
+  }
+
+  static int _parseIdFromUrl(String? url) {
+    if (url == null || url.isEmpty) return 0;
+    final match = RegExp(r'/attachments/(\d+)').firstMatch(url);
+    if (match == null) return 0;
+    return int.tryParse(match.group(1) ?? '') ?? 0;
   }
 }
 

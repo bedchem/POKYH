@@ -25,6 +25,14 @@ class _MessageDetailScreenState extends State<MessageDetailScreen> {
   bool _loading = true;
   String? _error;
 
+  // Attachment state — filled from the detail response or a fallback call.
+  // null  = not yet attempted
+  // []    = attempted, nothing found (but we still show UI if hasAttachments=true)
+  // [...] = loaded successfully
+  List<MessageAttachment>? _attachments;
+  bool _attachmentsLoading = false;
+  bool _attachmentsFetchFailed = false;
+
   @override
   void initState() {
     super.initState();
@@ -39,15 +47,26 @@ class _MessageDetailScreenState extends State<MessageDetailScreen> {
 
     try {
       final detail = await widget.service.getMessageDetail(widget.message.id);
-      if (mounted) {
-        setState(() {
-          _detail = detail;
-          _loading = false;
-        });
-      }
-      // Mark as read in background
+      if (!mounted) return;
+
+      setState(() {
+        _detail = detail;
+        _loading = false;
+        // Use attachments from detail if present.
+        if (detail.attachments.isNotEmpty) {
+          _attachments = detail.attachments;
+        }
+      });
+
+      // Mark as read in background.
       if (!widget.message.isRead) {
         widget.service.markMessageAsRead(widget.message.id);
+      }
+
+      // Fallback: if detail had no attachments but the list view showed the
+      // paperclip icon, fetch them from a dedicated endpoint.
+      if (detail.attachments.isEmpty && widget.message.hasAttachments) {
+        _fetchAttachmentsFallback();
       }
     } on WebUntisException catch (e) {
       if (mounted) {
@@ -61,6 +80,38 @@ class _MessageDetailScreenState extends State<MessageDetailScreen> {
         setState(() {
           _error = '$e';
           _loading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _fetchAttachmentsFallback() async {
+    if (!mounted) return;
+    setState(() {
+      _attachmentsLoading = true;
+      _attachmentsFetchFailed = false;
+    });
+    try {
+      final list = await widget.service.getMessageAttachments(widget.message.id);
+      if (!mounted) return;
+      if (list.isNotEmpty) {
+        setState(() {
+          _attachments = list;
+          _attachmentsLoading = false;
+        });
+      } else {
+        // API returned nothing — keep the section visible because
+        // widget.message.hasAttachments guarantees an attachment exists.
+        setState(() {
+          _attachmentsLoading = false;
+          _attachmentsFetchFailed = true;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _attachmentsLoading = false;
+          _attachmentsFetchFailed = true;
         });
       }
     }
@@ -210,14 +261,38 @@ class _MessageDetailScreenState extends State<MessageDetailScreen> {
 
           const SizedBox(height: 10),
 
-          // Body
+          // Body + Attachments in one card (mail-app style)
+          _buildBodyCard(detail),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBodyCard(MessageDetail detail) {
+    final attachments = _attachments ?? const <MessageAttachment>[];
+    // Show attachment section when:
+    //  - we have loaded attachments, OR
+    //  - we are loading, OR
+    //  - message is known to have attachments (even if metadata fetch failed)
+    final showAttachmentSection =
+        attachments.isNotEmpty ||
+        _attachmentsLoading ||
+        (widget.message.hasAttachments && (_attachmentsFetchFailed || _attachments == null));
+
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: AppTheme.surface,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Body text
           if (detail.body.isNotEmpty)
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: AppTheme.surface,
-                borderRadius: BorderRadius.circular(14),
+            Padding(
+              padding: EdgeInsets.fromLTRB(
+                16, 16, 16, showAttachmentSection ? 12 : 16,
               ),
               child: SelectableText(
                 detail.body,
@@ -229,38 +304,156 @@ class _MessageDetailScreenState extends State<MessageDetailScreen> {
               ),
             ),
 
-          // Attachments
-          if (detail.attachments.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: AppTheme.surface,
-                borderRadius: BorderRadius.circular(14),
+          // Attachment section
+          if (showAttachmentSection) ...[
+            if (detail.body.isNotEmpty)
+              Divider(
+                height: 1,
+                thickness: 0.5,
+                color: AppTheme.border.withValues(alpha: 0.5),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+
+            // Header row
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
+              child: Row(
                 children: [
-                  Text(
-                    'Anhänge',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: AppTheme.textSecondary,
-                    ),
+                  Icon(
+                    CupertinoIcons.paperclip,
+                    size: 13,
+                    color: AppTheme.textTertiary,
                   ),
-                  const SizedBox(height: 8),
-                  for (final attachment in detail.attachments)
-                    _AttachmentTile(
-                      attachment: attachment,
-                      service: widget.service,
-                      messageId: detail.id,
+                  const SizedBox(width: 5),
+                  if (_attachmentsLoading)
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const SizedBox(
+                          width: 10,
+                          height: 10,
+                          child: CupertinoActivityIndicator(radius: 5),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Anhänge werden geladen…',
+                          style: TextStyle(fontSize: 12, color: AppTheme.textTertiary),
+                        ),
+                      ],
+                    )
+                  else if (attachments.isNotEmpty)
+                    Text(
+                      '${attachments.length} '
+                      '${attachments.length == 1 ? 'Anhang' : 'Anhänge'}',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.textTertiary,
+                        letterSpacing: 0.2,
+                      ),
+                    )
+                  else
+                    Text(
+                      'Anhang vorhanden',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.textTertiary,
+                        letterSpacing: 0.2,
+                      ),
                     ),
                 ],
               ),
             ),
+
+            // Attachment tiles
+            if (attachments.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                child: Column(
+                  children: [
+                    for (final a in attachments)
+                      _AttachmentTile(
+                        attachment: a,
+                        service: widget.service,
+                        // Preview ID is always known; detail payload may omit/zero id.
+                        messageId: widget.message.id,
+                      ),
+                  ],
+                ),
+              ),
+
+            // Retry button when metadata fetch failed
+            if (_attachmentsFetchFailed && attachments.isEmpty && !_attachmentsLoading)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                child: Material(
+                  color: AppTheme.bg,
+                  borderRadius: BorderRadius.circular(12),
+                  child: InkWell(
+                    onTap: _fetchAttachmentsFallback,
+                    borderRadius: BorderRadius.circular(12),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 14,
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 44,
+                            height: 44,
+                            decoration: BoxDecoration(
+                              color: AppTheme.accent.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Icon(
+                              CupertinoIcons.arrow_down_circle,
+                              size: 22,
+                              color: AppTheme.accent,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Anhang laden',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w500,
+                                    color: AppTheme.accent,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  'Tippen zum erneuten Laden',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: AppTheme.textTertiary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Icon(
+                            CupertinoIcons.refresh,
+                            size: 18,
+                            color: AppTheme.accent,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+
+            if (_attachmentsLoading || (attachments.isEmpty && !_attachmentsFetchFailed))
+              const SizedBox(height: 8),
           ],
+
+          if (detail.body.isEmpty && !showAttachmentSection)
+            const SizedBox(height: 16),
         ],
       ),
     );
@@ -436,22 +629,36 @@ class _AttachmentTile extends StatefulWidget {
 class _AttachmentTileState extends State<_AttachmentTile> {
   bool _downloading = false;
 
-  IconData get _icon {
-    final name = widget.attachment.name.toLowerCase();
-    if (name.endsWith('.pdf')) return CupertinoIcons.doc_fill;
-    if (name.endsWith('.jpg') ||
-        name.endsWith('.jpeg') ||
-        name.endsWith('.png') ||
-        name.endsWith('.gif')) {
-      return CupertinoIcons.photo_fill;
+  // Returns icon + background colour based on file extension (mail-app style).
+  ({IconData icon, Color color}) get _fileStyle {
+    final n = widget.attachment.name.toLowerCase();
+    if (n.endsWith('.pdf')) {
+      return (icon: CupertinoIcons.doc_fill, color: const Color(0xFFE53935));
     }
-    if (name.endsWith('.doc') || name.endsWith('.docx')) {
-      return CupertinoIcons.doc_text_fill;
+    if (n.endsWith('.jpg') || n.endsWith('.jpeg') ||
+        n.endsWith('.png')  || n.endsWith('.gif') ||
+        n.endsWith('.webp') || n.endsWith('.heic')) {
+      return (icon: CupertinoIcons.photo_fill, color: const Color(0xFF1E88E5));
     }
-    if (name.endsWith('.xls') || name.endsWith('.xlsx')) {
-      return CupertinoIcons.table_fill;
+    if (n.endsWith('.doc') || n.endsWith('.docx')) {
+      return (icon: CupertinoIcons.doc_text_fill, color: const Color(0xFF1565C0));
     }
-    return CupertinoIcons.paperclip;
+    if (n.endsWith('.xls') || n.endsWith('.xlsx')) {
+      return (icon: CupertinoIcons.table_fill, color: const Color(0xFF2E7D32));
+    }
+    if (n.endsWith('.ppt') || n.endsWith('.pptx')) {
+      return (icon: CupertinoIcons.play_rectangle_fill, color: const Color(0xFFE65100));
+    }
+    if (n.endsWith('.zip') || n.endsWith('.rar') || n.endsWith('.7z')) {
+      return (icon: CupertinoIcons.archivebox_fill, color: const Color(0xFF6D4C41));
+    }
+    if (n.endsWith('.mp4') || n.endsWith('.mov') || n.endsWith('.avi')) {
+      return (icon: CupertinoIcons.film_fill, color: const Color(0xFF6A1B9A));
+    }
+    if (n.endsWith('.mp3') || n.endsWith('.m4a') || n.endsWith('.wav')) {
+      return (icon: CupertinoIcons.music_note, color: const Color(0xFFAD1457));
+    }
+    return (icon: CupertinoIcons.doc_fill, color: AppTheme.accent);
   }
 
   Future<void> _open() async {
@@ -462,15 +669,16 @@ class _AttachmentTileState extends State<_AttachmentTile> {
         messageId: widget.messageId,
         attachmentId: widget.attachment.id,
         fileName: widget.attachment.name,
+        directUrl: widget.attachment.url,
       );
       final result = await OpenFilex.open(path);
       if (result.type != ResultType.done && mounted) {
-        _showError('Datei konnte nicht geöffnet werden');
+        _showError('Datei konnte nicht geöffnet werden: ${result.message}');
       }
     } on WebUntisException catch (e) {
       if (mounted) _showError(e.message);
-    } catch (_) {
-      if (mounted) _showError('Anhang konnte nicht geladen werden');
+    } catch (e) {
+      if (mounted) _showError('Fehler: $e');
     } finally {
       if (mounted) setState(() => _downloading = false);
     }
@@ -489,48 +697,74 @@ class _AttachmentTileState extends State<_AttachmentTile> {
 
   @override
   Widget build(BuildContext context) {
+    final style = _fileStyle;
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 6),
       child: Material(
-        color: AppTheme.card,
-        borderRadius: BorderRadius.circular(10),
+        color: AppTheme.bg,
+        borderRadius: BorderRadius.circular(12),
         child: InkWell(
           onTap: _downloading ? null : _open,
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(12),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
             child: Row(
               children: [
-                Icon(_icon, size: 20, color: AppTheme.accent),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    widget.attachment.name,
-                    style: TextStyle(fontSize: 13, color: AppTheme.textPrimary),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                // Coloured file-type icon box (like Apple Mail / Files app)
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: style.color.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Center(
+                    child: Icon(style.icon, size: 22, color: style.color),
                   ),
                 ),
-                if (widget.attachment.size != null) ...[
-                  const SizedBox(width: 8),
-                  Text(
-                    _formatSize(widget.attachment.size!),
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: AppTheme.textTertiary,
-                    ),
+                const SizedBox(width: 12),
+
+                // Name + size
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        widget.attachment.name,
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          color: AppTheme.textPrimary,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      if (widget.attachment.size != null) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          _formatSize(widget.attachment.size!),
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: AppTheme.textTertiary,
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
-                ],
-                const SizedBox(width: 8),
+                ),
+                const SizedBox(width: 10),
+
+                // Right side: spinner or open icon
                 _downloading
                     ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CupertinoActivityIndicator(radius: 8),
+                        width: 22,
+                        height: 22,
+                        child: CupertinoActivityIndicator(radius: 10),
                       )
                     : Icon(
-                        CupertinoIcons.arrow_down_circle,
-                        size: 16,
+                        CupertinoIcons.arrow_up_right_circle_fill,
+                        size: 22,
                         color: AppTheme.accent,
                       ),
               ],

@@ -505,9 +505,9 @@ class _HomeNavLayout {
     barHeight: 30,
     bottomPadding: 5,
     contentYOffset: 10,
-    iconSize: 22,
+    iconSize: 24,
     iconLabelSpacing: 1,
-    labelFontSize: 8,
+    labelFontSize: 11,
   );
 
   static _HomeNavLayout forPlatform(TargetPlatform platform) {
@@ -539,32 +539,40 @@ class _TabItem extends StatelessWidget {
       child: SizedBox.expand(
         child: Center(
           child: Transform.translate(
+            // Keep the visual vertical offset but avoid layout overflow by
+            // allowing the content to scale down if it doesn't fit the
+            // available nav bar height. Using FittedBox with BoxFit.scaleDown
+            // prevents RenderFlex overflows on compact bars (e.g. iOS).
             offset: Offset(0, layout.contentYOffset),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Icon(
-                  icon,
-                  size: layout.iconSize,
-                  color: active ? AppTheme.accent : AppTheme.textTertiary,
-                ),
-                SizedBox(height: layout.iconLabelSpacing),
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: layout.labelFontSize,
-                    height: 1,
-                    fontWeight: active ? FontWeight.w600 : FontWeight.w400,
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.center,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Icon(
+                    icon,
+                    size: layout.iconSize,
                     color: active ? AppTheme.accent : AppTheme.textTertiary,
                   ),
-                  strutStyle: const StrutStyle(
-                    forceStrutHeight: true,
-                    height: 1,
+                  SizedBox(height: layout.iconLabelSpacing),
+                  Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: layout.labelFontSize,
+                      height: 1,
+                      fontWeight: active ? FontWeight.w600 : FontWeight.w400,
+                      color: active ? AppTheme.accent : AppTheme.textTertiary,
+                    ),
+                    strutStyle: const StrutStyle(
+                      forceStrutHeight: true,
+                      height: 1,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -883,14 +891,6 @@ class _DashboardTabState extends State<_DashboardTab>
     return '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}';
   }
 
-  String? _getSchoolStart() {
-    if (_today.isEmpty) return null;
-    final first = _today.first;
-    final h = first.startTime ~/ 100;
-    final m = first.startTime % 100;
-    return '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}';
-  }
-
   int? _minsUntilEnd(DateTime now) {
     if (_today.isEmpty) return null;
     final last = _today.last;
@@ -898,15 +898,6 @@ class _DashboardTabState extends State<_DashboardTab>
     final nowMins = now.hour * 60 + now.minute;
     if (endMins <= nowMins) return null;
     return endMins - nowMins;
-  }
-
-  int? _minsUntilStart(DateTime now) {
-    if (_today.isEmpty) return null;
-    final first = _today.first;
-    final startMins = (first.startTime ~/ 100) * 60 + (first.startTime % 100);
-    final nowMins = now.hour * 60 + now.minute;
-    if (nowMins >= startMins) return null;
-    return startMins - nowMins;
   }
 
   _NextExam? _getNextExam(DateTime now) {
@@ -957,9 +948,7 @@ class _DashboardTabState extends State<_DashboardTab>
 
   Widget? _cardContent(_CardSection section, DateTime now) {
     final nextExam = _loadingTimetable ? null : _getNextExam(now);
-    final schoolStart = _getSchoolStart();
     final schoolEnd = _getSchoolEnd();
-    final minsUntilStart = _minsUntilStart(now);
     final minsUntilEnd = _minsUntilEnd(now);
 
     switch (section) {
@@ -988,31 +977,20 @@ class _DashboardTabState extends State<_DashboardTab>
           return _ErrorCard(message: _errorTimetable!, onRetry: _load);
         }
         if (_today.isEmpty) return null;
-
-        final isBeforeSchool = minsUntilStart != null;
-        final label = isBeforeSchool ? 'Schulstart' : 'Schulende';
-        final value = isBeforeSchool
-            ? (schoolStart ?? '—')
-            : (schoolEnd ?? '—');
-        final sub = isBeforeSchool
-            ? 'in ${_fmtDuration(minsUntilStart!)}'
-            : minsUntilEnd != null
-            ? 'noch ${_fmtDuration(minsUntilEnd)}'
-            : 'vorbei';
-        final color = isBeforeSchool || minsUntilEnd != null
-            ? AppTheme.accent
-            : AppTheme.textTertiary;
-
         return IntrinsicHeight(
           child: Row(
             children: [
               Expanded(
                 child: _TimeInfoCard(
                   icon: CupertinoIcons.flag_fill,
-                  label: label,
-                  value: value,
-                  sub: sub,
-                  color: color,
+                  label: 'Schulende',
+                  value: schoolEnd ?? '—',
+                  sub: minsUntilEnd != null
+                      ? 'noch ${_fmtDuration(minsUntilEnd)}'
+                      : 'vorbei',
+                  color: minsUntilEnd != null
+                      ? AppTheme.accent
+                      : AppTheme.textTertiary,
                 ),
               ),
               const SizedBox(width: 10),
@@ -1264,7 +1242,7 @@ class _CardReorderListState extends State<_CardReorderList> {
             // Slot left behind while dragging
             childWhenDragging: AnimatedContainer(
               duration: const Duration(milliseconds: 220),
-              clipBehavior: Clip.antiAlias,
+              height: 56,
               decoration: BoxDecoration(
                 color: AppTheme.accent.withValues(alpha: 0.07),
                 borderRadius: BorderRadius.circular(14),
@@ -1272,19 +1250,6 @@ class _CardReorderListState extends State<_CardReorderList> {
                   color: AppTheme.accent.withValues(alpha: 0.28),
                   width: 1.5,
                 ),
-              ),
-              child: Stack(
-                children: [
-                  entry.child,
-                  Positioned.fill(
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        color: AppTheme.accent.withValues(alpha: 0.07),
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                    ),
-                  ),
-                ],
               ),
             ),
             child: DragTarget<int>(
