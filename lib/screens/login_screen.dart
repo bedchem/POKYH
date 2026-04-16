@@ -87,8 +87,8 @@ class _LoginScreenState extends State<LoginScreen>
         final onlyAccount = _savedAccounts.first;
         // Nicht automatisch, wenn gesperrt
         if (!_isLockedOut(onlyAccount.username)) {
-          // Leicht verzögern, damit Build fertig ist
-          Future.delayed(const Duration(milliseconds: 300), () {
+          // Nach dem ersten gerenderten Frame starten – kein künstlicher Delay.
+          WidgetsBinding.instance.addPostFrameCallback((_) {
             if (mounted && !_biometricAttempted) {
               _biometricLogin(onlyAccount);
             }
@@ -121,8 +121,16 @@ class _LoginScreenState extends State<LoginScreen>
         return;
       }
 
-      final biometrics = await _localAuth.getAvailableBiometrics();
-      if (mounted) setState(() => _availableBiometrics = biometrics);
+      if (Platform.isIOS) {
+        // Auf iOS löst getAvailableBiometrics() intern eine LAContext-Evaluierung
+        // aus, die einen Face-ID-Dialog triggert (erster von zwei).
+        // Stattdessen: canCheckBiometrics reicht – auf modernen iPhones ist
+        // Face ID die verfügbare Biometrie.
+        if (mounted) setState(() => _availableBiometrics = [BiometricType.face]);
+      } else {
+        final biometrics = await _localAuth.getAvailableBiometrics();
+        if (mounted) setState(() => _availableBiometrics = biometrics);
+      }
     } catch (_) {
       if (mounted) setState(() => _availableBiometrics = []);
     }
