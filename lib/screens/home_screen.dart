@@ -89,30 +89,40 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     super.dispose();
   }
 
-  bool _sessionCleared = false;
+  // Timestamp when the app went to background. Null means app is in foreground.
+  DateTime? _backgroundedAt;
+  static const _inactivityTimeout = Duration(minutes: 1);
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.paused && !_sessionCleared) {
-      // App goes to background: clear session immediately (no network call —
-      // network calls in background hang on iOS and are unreliable on Android).
-      _sessionCleared = true;
+    if (state == AppLifecycleState.paused) {
+      // Record when the app went to background, but do NOT clear the session
+      // yet — clearing immediately caused Face ID to bug out (double prompt,
+      // slow re-auth) because iOS hadn't finished dismissing the app overlay.
+      _backgroundedAt = DateTime.now();
       NotificationService().stopPolling();
-      widget.service.clearSession(); // clears in-memory state synchronously
-    } else if (state == AppLifecycleState.resumed && _sessionCleared) {
-      // App comes back to foreground: now safely navigate to LoginScreen.
-      // Use pushAndRemoveUntil to clear the entire navigation stack
-      // (handles cases where sub-screens like Profile/Messages are open).
-      if (!mounted) return;
-      Navigator.of(context).pushAndRemoveUntil(
-        PageRouteBuilder(
-          pageBuilder: (_, _, _) => const LoginScreen(),
-          transitionsBuilder: (_, a, _, child) =>
-              FadeTransition(opacity: a, child: child),
-          transitionDuration: const Duration(milliseconds: 300),
-        ),
-        (route) => false,
-      );
+    } else if (state == AppLifecycleState.resumed) {
+      final backgroundedAt = _backgroundedAt;
+      _backgroundedAt = null;
+
+      if (backgroundedAt != null &&
+          DateTime.now().difference(backgroundedAt) >= _inactivityTimeout) {
+        // Been away for 1+ minute → clean logout, then show login.
+        widget.service.clearSession();
+        if (!mounted) return;
+        Navigator.of(context).pushAndRemoveUntil(
+          PageRouteBuilder(
+            pageBuilder: (_, _, _) => const LoginScreen(),
+            transitionsBuilder: (_, a, _, child) =>
+                FadeTransition(opacity: a, child: child),
+            transitionDuration: const Duration(milliseconds: 300),
+          ),
+          (route) => false,
+        );
+      } else {
+        // Back within 1 minute → session still valid, just resume polling.
+        NotificationService().startPolling(widget.service);
+      }
     }
   }
 
