@@ -660,285 +660,287 @@ class _DishDetailSheetState extends State<_DishDetailSheet> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                  // ── Hero Image ──
-                  if (dish.hasImage)
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(16),
-                      child: SizedBox(
-                        height: 200,
-                        width: double.infinity,
-                        child: CachedNetworkImage(
-                          imageUrl: dish.imageUrl,
-                          fit: BoxFit.cover,
-                          fadeInDuration: Duration.zero,
-                          placeholderFadeInDuration: Duration.zero,
-                          placeholder: (context, url) => Container(
-                            color: AppTheme.card,
-                            child: Center(
-                              child: Icon(
-                                CupertinoIcons.photo,
-                                color: AppTheme.textTertiary,
-                                size: 40,
+                      // ── Hero Image ──
+                      if (dish.hasImage)
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(16),
+                          child: SizedBox(
+                            height: 200,
+                            width: double.infinity,
+                            child: CachedNetworkImage(
+                              imageUrl: dish.imageUrl,
+                              fit: BoxFit.cover,
+                              fadeInDuration: Duration.zero,
+                              placeholderFadeInDuration: Duration.zero,
+                              placeholder: (context, url) => Container(
+                                color: AppTheme.card,
+                                child: Center(
+                                  child: Icon(
+                                    CupertinoIcons.photo,
+                                    color: AppTheme.textTertiary,
+                                    size: 40,
+                                  ),
+                                ),
                               ),
-                            ),
-                          ),
-                          errorWidget: (context, url, error) => Container(
-                            color: AppTheme.card,
-                            child: Center(
-                              child: Icon(
-                                CupertinoIcons.photo,
-                                color: AppTheme.textTertiary,
-                                size: 40,
+                              errorWidget: (context, url, error) => Container(
+                                color: AppTheme.card,
+                                child: Center(
+                                  child: Icon(
+                                    CupertinoIcons.photo,
+                                    color: AppTheme.textTertiary,
+                                    size: 40,
+                                  ),
+                                ),
                               ),
                             ),
                           ),
                         ),
-                      ),
-                    ),
 
-                  if (dish.hasImage) const SizedBox(height: 20),
+                      if (dish.hasImage) const SizedBox(height: 20),
 
-                  // ── Tags ──
-                  if (dish.isVegan || dish.isVegetarian)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 10),
-                      child: Row(
-                        children: [
-                          if (dish.isVegan)
-                            _DetailTag(
-                              label: 'Vegan',
-                              color: AppTheme.success,
-                              icon: CupertinoIcons.leaf_arrow_circlepath,
-                            ),
-                          if (dish.isVegetarian && !dish.isVegan)
-                            _DetailTag(
-                              label: 'Vegetarisch',
-                              color: AppTheme.tint,
-                              icon: CupertinoIcons.leaf_arrow_circlepath,
-                            ),
-                        ],
-                      ),
-                    ),
-
-                  // ── Title ──
-                  Text(
-                    dish.name('de'),
-                    style: TextStyle(
-                      fontSize: 26,
-                      fontWeight: FontWeight.w700,
-                      color: AppTheme.textPrimary,
-                      letterSpacing: -0.5,
-                    ),
-                  ),
-
-                  if (dish.hasCategory) ...[
-                    const SizedBox(height: 4),
-                    Text(
-                      dish.category,
-                      style: TextStyle(
-                        fontSize: 15,
-                        color: AppTheme.textSecondary,
-                      ),
-                    ),
-                  ],
-
-                  // ── Description ──
-                  if (dish.hasDescription()) ...[
-                    const SizedBox(height: 16),
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 9,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppTheme.surface,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
+                      // ── Tags ──
+                      if (dish.isVegan || dish.isVegetarian)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: Row(
                             children: [
-                              Icon(
-                                CupertinoIcons.text_quote,
-                                size: 14,
-                                color: AppTheme.textSecondary,
+                              if (dish.isVegan)
+                                _DetailTag(
+                                  label: 'Vegan',
+                                  color: AppTheme.success,
+                                  icon: CupertinoIcons.leaf_arrow_circlepath,
+                                ),
+                              if (dish.isVegetarian && !dish.isVegan)
+                                _DetailTag(
+                                  label: 'Vegetarisch',
+                                  color: AppTheme.tint,
+                                  icon: CupertinoIcons.leaf_arrow_circlepath,
+                                ),
+                            ],
+                          ),
+                        ),
+
+                      // ── Title ──
+                      Text(
+                        dish.name('de'),
+                        style: TextStyle(
+                          fontSize: 26,
+                          fontWeight: FontWeight.w700,
+                          color: AppTheme.textPrimary,
+                          letterSpacing: -0.5,
+                        ),
+                      ),
+
+                      if (dish.hasCategory) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          dish.category,
+                          style: TextStyle(
+                            fontSize: 15,
+                            color: AppTheme.textSecondary,
+                          ),
+                        ),
+                      ],
+
+                      // ── Description ──
+                      if (dish.hasDescription()) ...[
+                        const SizedBox(height: 16),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 9,
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppTheme.surface,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Icon(
+                                    CupertinoIcons.text_quote,
+                                    size: 14,
+                                    color: AppTheme.textSecondary,
+                                  ),
+                                  SizedBox(width: 6),
+                                  Text(
+                                    'Beschreibung',
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                      color: AppTheme.textSecondary,
+                                    ),
+                                  ),
+                                ],
                               ),
-                              SizedBox(width: 6),
+                              const SizedBox(height: 8),
                               Text(
-                                'Beschreibung',
+                                dish.description('de'),
                                 style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600,
-                                  color: AppTheme.textSecondary,
+                                  fontSize: 15,
+                                  color: AppTheme.textPrimary,
+                                  height: 1.4,
                                 ),
                               ),
                             ],
                           ),
-                          const SizedBox(height: 8),
-                          Text(
-                            dish.description('de'),
-                            style: TextStyle(
-                              fontSize: 15,
-                              color: AppTheme.textPrimary,
-                              height: 1.4,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-
-                  // ── Nutrition Section ──
-                  if (dish.hasNutrition) ...[
-                    const SizedBox(height: 20),
-                    Text(
-                      'Nährwerte',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w700,
-                        color: AppTheme.textPrimary,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-
-                    // Main nutrition cards
-                    Row(
-                      children: [
-                        if (dish.calories > 0)
-                          Expanded(
-                            child: _NutritionCard(
-                              icon: CupertinoIcons.flame_fill,
-                              label: 'Kalorien',
-                              value: '${dish.calories}',
-                              unit: 'kcal',
-                              color: AppTheme.orange,
-                            ),
-                          ),
-                        if (dish.calories > 0 && dish.protein > 0)
-                          const SizedBox(width: 10),
-                        if (dish.protein > 0)
-                          Expanded(
-                            child: _NutritionCard(
-                              icon: CupertinoIcons.bolt_fill,
-                              label: 'Protein',
-                              value: dish.protein.toStringAsFixed(1),
-                              unit: 'g',
-                              color: AppTheme.accent,
-                            ),
-                          ),
-                        if ((dish.calories > 0 || dish.protein > 0) &&
-                            dish.fat > 0)
-                          const SizedBox(width: 10),
-                        if (dish.fat > 0)
-                          Expanded(
-                            child: _NutritionCard(
-                              icon: CupertinoIcons.drop_fill,
-                              label: 'Fett',
-                              value: dish.fat.toStringAsFixed(1),
-                              unit: 'g',
-                              color: AppTheme.warning,
-                            ),
-                          ),
+                        ),
                       ],
-                    ),
 
-                    // Nutrition bar visual
-                    if (dish.calories > 0 &&
-                        dish.protein > 0 &&
-                        dish.fat > 0) ...[
-                      const SizedBox(height: 16),
-                      _NutritionBar(dish: dish),
-                    ],
-                  ],
+                      // ── Nutrition Section ──
+                      if (dish.hasNutrition) ...[
+                        const SizedBox(height: 20),
+                        Text(
+                          'Nährwerte',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w700,
+                            color: AppTheme.textPrimary,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
 
-                  // ── Allergens ──
-                  if (dish.allergens.isNotEmpty) ...[
-                    const SizedBox(height: 20),
-                    Text(
-                      'Allergene',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w700,
-                        color: AppTheme.textPrimary,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 6,
-                      children: dish.allergens
-                          .map(
-                            (a) => Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 6,
+                        // Main nutrition cards
+                        Row(
+                          children: [
+                            if (dish.calories > 0)
+                              Expanded(
+                                child: _NutritionCard(
+                                  icon: CupertinoIcons.flame_fill,
+                                  label: 'Kalorien',
+                                  value: '${dish.calories}',
+                                  unit: 'kcal',
+                                  color: AppTheme.orange,
+                                ),
                               ),
-                              decoration: BoxDecoration(
-                                color: AppTheme.danger.withValues(alpha: 0.08),
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(
-                                  color: AppTheme.danger.withValues(
-                                    alpha: 0.15,
+                            if (dish.calories > 0 && dish.protein > 0)
+                              const SizedBox(width: 10),
+                            if (dish.protein > 0)
+                              Expanded(
+                                child: _NutritionCard(
+                                  icon: CupertinoIcons.bolt_fill,
+                                  label: 'Protein',
+                                  value: dish.protein.toStringAsFixed(1),
+                                  unit: 'g',
+                                  color: AppTheme.accent,
+                                ),
+                              ),
+                            if ((dish.calories > 0 || dish.protein > 0) &&
+                                dish.fat > 0)
+                              const SizedBox(width: 10),
+                            if (dish.fat > 0)
+                              Expanded(
+                                child: _NutritionCard(
+                                  icon: CupertinoIcons.drop_fill,
+                                  label: 'Fett',
+                                  value: dish.fat.toStringAsFixed(1),
+                                  unit: 'g',
+                                  color: AppTheme.warning,
+                                ),
+                              ),
+                          ],
+                        ),
+
+                        // Nutrition bar visual
+                        if (dish.calories > 0 &&
+                            dish.protein > 0 &&
+                            dish.fat > 0) ...[
+                          const SizedBox(height: 16),
+                          _NutritionBar(dish: dish),
+                        ],
+                      ],
+
+                      // ── Allergens ──
+                      if (dish.allergens.isNotEmpty) ...[
+                        const SizedBox(height: 20),
+                        Text(
+                          'Allergene',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w700,
+                            color: AppTheme.textPrimary,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 6,
+                          children: dish.allergens
+                              .map(
+                                (a) => Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 6,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: AppTheme.danger.withValues(
+                                      alpha: 0.08,
+                                    ),
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(
+                                      color: AppTheme.danger.withValues(
+                                        alpha: 0.15,
+                                      ),
+                                    ),
+                                  ),
+                                  child: Text(
+                                    a,
+                                    style: const TextStyle(
+                                      fontSize: 13,
+                                      color: AppTheme.danger,
+                                      fontWeight: FontWeight.w500,
+                                    ),
                                   ),
                                 ),
+                              )
+                              .toList(),
+                        ),
+                      ],
+
+                      // ── Price ──
+                      if (dish.price > 0) ...[
+                        const SizedBox(height: 20),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: AppTheme.accent.withValues(alpha: 0.08),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: AppTheme.accent.withValues(alpha: 0.15),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                CupertinoIcons.tag_fill,
+                                size: 18,
+                                color: AppTheme.accent.withValues(alpha: 0.7),
                               ),
-                              child: Text(
-                                a,
-                                style: const TextStyle(
-                                  fontSize: 13,
-                                  color: AppTheme.danger,
-                                  fontWeight: FontWeight.w500,
+                              const SizedBox(width: 10),
+                              Text(
+                                'Preis',
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  color: AppTheme.textSecondary,
                                 ),
                               ),
-                            ),
-                          )
-                          .toList(),
-                    ),
-                  ],
-
-                  // ── Price ──
-                  if (dish.price > 0) ...[
-                    const SizedBox(height: 20),
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: AppTheme.accent.withValues(alpha: 0.08),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: AppTheme.accent.withValues(alpha: 0.15),
+                              const Spacer(),
+                              Text(
+                                '\u20AC ${dish.price.toStringAsFixed(2)}',
+                                style: const TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppTheme.accent,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(
-                            CupertinoIcons.tag_fill,
-                            size: 18,
-                            color: AppTheme.accent.withValues(alpha: 0.7),
-                          ),
-                          const SizedBox(width: 10),
-                          Text(
-                            'Preis',
-                            style: TextStyle(
-                              fontSize: 15,
-                              color: AppTheme.textSecondary,
-                            ),
-                          ),
-                          const Spacer(),
-                          Text(
-                            '\u20AC ${dish.price.toStringAsFixed(2)}',
-                            style: const TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.w700,
-                              color: AppTheme.accent,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
+                      ],
                     ],
                   ),
                 ),

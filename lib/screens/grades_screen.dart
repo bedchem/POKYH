@@ -97,11 +97,6 @@ class _GradesScreenState extends State<GradesScreen> {
     final scrollView = CustomScrollView(
       physics: const AlwaysScrollableScrollPhysics(),
       slivers: [
-        if (Platform.isIOS)
-          CupertinoSliverRefreshControl(
-            onRefresh: () => _load(forceRefresh: true),
-          ),
-
         // ── Header ──
         SliverToBoxAdapter(
           child: Padding(
@@ -232,12 +227,10 @@ class _GradesScreenState extends State<GradesScreen> {
     );
 
     return SafeArea(
-      child: Platform.isIOS
-          ? scrollView
-          : RefreshIndicator(
-              onRefresh: () => _load(forceRefresh: true),
-              child: scrollView,
-            ),
+      child: RefreshIndicator(
+        onRefresh: () => _load(forceRefresh: true),
+        child: scrollView,
+      ),
     );
   }
 }
