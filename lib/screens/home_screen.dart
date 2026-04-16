@@ -24,7 +24,7 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   int _tab = 0;
   late final List<Widget> _screens;
   late GlobalKey<TimetableScreenState> _timetableKey;
@@ -34,6 +34,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _timetableKey = TimetableScreen.createKey();
     _mensaController = MensaScreenController();
     NotificationService().onNewMessages = _showNewMessageBanner;
@@ -80,6 +81,19 @@ class _HomeScreenState extends State<HomeScreen> {
       GradesScreen(service: widget.service),
       MensaScreen(controller: _mensaController),
     ];
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused) {
+      _logout();
+    }
   }
 
   void _showMensaTab() {
