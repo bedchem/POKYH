@@ -727,7 +727,11 @@ class _DashboardTabState extends State<_DashboardTab>
     });
 
     _fadeController.reset();
-    await Future.wait([_loadTimetable(), _loadGrades(), _loadMensa()]);
+    await Future.wait([
+      _loadTimetable(),
+      _loadGrades(),
+      _loadMensa(),
+    ]);
     if (mounted) _fadeController.forward();
   }
 
@@ -1364,6 +1368,27 @@ class _WeekOverviewCard extends StatelessWidget {
     '${d.year}${d.month.toString().padLeft(2, '0')}${d.day.toString().padLeft(2, '0')}',
   );
 
+  List<_DayMarker> _dayMarkersForEntries(List<TimetableEntry> entries) {
+    final markers = <_DayMarker>[];
+
+    for (final entry in entries) {
+      final marker = _markerForEntry(entry);
+      if (marker != null) markers.add(marker);
+    }
+
+    markers.sort((a, b) => _dayMarkerPriority(a).compareTo(_dayMarkerPriority(b)));
+    return markers;
+  }
+
+  _DayMarker? _markerForEntry(TimetableEntry entry) {
+    if (entry.isExam) return _DayMarker.exam;
+    if (entry.isSubstitution) return _DayMarker.substitution;
+    if (entry.isCancelled) return _DayMarker.cancelled;
+    if (entry.isAdditional) return _DayMarker.additional;
+    if (entry.lessonText.trim().isNotEmpty) return _DayMarker.info;
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
     final monday = now.subtract(Duration(days: now.weekday - 1));
@@ -1434,8 +1459,9 @@ class _WeekOverviewCard extends StatelessWidget {
               final isPast = day.isBefore(
                 DateTime(now.year, now.month, now.day),
               );
-              final hasExam = dayEntries.any((e) => e.isExam);
-              final hasCancelled = dayEntries.any((e) => e.isCancelled);
+              final markers = _dayMarkersForEntries(dayEntries);
+              final hasExam = markers.contains(_DayMarker.exam);
+              final hasCancelled = markers.contains(_DayMarker.cancelled);
 
               return Expanded(
                 child: Column(
@@ -1452,33 +1478,32 @@ class _WeekOverviewCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 5),
                     Container(
-                      width: 32,
-                      height: 32,
+                      width: 38,
+                      height: 38,
                       decoration: BoxDecoration(
                         color: isToday
                             ? AppTheme.accent
-                            : hasExam
-                            ? AppTheme.warning.withValues(alpha: 0.15)
-                            : hasCancelled
-                            ? AppTheme.danger.withValues(alpha: 0.10)
                             : AppTheme.card,
-                        shape: BoxShape.circle,
-                        border: hasExam && !isToday
+                        borderRadius: BorderRadius.circular(20),
+                        border: markers.isNotEmpty && !isToday
                             ? Border.all(
-                                color: AppTheme.warning.withValues(alpha: 0.5),
-                                width: 1.5,
+                                color: AppTheme.border.withValues(alpha: 0.75),
+                                width: 1,
                               )
+                            : null,
+                        boxShadow: isToday
+                            ? [
+                                BoxShadow(
+                                  color: AppTheme.accent.withValues(alpha: 0.12),
+                                  blurRadius: 10,
+                                  offset: const Offset(0, 3),
+                                ),
+                              ]
                             : null,
                       ),
                       child: Center(
-                        child: hasExam
-                            ? Icon(
-                                CupertinoIcons.doc_text_fill,
-                                size: 12,
-                                color: isToday
-                                    ? Colors.white
-                                    : AppTheme.warning,
-                              )
+                        child: markers.isNotEmpty
+                            ? _DayIconFan(markers: markers, isToday: isToday)
                             : Text(
                                 '${day.day}',
                                 style: TextStyle(
@@ -1513,16 +1538,152 @@ class _WeekOverviewCard extends StatelessWidget {
           const SizedBox(height: 10),
           Row(
             children: [
-              _WeekLegendDot(color: AppTheme.warning, label: 'Prüfung'),
-              const SizedBox(width: 12),
-              _WeekLegendDot(color: AppTheme.danger, label: 'Entfall'),
-              const Spacer(),
               Text(
                 '${allWeek.length} Std. diese Woche',
                 style: TextStyle(fontSize: 10, color: AppTheme.textTertiary),
               ),
             ],
           ),
+        ],
+      ),
+    );
+  }
+}
+
+enum _DayMarker { exam, cancelled, substitution, additional, info }
+
+int _dayMarkerPriority(_DayMarker marker) {
+  switch (marker) {
+    case _DayMarker.exam:
+      return 0;
+    case _DayMarker.substitution:
+      return 1;
+    case _DayMarker.cancelled:
+      return 2;
+    case _DayMarker.additional:
+      return 3;
+    case _DayMarker.info:
+      return 4;
+  }
+}
+
+class _DayIconFan extends StatelessWidget {
+  final List<_DayMarker> markers;
+  final bool isToday;
+
+  const _DayIconFan({required this.markers, required this.isToday});
+
+  (IconData, Color) _styleFor(_DayMarker marker) {
+    switch (marker) {
+      case _DayMarker.exam:
+        return (CupertinoIcons.doc_text_fill, AppTheme.warning);
+      case _DayMarker.cancelled:
+        return (CupertinoIcons.xmark_octagon_fill, AppTheme.danger);
+      case _DayMarker.substitution:
+        return (CupertinoIcons.person_2_fill, AppTheme.tint);
+      case _DayMarker.additional:
+        return (CupertinoIcons.plus_app_fill, AppTheme.accent);
+      case _DayMarker.info:
+        return (CupertinoIcons.info_circle_fill, AppTheme.textSecondary);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final visible = markers;
+    final count = visible.length;
+    final baseIconSize = count <= 2
+        ? 16.5
+        : count <= 4
+        ? 15.0
+        : count <= 6
+        ? 13.5
+        : 12.2;
+    final iconSize = isToday ? baseIconSize + 0.8 : baseIconSize;
+    final fanWidth = 38.0;
+    final fanHeight = 38.0;
+    final step = count <= 1
+        ? 0.0
+        : count <= 3
+        ? 7.2
+        : count <= 5
+        ? 5.9
+        : count <= 7
+        ? 5.0
+        : 4.4;
+    final halfSpan = count <= 1 ? 1.0 : ((count - 1) * step) / 2;
+    final arcDepth = 4.0;
+    final centerFillWidth = count <= 2 ? 18.0 : (20.0 + (count - 2) * 1.6);
+    final centerFillAlpha = isToday ? 0.30 : 0.24;
+    final chipSize = iconSize + 5;
+
+    // Compute the arc envelope first so we can center it exactly.
+    final envelopeWidth = chipSize + (halfSpan * 2);
+    final envelopeHeight = chipSize + arcDepth;
+    final baseLeft = (fanWidth - envelopeWidth) / 2;
+    final baseTop = (fanHeight - envelopeHeight) / 2;
+    final apexY = baseTop;
+    final centerX = fanWidth / 2;
+    final centerY = fanHeight / 2;
+
+    return SizedBox(
+      width: fanWidth,
+      height: fanHeight,
+      child: Stack(
+        alignment: Alignment.center,
+        clipBehavior: Clip.none,
+        children: [
+          // Fill only the transparent middle area to improve readability.
+          Positioned(
+            left: centerX - centerFillWidth / 2,
+            top: centerY - (iconSize + 3) / 2,
+            child: Container(
+              width: centerFillWidth.clamp(18.0, 30.0),
+              height: iconSize + 3,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: centerFillAlpha),
+                borderRadius: BorderRadius.circular(999),
+              ),
+            ),
+          ),
+          for (int i = 0; i < count; i++)
+            Builder(
+              builder: (_) {
+                final normalized = count == 1 ? 0.0 : (i / (count - 1)) * 2 - 1;
+                final absNorm = normalized < 0 ? -normalized : normalized;
+                final curve = absNorm * absNorm;
+                final dx = normalized * halfSpan;
+                // Inverted arc: edge icons sit lower than the center icon.
+                final dy = curve * arcDepth;
+                final angle = normalized * 0.20;
+                final iconStyle = _styleFor(visible[i]);
+
+                return Positioned(
+                  left: baseLeft + halfSpan + dx,
+                  top: apexY + dy,
+                  child: Transform.rotate(
+                    angle: angle,
+                    child: Container(
+                      width: chipSize,
+                      height: chipSize,
+                      decoration: BoxDecoration(
+                        color: iconStyle.$2.withValues(alpha: isToday ? 0.95 : 0.90),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.75),
+                          width: 0.8,
+                        ),
+                      ),
+                      child: Icon(
+                        iconStyle.$1,
+                        size: iconSize,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
         ],
       ),
     );
@@ -1968,30 +2129,6 @@ class _GradeRow extends StatelessWidget {
   }
 }
 
-class _WeekLegendDot extends StatelessWidget {
-  final Color color;
-  final String label;
-  const _WeekLegendDot({required this.color, required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 6,
-          height: 6,
-          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-        ),
-        const SizedBox(width: 4),
-        Text(
-          label,
-          style: TextStyle(fontSize: 10, color: AppTheme.textTertiary),
-        ),
-      ],
-    );
-  }
-}
 
 // ═══════════════════════════════════════════════════════════════════════════════
 //  ERROR CARD
