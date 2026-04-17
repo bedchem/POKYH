@@ -27,14 +27,18 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   int _tab = 0;
   late final List<Widget> _screens;
+  late final PageController _swipePageController;
   late GlobalKey<TimetableScreenState> _timetableKey;
   late final MensaScreenController _mensaController;
   int _unreadMessages = 0;
+
+  static const List<int> _swipeTabs = [0, 1, 2, 3];
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _swipePageController = PageController(initialPage: 0);
     _timetableKey = TimetableScreen.createKey();
     _mensaController = MensaScreenController();
     NotificationService().onNewMessages = _showNewMessageBanner;
@@ -50,7 +54,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         onMensaTap: _showMensaTab,
         onExamTap: (exam) {
           if (exam == null) return;
-          setState(() => _tab = 1);
+          _setTab(1);
           final now = DateTime.now();
           final examDate = DateTime(
             int.parse(exam.entry.date.toString().substring(0, 4)),
@@ -86,6 +90,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _swipePageController.dispose();
     super.dispose();
   }
 
@@ -128,7 +133,66 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   void _showMensaTab() {
     _mensaController.scrollToTop();
-    setState(() => _tab = 3);
+    _setTab(3);
+  }
+
+  int? _swipeIndexForTab(int tab) {
+    final index = _swipeTabs.indexOf(tab);
+    return index >= 0 ? index : null;
+  }
+
+  int _tabForSwipeIndex(int index) => _swipeTabs[index.clamp(0, _swipeTabs.length - 1)];
+
+  void _setTab(int tab, {bool animate = true}) {
+    if (_tab == tab) return;
+
+    final targetSwipeIndex = _swipeIndexForTab(tab);
+    if (targetSwipeIndex == null) return;
+
+    setState(() => _tab = tab);
+
+    final syncSwipePage = () {
+      if (!_swipePageController.hasClients) return;
+      final current = _swipePageController.page?.round() ?? _swipePageController.initialPage;
+      if (current == targetSwipeIndex) return;
+      if (animate) {
+        _swipePageController.animateToPage(
+          targetSwipeIndex,
+          duration: const Duration(milliseconds: 320),
+          curve: Curves.easeInOutCubic,
+        );
+      } else {
+        _swipePageController.jumpToPage(targetSwipeIndex);
+      }
+    };
+
+    if (_swipePageController.hasClients) {
+      syncSwipePage();
+    } else {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        syncSwipePage();
+      });
+    }
+  }
+
+  Widget _buildMainContent() {
+    return PageView(
+      controller: _swipePageController,
+      // On timetable keep outer swipe disabled to avoid gesture conflicts with
+      // the timetable's own horizontal week swipe. Programmatic tab changes
+      // still animate with animateToPage.
+      physics: _tab == 1
+          ? const NeverScrollableScrollPhysics()
+          : const BouncingScrollPhysics(),
+      onPageChanged: (index) {
+        final nextTab = _tabForSwipeIndex(index);
+        if (nextTab != _tab) {
+          setState(() => _tab = nextTab);
+        }
+      },
+      children: _screens,
+    );
   }
 
   Future<void> _checkForUpdate() async {
@@ -245,7 +309,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       backgroundColor: AppTheme.bg,
       body: Stack(
         children: [
-          IndexedStack(index: _tab, children: _screens),
+          _buildMainContent(),
           Positioned(
             top: MediaQuery.of(context).padding.top + 12,
             right: 16,
@@ -291,7 +355,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     icon: CupertinoIcons.house_fill,
                     label: 'Home',
                     active: _tab == 0,
-                    onTap: () => setState(() => _tab = 0),
+                    onTap: () => _setTab(0),
                   ),
                 ),
                 Expanded(
@@ -314,7 +378,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                           );
                         }
                       }
-                      setState(() => _tab = 1);
+                      _setTab(1);
                     },
                   ),
                 ),
@@ -324,7 +388,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     icon: CupertinoIcons.chart_bar_fill,
                     label: 'Noten',
                     active: _tab == 2,
-                    onTap: () => setState(() => _tab = 2),
+                    onTap: () => _setTab(2),
                   ),
                 ),
                 Expanded(
@@ -516,7 +580,7 @@ class _HomeNavLayout {
   }
 }
 
-class _TabItem extends StatelessWidget {
+class _TabItem extends StatefulWidget {
   final _HomeNavLayout layout;
   final IconData icon;
   final String label;
@@ -532,46 +596,79 @@ class _TabItem extends StatelessWidget {
   });
 
   @override
+  State<_TabItem> createState() => _TabItemState();
+}
+
+class _TabItemState extends State<_TabItem> {
+  bool _isPressed = false;
+
+  void _setPressed(bool value) {
+    if (_isPressed == value) return;
+    setState(() => _isPressed = value);
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final targetColor = widget.active ? AppTheme.accent : AppTheme.textTertiary;
+
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTap: onTap,
+      onTapDown: (_) => _setPressed(true),
+      onTapUp: (_) => _setPressed(false),
+      onTapCancel: () => _setPressed(false),
+      onTap: widget.onTap,
       child: SizedBox.expand(
-        child: Center(
-          child: Transform.translate(
-            // Keep the visual vertical offset but avoid layout overflow by
-            // allowing the content to scale down if it doesn't fit the
-            // available nav bar height. Using FittedBox with BoxFit.scaleDown
-            // prevents RenderFlex overflows on compact bars (e.g. iOS).
-            offset: Offset(0, layout.contentYOffset),
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              alignment: Alignment.center,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Icon(
-                    icon,
-                    size: layout.iconSize,
-                    color: active ? AppTheme.accent : AppTheme.textTertiary,
-                  ),
-                  SizedBox(height: layout.iconLabelSpacing),
-                  Text(
-                    label,
-                    style: TextStyle(
-                      fontSize: layout.labelFontSize,
-                      height: 1,
-                      fontWeight: active ? FontWeight.w600 : FontWeight.w400,
-                      color: active ? AppTheme.accent : AppTheme.textTertiary,
+        child: AnimatedScale(
+          scale: _isPressed ? 0.94 : 1.0,
+          duration: const Duration(milliseconds: 120),
+          curve: Curves.easeOutCubic,
+          child: Center(
+            child: Transform.translate(
+              // Keep the visual vertical offset but avoid layout overflow by
+              // allowing the content to scale down if it doesn't fit the
+              // available nav bar height. Using FittedBox with BoxFit.scaleDown
+              // prevents RenderFlex overflows on compact bars (e.g. iOS).
+              offset: Offset(0, widget.layout.contentYOffset),
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.center,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    TweenAnimationBuilder<Color?>(
+                      tween: ColorTween(end: targetColor),
+                      duration: const Duration(milliseconds: 220),
+                      curve: Curves.easeOutCubic,
+                      builder: (_, color, __) => Icon(
+                        widget.icon,
+                        size: widget.layout.iconSize,
+                        color: color ?? targetColor,
+                      ),
                     ),
-                    strutStyle: const StrutStyle(
-                      forceStrutHeight: true,
-                      height: 1,
+                    SizedBox(height: widget.layout.iconLabelSpacing),
+                    AnimatedDefaultTextStyle(
+                      duration: const Duration(milliseconds: 220),
+                      curve: Curves.easeOutCubic,
+                      style: TextStyle(
+                        fontSize: widget.layout.labelFontSize,
+                        height: 1,
+                        fontWeight: widget.active
+                            ? FontWeight.w600
+                            : FontWeight.w400,
+                        color: targetColor,
+                      ),
+                      child: Text(
+                        widget.label,
+                        strutStyle: const StrutStyle(
+                          forceStrutHeight: true,
+                          height: 1,
+                        ),
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
