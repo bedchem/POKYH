@@ -1459,7 +1459,47 @@ class _MergedCell extends StatelessWidget {
 
     final entry = primary.display!;
     final subjectColor = AppTheme.colorForSubject(entry.subjectName);
-    final isNow = slots.any((s) => s.isNow);
+    final hasHomework = slots.any((s) => s.homework.isNotEmpty);
+
+    // Slightly lighter than before in both themes.
+    final cellBg = Color.alphaBlend(
+      Colors.white.withValues(
+        alpha: AppTheme.currentBrightness == Brightness.dark ? 0.10 : 0.22,
+      ),
+      AppTheme.card,
+    );
+
+    final bool isSpecial =
+        entry.isExam ||
+        entry.isCancelled ||
+        primary.kind == _SlotKind.replacement ||
+        primary.kind == _SlotKind.event ||
+        entry.isSubstitution ||
+        entry.isAdditional ||
+        hasHomework;
+
+    Color? highlightColor;
+    if (entry.isCancelled) {
+      highlightColor = AppTheme.danger;
+    } else if (entry.isExam) {
+      highlightColor = AppTheme.warning;
+    } else if (primary.kind == _SlotKind.replacement ||
+        entry.isSubstitution ||
+        entry.isAdditional) {
+      highlightColor = (entry.isAdditional && !entry.isSubstitution)
+          ? AppTheme.accent
+          : AppTheme.orange;
+    } else if (primary.kind == _SlotKind.event ||
+        entry.lessonText.isNotEmpty) {
+      highlightColor = AppTheme.tint;
+    } else if (hasHomework) {
+      highlightColor = AppTheme.accentSoft;
+    }
+
+    final borderColor = isSpecial
+        ? (highlightColor ?? AppTheme.accent).withValues(alpha: 0.78)
+        : AppTheme.border.withValues(alpha: 0.25);
+    final borderWidth = isSpecial ? 1.6 : 1.1;
 
     // Jede Cell ist tappable, sofern ein Eintrag existiert
     final isTappable = !primary.isEmpty;
@@ -1469,9 +1509,9 @@ class _MergedCell extends StatelessWidget {
       child: Container(
         height: height,
         decoration: BoxDecoration(
-          color: AppTheme.surface,
+          color: cellBg,
           borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: AppTheme.border.withValues(alpha: 0.15)),
+          border: Border.all(color: borderColor, width: borderWidth),
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(5),
@@ -1642,7 +1682,7 @@ class _SlotContent extends StatelessWidget {
                                   ? AppTheme.accent.withValues(alpha: 0.75)
                                   : AppTheme.colorForSubject(
                                       entry.subjectName,
-                                    ).withValues(alpha: 0.75)),
+                                    ).withValues(alpha: 0.85)),
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -1699,12 +1739,12 @@ class _SlotContent extends StatelessWidget {
                             : (isPureSubstitution
                                   ? AppTheme.orange.withValues(alpha: 0.72)
                                   : isPureAdditional
-                                  ? AppTheme.accent.withValues(alpha: 0.72)
+                                  ? AppTheme.accent.withValues(alpha: 0.82)
                                   : isCancelledReplacement
-                                  ? AppTheme.danger.withValues(alpha: 0.72)
+                                  ? AppTheme.danger.withValues(alpha: 0.82)
                                   : isReplaced
-                                  ? AppTheme.danger.withValues(alpha: 0.65)
-                                  : AppTheme.textTertiary),
+                                  ? AppTheme.danger.withValues(alpha: 0.78)
+                                  : AppTheme.textSecondary),
                         decoration: isPureSubstitution
                             ? null
                             : isPureAdditional
@@ -1735,12 +1775,12 @@ class _SlotContent extends StatelessWidget {
                             : (isPureSubstitution
                                   ? AppTheme.orange.withValues(alpha: 0.72)
                                   : isPureAdditional
-                                  ? AppTheme.accent.withValues(alpha: 0.72)
+                                  ? AppTheme.accent.withValues(alpha: 0.82)
                                   : isCancelledReplacement
-                                  ? AppTheme.danger.withValues(alpha: 0.72)
+                                  ? AppTheme.danger.withValues(alpha: 0.82)
                                   : isReplaced
-                                  ? AppTheme.danger.withValues(alpha: 0.65)
-                                  : AppTheme.textTertiary),
+                                  ? AppTheme.danger.withValues(alpha: 0.78)
+                                  : AppTheme.textSecondary),
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -1766,7 +1806,7 @@ class _SlotContent extends StatelessWidget {
                         replacement.teacherName,
                         style: TextStyle(
                           fontSize: 10,
-                          color: replColor.withValues(alpha: 0.75),
+                          color: replColor.withValues(alpha: 0.86),
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
