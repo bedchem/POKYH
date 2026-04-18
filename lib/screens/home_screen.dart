@@ -1,13 +1,11 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
-import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
-import '../config/app_config.dart';
 import '../services/update_service.dart';
 import '../services/notification_service.dart';
 import '../services/webuntis_service.dart';
+import '../services/dish_service.dart';
 import '../theme/app_theme.dart';
 import 'timetable_screen.dart' show TimetableScreen, TimetableScreenState;
 import 'grades_screen.dart';
@@ -84,7 +82,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       ),
       TimetableScreen(service: widget.service, key: _timetableKey),
       GradesScreen(service: widget.service),
-      MensaScreen(controller: _mensaController),
+      MensaScreen(controller: _mensaController, service: widget.service),
     ];
   }
 
@@ -431,12 +429,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         final timetableState = _timetableKey.currentState;
                         if (timetableState != null) {
                           final now = DateTime.now();
-                          final todayIndex = now.weekday <= 5
-                              ? now.weekday - 1
-                              : null;
+                          final isWeekend = now.weekday >= 6;
                           timetableState.jumpToWeekAndDay(
-                            weekOffset: 0,
-                            dayIndex: todayIndex,
+                            weekOffset: isWeekend ? 1 : 0,
+                            dayIndex: isWeekend ? 0 : now.weekday - 1,
                           );
                         }
                       }
@@ -878,7 +874,7 @@ class _DashboardTabState extends State<_DashboardTab>
   Future<void> _load() async {
     // Show cached data immediately so the screen isn't blank while fetching.
     _applyGradesCache(widget.service.cachedGrades);
-    final cachedWeek = widget.service.getCachedWeek(_getThisMonday());
+    final cachedWeek = widget.service.getCachedWeek(_getDisplayMonday());
     if (cachedWeek != null) _applyTimetableCache(cachedWeek);
 
     setState(() {
@@ -897,10 +893,17 @@ class _DashboardTabState extends State<_DashboardTab>
     if (mounted) _fadeController.forward();
   }
 
-  DateTime _getThisMonday() {
+  /// Der Montag, dessen Woche auf der Startseite angezeigt werden soll.
+  /// Am Wochenende (Sa/So) bereits die kommende Woche, an Schultagen die
+  /// aktuelle Woche.
+  DateTime _getDisplayMonday() {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
-    return today.subtract(Duration(days: today.weekday - 1));
+    final thisMonday = today.subtract(Duration(days: today.weekday - 1));
+    if (now.weekday >= 6) {
+      return thisMonday.add(const Duration(days: 7));
+    }
+    return thisMonday;
   }
 
   void _applyTimetableCache(List<TimetableEntry> allWeek) {
@@ -940,7 +943,9 @@ class _DashboardTabState extends State<_DashboardTab>
   Future<void> _loadTimetable() async {
     try {
       final now = DateTime.now();
-      final allWeek = await widget.service.getWeekTimetable();
+      final allWeek = await widget.service.getWeekTimetable(
+        weekStart: _getDisplayMonday(),
+      );
       final todayInt = _dateInt(now);
       if (mounted) {
         setState(() {
@@ -985,36 +990,27 @@ class _DashboardTabState extends State<_DashboardTab>
 
   Future<void> _loadMensa() async {
     try {
-      final now = DateTime.now();
-      final todayStr =
-          '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+      final dishService = DishService();
+      final dishes = await dishService.fetchFromServer(
+            untisService: widget.service,
+          ) ??
+          await dishService.loadFromCache(untisService: widget.service);
 
-      final response = await http
-          .get(Uri.parse(AppConfig.mensaApiUrl))
-          .timeout(AppConfig.mensaTimeout);
-
-      if (response.statusCode != 200) {
-        if (mounted) setState(() => _loadingMensa = false);
+      if (!mounted) return;
+      if (dishes == null || dishes.isEmpty) {
+        setState(() {
+          _mensaToday = null;
+          _loadingMensa = false;
+        });
         return;
       }
 
-      final json = jsonDecode(response.body);
-      List<dynamic> dishes = [];
-      if (json is Map) {
-        final menu = json['menu'];
-        if (menu is Map) {
-          dishes = (menu['dishes'] as List?) ?? [];
-        } else if (menu is List) {
-          dishes = menu;
-        } else {
-          dishes = (json['dishes'] as List?) ?? [];
-        }
-      } else if (json is List) {
-        dishes = json;
-      }
-
-      final todayDishes = dishes.where((d) => d['date'] == todayStr).toList();
-      if (!mounted) return;
+      final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day);
+      final todayDishes = dishes.where((d) {
+        final key = DateTime(d.date.year, d.date.month, d.date.day);
+        return key == today;
+      }).toList();
 
       if (todayDishes.isEmpty) {
         setState(() {
@@ -1025,25 +1021,13 @@ class _DashboardTabState extends State<_DashboardTab>
       }
 
       final main = todayDishes.firstWhere(
-        (d) => (d['category'] ?? '').toString().toLowerCase().contains('haupt'),
+        (d) => d.category.toLowerCase().contains('haupt'),
         orElse: () => todayDishes.first,
       );
 
-      String name = 'Unbekanntes Gericht';
-      final nameField = main['name'];
-      if (nameField is Map) {
-        name = (nameField['de'] ?? nameField.values.first ?? name).toString();
-      } else if (nameField is String) {
-        name = nameField;
-      }
-
-      String? category;
-      final catField = main['category'];
-      if (catField is String && catField.isNotEmpty) category = catField;
-
       setState(() {
-        _mensaToday = name;
-        _mensaCategory = category;
+        _mensaToday = main.name('de');
+        _mensaCategory = main.category.isNotEmpty ? main.category : null;
         _loadingMensa = false;
       });
     } catch (_) {
@@ -1134,6 +1118,7 @@ class _DashboardTabState extends State<_DashboardTab>
         return _WeekOverviewCard(
           allWeek: _allWeek,
           now: now,
+          displayMonday: _getDisplayMonday(),
           service: widget.service,
         );
 
@@ -1510,11 +1495,13 @@ class _LoadingCard extends StatelessWidget {
 class _WeekOverviewCard extends StatelessWidget {
   final List<TimetableEntry> allWeek;
   final DateTime now;
+  final DateTime displayMonday;
   final WebUntisService service;
 
   const _WeekOverviewCard({
     required this.allWeek,
     required this.now,
+    required this.displayMonday,
     required this.service,
   });
 
@@ -1561,7 +1548,6 @@ class _WeekOverviewCard extends StatelessWidget {
 
   _DayMarker? _markerForEntry(TimetableEntry entry) {
     if (entry.isExam) return _DayMarker.exam;
-    if (entry.isSubstitution) return _DayMarker.substitution;
     if (entry.isCancelled) return _DayMarker.cancelled;
     if (entry.isAdditional) return _DayMarker.additional;
     if (entry.lessonText.trim().isNotEmpty) return _DayMarker.info;
@@ -1570,7 +1556,9 @@ class _WeekOverviewCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final monday = now.subtract(Duration(days: now.weekday - 1));
+    final monday = displayMonday;
+    final isNextWeek = now.weekday >= 6;
+    final headerDate = isNextWeek ? monday : now;
 
     return Container(
       padding: const EdgeInsets.all(13),
@@ -1603,7 +1591,7 @@ class _WeekOverviewCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Diese Woche',
+                    isNextWeek ? 'Nächste Woche' : 'Diese Woche',
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
@@ -1612,7 +1600,7 @@ class _WeekOverviewCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    '${_weekdays[now.weekday - 1]}, ${now.day}. ${_months[now.month - 1]}',
+                    '${_weekdays[headerDate.weekday - 1]}, ${headerDate.day}. ${_months[headerDate.month - 1]}',
                     style: TextStyle(
                       fontSize: 10,
                       fontWeight: FontWeight.w500,

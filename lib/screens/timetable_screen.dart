@@ -114,9 +114,16 @@ class TimetableScreenState extends State<TimetableScreen> {
   void initState() {
     super.initState();
     final now = DateTime.now();
-    _selectedDay = (now.weekday <= 5) ? now.weekday - 1 : -1;
+    // Am Wochenende (Sa/So) direkt nächste Woche anzeigen.
+    final isWeekend = now.weekday >= 6;
+    if (isWeekend) {
+      _currentOffset = 1;
+      _selectedDay = 0; // Montag
+    } else {
+      _selectedDay = now.weekday - 1;
+    }
 
-    _pageController = PageController(initialPage: _kBase);
+    _pageController = PageController(initialPage: _kBase + _currentOffset);
 
     _ensureLoaded(_currentOffset - 1);
     _ensureLoaded(_currentOffset);

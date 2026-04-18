@@ -110,6 +110,27 @@ class Dish {
     return tags;
   }
 
+  Dish copyWith({String? id, DateTime? date}) {
+    return Dish(
+      id: id ?? this.id,
+      nameMap: nameMap,
+      descriptionMap: descriptionMap,
+      imageUrl: imageUrl,
+      category: category,
+      tags: tags,
+      prepTime: prepTime,
+      calories: calories,
+      price: price,
+      protein: protein,
+      fat: fat,
+      allergens: allergens,
+      isVegetarian: isVegetarian,
+      isVegan: isVegan,
+      rating: rating,
+      date: date ?? this.date,
+    );
+  }
+
   static List<Dish> listFromJson(Map<String, dynamic> json) {
     final menu = json['menu'];
     if (menu == null || menu is! Map<String, dynamic>) return [];

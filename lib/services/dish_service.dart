@@ -5,6 +5,8 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../config/app_config.dart';
 import '../models/dish.dart';
+import 'mensa_dish_extender.dart';
+import 'webuntis_service.dart';
 
 List<Dish> _parseDishesInBackground(String jsonString) {
   final decoded = jsonDecode(jsonString);
@@ -30,13 +32,16 @@ class DishService {
   static String? _memoryCache;
 
   /// Versucht Cache von der Disk zu laden. Gibt null zurück wenn kein Cache.
-  Future<List<Dish>?> loadFromCache() async {
+  /// Wenn [untisService] übergeben wird, werden die Gerichte automatisch
+  /// mit dem Schulkalender (Ferien überspringen, Wochen zyklisch fortführen)
+  /// erweitert.
+  Future<List<Dish>?> loadFromCache({WebUntisService? untisService}) async {
     try {
       if (_memoryCache != null && _memoryCache!.isNotEmpty) {
         final dishes = await compute(_parseDishesInBackground, _memoryCache!);
         if (dishes.isNotEmpty) {
           debugPrint('[DishService] Cache (RAM) geladen: ${dishes.length} Gerichte');
-          return dishes;
+          return _maybeExtend(dishes, untisService);
         }
       }
 
@@ -47,7 +52,7 @@ class DishService {
           _memoryCache = jsonString;
           final dishes = await compute(_parseDishesInBackground, jsonString);
           debugPrint('[DishService] Cache geladen: ${dishes.length} Gerichte');
-          return dishes;
+          return _maybeExtend(dishes, untisService);
         }
       }
       debugPrint('[DishService] Kein Cache vorhanden');
@@ -60,7 +65,9 @@ class DishService {
   /// Server-Fetch mit 6s Timeout.
   /// Speichert bei Erfolg automatisch in den Cache.
   /// Gibt null zurück bei Fehler/Timeout.
-  Future<List<Dish>?> fetchFromServer() async {
+  /// Mit [untisService] werden die Gerichte automatisch über den
+  /// Schulkalender hinaus zyklisch erweitert.
+  Future<List<Dish>?> fetchFromServer({WebUntisService? untisService}) async {
     final url = AppConfig.mensaApiUrl;
     debugPrint('[DishService] Fetching: $url');
     try {
@@ -81,7 +88,7 @@ class DishService {
           debugPrint('[DishService] Parsed ${dishes.length} Gerichte vom Server');
           // Nicht blockierend schreiben: UI bekommt Daten sofort.
           unawaited(_saveToCache(response.body));
-          return dishes;
+          return _maybeExtend(dishes, untisService);
         } else {
           debugPrint('[DishService] JSON konnte nicht in Gerichte geparst werden');
         }
@@ -96,6 +103,28 @@ class DishService {
       debugPrint('[DishService] Unbekannter Fehler: $e');
     }
     return null;
+  }
+
+  Future<List<Dish>> _maybeExtend(
+    List<Dish> dishes,
+    WebUntisService? untisService,
+  ) async {
+    if (untisService == null) return dishes;
+    try {
+      final extended = await MensaDishExtender.extendWithUntis(
+        dishes: dishes,
+        untisService: untisService,
+      );
+      if (extended.length != dishes.length) {
+        debugPrint(
+          '[DishService] Auto-erweitert: ${dishes.length} → ${extended.length} Gerichte',
+        );
+      }
+      return extended;
+    } catch (e) {
+      debugPrint('[DishService] Erweiterung fehlgeschlagen: $e');
+      return dishes;
+    }
   }
 
   /// Alten Cache löschen (z.B. nach Update)

@@ -4,6 +4,7 @@ import 'package:flutter/cupertino.dart';
 import 'dart:ui';
 import '../models/dish.dart';
 import '../services/dish_service.dart';
+import '../services/webuntis_service.dart';
 import '../theme/app_theme.dart';
 
 class MensaScreenController extends ChangeNotifier {
@@ -12,7 +13,8 @@ class MensaScreenController extends ChangeNotifier {
 
 class MensaScreen extends StatefulWidget {
   final MensaScreenController? controller;
-  const MensaScreen({super.key, this.controller});
+  final WebUntisService? service;
+  const MensaScreen({super.key, this.controller, this.service});
 
   @override
   State<MensaScreen> createState() => _MensaScreenState();
@@ -59,7 +61,7 @@ class _MensaScreenState extends State<MensaScreen> {
       _error = null;
     });
 
-    final server = await _service.fetchFromServer();
+    final server = await _service.fetchFromServer(untisService: widget.service);
     if (!mounted) return;
 
     if (server != null) {
@@ -71,7 +73,7 @@ class _MensaScreenState extends State<MensaScreen> {
       return;
     }
 
-    final cached = await _service.loadFromCache();
+    final cached = await _service.loadFromCache(untisService: widget.service);
     if (!mounted) return;
 
     if (cached != null && cached.isNotEmpty) {
