@@ -52,6 +52,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       _DashboardTab(
         service: widget.service,
         onMensaTap: _showMensaTab,
+        onSessionExpired: _handleSessionExpired,
         onExamTap: (exam) {
           if (exam == null) return;
           _setTab(1);
@@ -207,6 +208,21 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     } catch (_) {}
   }
 
+  Future<void> _handleSessionExpired() async {
+    NotificationService().stopPolling();
+    widget.service.clearSession();
+    if (!mounted) return;
+    Navigator.of(context).pushAndRemoveUntil(
+      PageRouteBuilder(
+        pageBuilder: (_, _, _) => const LoginScreen(),
+        transitionsBuilder: (_, a, _, child) =>
+            FadeTransition(opacity: a, child: child),
+        transitionDuration: const Duration(milliseconds: 300),
+      ),
+      (route) => false,
+    );
+  }
+
   Future<void> _logout() async {
     NotificationService().stopPolling();
     await widget.service.logout();
@@ -330,7 +346,53 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           ),
         ],
       ),
-      bottomNavigationBar: Container(
+      bottomNavigationBar: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onHorizontalDragUpdate: (details) {
+          if (!_swipePageController.hasClients) return;
+          final screenWidth = MediaQuery.of(context).size.width;
+          final delta = details.primaryDelta ?? 0;
+          final current = _swipePageController.page ?? _tab.toDouble();
+          final newPage = (current - delta / screenWidth)
+              .clamp(0.0, (_swipeTabs.length - 1).toDouble());
+          _swipePageController.jumpTo(newPage * screenWidth);
+          final nearest = newPage.round().clamp(0, _swipeTabs.length - 1);
+          if (nearest != _tab) {
+            HapticFeedback.selectionClick();
+            setState(() => _tab = nearest);
+          }
+        },
+        onHorizontalDragEnd: (details) {
+          if (!_swipePageController.hasClients) return;
+          final velocity = details.primaryVelocity ?? 0;
+          final currentPage = _swipePageController.page ?? _tab.toDouble();
+          int targetPage;
+          if (velocity < -400) {
+            targetPage = (currentPage.floor() + 1).clamp(0, _swipeTabs.length - 1);
+          } else if (velocity > 400) {
+            targetPage = (currentPage.ceil() - 1).clamp(0, _swipeTabs.length - 1);
+          } else {
+            targetPage = currentPage.round().clamp(0, _swipeTabs.length - 1);
+          }
+          if (targetPage != _tab) {
+            HapticFeedback.selectionClick();
+            setState(() => _tab = targetPage);
+          }
+          _swipePageController.animateToPage(
+            targetPage,
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeOutCubic,
+          );
+        },
+        onHorizontalDragCancel: () {
+          if (!_swipePageController.hasClients) return;
+          _swipePageController.animateToPage(
+            _tab,
+            duration: const Duration(milliseconds: 250),
+            curve: Curves.easeOutCubic,
+          );
+        },
+        child: Container(
         padding: EdgeInsets.only(bottom: bottomInset + navLayout.bottomPadding),
         decoration: BoxDecoration(
           color: AppTheme.surface,
@@ -403,6 +465,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               ],
             ),
           ),
+        ),
         ),
       ),
     );
@@ -745,10 +808,12 @@ class _DashboardTab extends StatefulWidget {
   final WebUntisService service;
   final VoidCallback onMensaTap;
   final void Function(_NextExam?)? onExamTap;
+  final VoidCallback? onSessionExpired;
   const _DashboardTab({
     required this.service,
     required this.onMensaTap,
     this.onExamTap,
+    this.onSessionExpired,
   });
 
   @override
@@ -885,6 +950,10 @@ class _DashboardTabState extends State<_DashboardTab>
         });
       }
     } on WebUntisException catch (e) {
+      if (e.isAuthError) {
+        widget.onSessionExpired?.call();
+        return;
+      }
       if (mounted) {
         setState(() {
           _errorTimetable = e.message;
@@ -905,7 +974,11 @@ class _DashboardTabState extends State<_DashboardTab>
     try {
       final subjects = await widget.service.getAllGrades();
       if (mounted) setState(() => _applyGradesCache(subjects));
-    } catch (_) {
+    } catch (e) {
+      if (e is WebUntisException && e.isAuthError) {
+        widget.onSessionExpired?.call();
+        return;
+      }
       if (mounted) setState(() => _loadingGrades = false);
     }
   }
@@ -1073,26 +1146,35 @@ class _DashboardTabState extends State<_DashboardTab>
         );
 
       case _CardSection.infoRow:
-        if (_loadingTimetable && _today.isEmpty) return const _LoadingCard();
+        if (_loadingTimetable && _today.isEmpty && now.weekday <= 5) {
+          return const _LoadingCard();
+        }
         if (_errorTimetable != null) {
           return _ErrorCard(message: _errorTimetable!, onRetry: _load);
         }
-        if (_today.isEmpty) return null;
         return IntrinsicHeight(
           child: Row(
             children: [
               Expanded(
-                child: _TimeInfoCard(
-                  icon: CupertinoIcons.flag_fill,
-                  label: 'Schulende',
-                  value: schoolEnd ?? '—',
-                  sub: minsUntilEnd != null
-                      ? 'noch ${_fmtDuration(minsUntilEnd)}'
-                      : 'vorbei',
-                  color: minsUntilEnd != null
-                      ? AppTheme.accent
-                      : AppTheme.textTertiary,
-                ),
+                child: _today.isEmpty
+                    ? _TimeInfoCard(
+                        icon: CupertinoIcons.moon_zzz_fill,
+                        label: 'Schulende',
+                        value: '—',
+                        sub: 'Heute keine Schule',
+                        color: AppTheme.textTertiary,
+                      )
+                    : _TimeInfoCard(
+                        icon: CupertinoIcons.flag_fill,
+                        label: 'Schulende',
+                        value: schoolEnd ?? '—',
+                        sub: minsUntilEnd != null
+                            ? 'noch ${_fmtDuration(minsUntilEnd)}'
+                            : 'vorbei',
+                        color: minsUntilEnd != null
+                            ? AppTheme.accent
+                            : AppTheme.textTertiary,
+                      ),
               ),
               const SizedBox(width: 10),
               Expanded(
