@@ -50,9 +50,10 @@ service cloud.firestore {
     match /classes/{classId} {
       allow read: if request.auth != null;
 
-      // Erstellen: nur Admins (Dokument in admins/{firebaseUid} ODER admins/{stableUid})
+      // Erstellen: automatisch (WebUntis-Klasse mit webuntisKlasseId) ODER Admin
       allow create: if request.auth != null && (
-        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+        request.resource.data.keys().hasAll(['webuntisKlasseId'])
+        || exists(/databases/$(database)/documents/admins/$(request.auth.uid))
         || exists(/databases/$(database)/documents/admins/$(
              get(/databases/$(database)/documents/users/$(request.auth.uid))
                .data.get('stableUid', '__none__')

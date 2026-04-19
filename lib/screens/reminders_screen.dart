@@ -27,16 +27,24 @@ class _RemindersScreenState extends State<RemindersScreen> {
   bool _isAdmin = false;
   bool _adminLoaded = false;
 
+  // Auto-Join (static verhindert doppelten Aufruf über Hot-Restart hinweg)
+  static bool _autoJoinDone = false;
+  bool _autoJoinLoading = false;
+  String? _autoJoinError;
+
   @override
   void initState() {
     super.initState();
     _loadAdmin();
+    // Auto-Join sofort beim Öffnen starten (nicht auf Stream warten)
+    _maybeAutoJoin();
     _classesSub = _service.classesStream().listen((classes) {
       if (!mounted) return;
       setState(() {
         _classes = classes;
         if (_selectedClassId == null && classes.isNotEmpty) {
           _selectedClassId = classes.first.id;
+          _autoJoinError = null;
         }
         if (_selectedClassId != null &&
             !classes.any((c) => c.id == _selectedClassId)) {
@@ -47,6 +55,38 @@ class _RemindersScreenState extends State<RemindersScreen> {
         _service.cleanupExpired(_selectedClassId!);
       }
     });
+  }
+
+  void _maybeAutoJoin() {
+    final klasseId = widget.service.klasseId;
+    final klasseName = widget.service.klasseName;
+    if (klasseId == null || klasseName == null || klasseName.isEmpty) return;
+    if (_autoJoinDone) return;
+    _autoJoinDone = true;
+    _tryAutoJoin();
+  }
+
+  Future<void> _tryAutoJoin() async {
+    final klasseId = widget.service.klasseId;
+    final klasseName = widget.service.klasseName;
+    if (klasseId == null || klasseName == null || klasseName.isEmpty) return;
+
+    debugPrint('[RemindersScreen] Auto-Join: "$klasseName" (id=$klasseId)');
+    if (mounted) setState(() { _autoJoinLoading = true; _autoJoinError = null; });
+
+    try {
+      await _service.autoJoinOrCreateWebuntisClass(klasseName, klasseId);
+      if (mounted) setState(() => _autoJoinLoading = false);
+    } catch (e) {
+      debugPrint('[RemindersScreen] Auto-Join Fehler: $e');
+      _autoJoinDone = false; // Retry erlauben
+      if (mounted) {
+        setState(() {
+          _autoJoinLoading = false;
+          _autoJoinError = 'Automatische Zuweisung fehlgeschlagen.\nTritt manuell bei.';
+        });
+      }
+    }
   }
 
   Future<void> _loadAdmin() async {
@@ -638,6 +678,9 @@ class _RemindersScreenState extends State<RemindersScreen> {
                   ? _EmptyClassesState(
                       isAdmin: _isAdmin,
                       onJoinOrCreate: _showJoinOrCreateSheet,
+                      isLoading: _autoJoinLoading,
+                      errorMessage: _autoJoinError,
+                      onRetry: _tryAutoJoin,
                     )
                   : selectedClass == null
                   ? const SizedBox.shrink()
@@ -744,8 +787,18 @@ class _ClassChip extends StatelessWidget {
 
 class _EmptyClassesState extends StatelessWidget {
   final VoidCallback onJoinOrCreate;
+  final VoidCallback onRetry;
   final bool isAdmin;
-  const _EmptyClassesState({required this.onJoinOrCreate, required this.isAdmin});
+  final bool isLoading;
+  final String? errorMessage;
+
+  const _EmptyClassesState({
+    required this.onJoinOrCreate,
+    required this.onRetry,
+    required this.isAdmin,
+    required this.isLoading,
+    this.errorMessage,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -762,15 +815,23 @@ class _EmptyClassesState extends StatelessWidget {
                 color: AppTheme.accent.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(18),
               ),
-              child: Icon(
-                _isIOS ? CupertinoIcons.bell_fill : Icons.notifications_outlined,
-                size: 28,
-                color: AppTheme.accent,
-              ),
+              child: isLoading
+                  ? Padding(
+                      padding: const EdgeInsets.all(18),
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.5,
+                        color: AppTheme.accent,
+                      ),
+                    )
+                  : Icon(
+                      _isIOS ? CupertinoIcons.bell_fill : Icons.notifications_outlined,
+                      size: 28,
+                      color: AppTheme.accent,
+                    ),
             ),
             const SizedBox(height: 18),
             Text(
-              'Noch keine Klasse',
+              isLoading ? 'Klasse wird erkannt...' : 'Noch keine Klasse',
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w700,
@@ -778,37 +839,61 @@ class _EmptyClassesState extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 8),
-            Text(
-              'Tritt einer Klasse bei oder erstelle eine neue, um gemeinsam Hausaufgaben-Erinnerungen zu teilen.',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 14,
-                color: AppTheme.textSecondary,
-                height: 1.5,
+            if (isLoading)
+              Text(
+                'Deine WebUntis-Klasse wird automatisch erkannt.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 14, color: AppTheme.textSecondary, height: 1.5),
+              )
+            else if (errorMessage != null) ...[
+              Text(
+                errorMessage!,
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 14, color: AppTheme.danger, height: 1.5),
               ),
-            ),
-            const SizedBox(height: 24),
-            GestureDetector(
-              onTap: onJoinOrCreate,
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 13,
-                ),
-                decoration: BoxDecoration(
-                  color: AppTheme.accent,
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Text(
-                  isAdmin ? 'Klasse beitreten oder erstellen' : 'Klasse beitreten',
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.white,
+              const SizedBox(height: 16),
+              GestureDetector(
+                onTap: onRetry,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: AppTheme.surface,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppTheme.border.withValues(alpha: 0.4)),
+                  ),
+                  child: Text(
+                    'Erneut versuchen',
+                    style: TextStyle(fontSize: 14, color: AppTheme.accent, fontWeight: FontWeight.w600),
                   ),
                 ),
               ),
-            ),
+            ] else
+              Text(
+                'Deine WebUntis-Klasse wird automatisch erkannt. Falls das nicht klappt, tritt manuell bei.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 14, color: AppTheme.textSecondary, height: 1.5),
+              ),
+            if (!isLoading) ...[
+              const SizedBox(height: 24),
+              GestureDetector(
+                onTap: onJoinOrCreate,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 13),
+                  decoration: BoxDecoration(
+                    color: AppTheme.accent,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Text(
+                    isAdmin ? 'Klasse beitreten oder erstellen' : 'Manuell beitreten',
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
       ),

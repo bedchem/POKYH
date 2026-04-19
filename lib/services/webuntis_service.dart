@@ -30,6 +30,7 @@ class WebUntisService {
   String? _bearerToken;
   int? _studentId;
   int? _klasseId;
+  String? _klasseName;
   int? _schoolYearId;
   List<TimeGridUnit>? _timeGrid;
   String? _username;
@@ -37,6 +38,8 @@ class WebUntisService {
   bool get isLoggedIn => _sessionId != null && _studentId != null;
   String? get username => _username;
   int? get studentId => _studentId;
+  int? get klasseId => _klasseId;
+  String? get klasseName => _klasseName;
   String get persistenceScopeKey {
     final id = _studentId;
     if (id != null) return 'student_$id';
@@ -163,11 +166,12 @@ class WebUntisService {
         if (match != null) _sessionId = match.group(1);
       }
 
-      // Run all three init calls in parallel — was sequential before.
+      // Run all init calls in parallel.
       await Future.wait([
         _fetchBearerToken(),
         _fetchSchoolYear(),
         _fetchTimeGrid(),
+        _fetchKlasseName(),
       ]);
 
       await saveSession();
@@ -226,6 +230,21 @@ class WebUntisService {
     } catch (_) {}
   }
 
+  Future<void> _fetchKlasseName() async {
+    if (_klasseId == null) return;
+    try {
+      final result = await _rpc('getKlassen', {});
+      if (result is List) {
+        for (final klasse in result) {
+          if (klasse['id'] == _klasseId) {
+            _klasseName = klasse['name']?.toString();
+            break;
+          }
+        }
+      }
+    } catch (_) {}
+  }
+
   List<TimeGridUnit> get timeGrid => _timeGrid ?? [];
 
   String? getLessonNumber(int startTime) {
@@ -260,6 +279,7 @@ class WebUntisService {
     _studentId = null;
     _bearerToken = null;
     _klasseId = null;
+    _klasseName = null;
     _schoolYearId = null;
     _profileImageBytes = null;
     _profileImageFetched = false;
@@ -277,6 +297,7 @@ class WebUntisService {
       await prefs.setString('bearerToken', _bearerToken!);
     }
     if (_klasseId != null) await prefs.setInt('klasseId', _klasseId!);
+    if (_klasseName != null) await prefs.setString('klasseName', _klasseName!);
     if (_schoolYearId != null) {
       await prefs.setInt('schoolYearId', _schoolYearId!);
     }
@@ -290,6 +311,7 @@ class WebUntisService {
       _studentId = prefs.getInt('studentId');
       _bearerToken = prefs.getString('bearerToken');
       _klasseId = prefs.getInt('klasseId');
+      _klasseName = prefs.getString('klasseName');
       _schoolYearId = prefs.getInt('schoolYearId');
       _username = prefs.getString('username');
 
@@ -320,6 +342,7 @@ class WebUntisService {
     _studentId = null;
     _bearerToken = null;
     _klasseId = null;
+    _klasseName = null;
     _schoolYearId = null;
     _username = null;
     _readMessageIds = {};
@@ -329,6 +352,7 @@ class WebUntisService {
     await prefs.remove('studentId');
     await prefs.remove('bearerToken');
     await prefs.remove('klasseId');
+    await prefs.remove('klasseName');
     await prefs.remove('schoolYearId');
     await prefs.remove('username');
   }

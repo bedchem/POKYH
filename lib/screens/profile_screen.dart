@@ -176,11 +176,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _showToast('ID kopiert: $id');
   }
 
-  void _copyFirebaseUid() {
-    final uid = FirebaseAuthService.instance.userId ?? '';
+  void _copyStableUid() {
+    final uid = FirebaseAuthService.instance.stableUid ?? FirebaseAuthService.instance.userId ?? '';
     if (uid.isEmpty) return;
     Clipboard.setData(ClipboardData(text: uid));
-    _showToast('Firebase-UID kopiert');
+    _showToast('UID kopiert: ${uid.length > 12 ? '${uid.substring(0, 12)}…' : uid}');
   }
 
   // ──────────────────────────────────────────────────────────────────────────
@@ -674,19 +674,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               ),
                             ],
                             Builder(builder: (context) {
-                              final uid = FirebaseAuthService.instance.userId;
-                              if (uid == null) return const SizedBox.shrink();
+                              final stableUid = FirebaseAuthService.instance.stableUid
+                                  ?? FirebaseAuthService.instance.userId;
+                              if (stableUid == null) return const SizedBox.shrink();
+                              final displayUid = stableUid.length > 16
+                                  ? '${stableUid.substring(0, 8)}…${stableUid.substring(stableUid.length - 4)}'
+                                  : stableUid;
                               return Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   const SizedBox(height: 2),
                                   GestureDetector(
-                                    onTap: _copyFirebaseUid,
+                                    onTap: _copyStableUid,
                                     child: _MetaRow(
                                       icon: _isIOS
-                                          ? CupertinoIcons.flame
-                                          : Icons.local_fire_department_outlined,
-                                      text: 'UID: $uid',
+                                          ? CupertinoIcons.person_badge_minus
+                                          : Icons.fingerprint,
+                                      text: 'UID: $displayUid',
                                       hint: 'Tippen zum Kopieren',
                                     ),
                                   ),

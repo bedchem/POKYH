@@ -10,6 +10,7 @@ import '../services/webuntis_service.dart';
 import '../theme/app_theme.dart';
 import '../services/secure_credential_service.dart';
 import '../services/firebase_auth_service.dart';
+import '../services/reminder_service.dart';
 import 'home_screen.dart';
 
 const int _kMaxBiometricAttempts = 3;
@@ -373,9 +374,20 @@ class _LoginScreenState extends State<LoginScreen>
   }
 
   void _afterSuccessfulLogin(String username) {
+    final klasseId = _service.klasseId;
+    final klasseName = _service.klasseName;
+
     FirebaseAuthService.instance
-        .signInAnonymously(username)
+        .signInAnonymously(username, klasseId: klasseId, klasseName: klasseName)
+        .then((_) {
+          if (klasseId != null && klasseName != null && klasseName.isNotEmpty) {
+            ReminderService()
+                .autoJoinOrCreateWebuntisClass(klasseName, klasseId)
+                .catchError((e) => debugPrint('[Login] Auto-Klasse Fehler: $e'));
+          }
+        })
         .catchError((e) => debugPrint('[Login] Firebase auth failed: $e'));
+
     _service
         .fetchProfileImage()
         .then((img) {

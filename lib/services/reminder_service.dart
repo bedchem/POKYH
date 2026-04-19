@@ -271,6 +271,88 @@ class ReminderService {
     }
   }
 
+  // ── WebUntis Auto-Klasse ───────────────────────────────────────────────────
+
+  /// Vollautomatische Klassenzuweisung via WebUntis:
+  /// - Bereits in korrekter Klasse → nichts tun
+  /// - In falscher WebUntis-Klasse (Klassenwechsel) → verlassen + neue beitreten
+  /// - Klasse mit dieser webuntisKlasseId existiert → beitreten
+  /// - Noch keine Klasse → neu anlegen
+  Future<void> autoJoinOrCreateWebuntisClass(
+    String klasseName,
+    int webuntisKlasseId,
+  ) async {
+    final stableUid = _stableUid;
+    if (stableUid == null || stableUid.isEmpty) {
+      debugPrint('[ReminderService] autoJoin: kein stableUid – Firebase Auth aktiv?');
+      throw Exception('Nicht angemeldet. Bitte Firebase Anonymous Auth aktivieren.');
+    }
+    final displayName = FirebaseAuthService.instance.username ?? stableUid;
+
+    // 1. Bereits in der korrekten WebUntis-Klasse?
+    final alreadyCorrect = await _db
+        .collection('classes')
+        .where('members', arrayContains: stableUid)
+        .where('webuntisKlasseId', isEqualTo: webuntisKlasseId)
+        .limit(1)
+        .get();
+    if (alreadyCorrect.docs.isNotEmpty) {
+      debugPrint('[ReminderService] Bereits in korrekter Klasse "$klasseName"');
+      return;
+    }
+
+    // 2. Klassenwechsel: in einer anderen WebUntis-Klasse? → verlassen
+    final wrongClasses = await _db
+        .collection('classes')
+        .where('members', arrayContains: stableUid)
+        .get();
+    for (final doc in wrongClasses.docs) {
+      final data = doc.data() as Map<String, dynamic>;
+      final existingKlasseId = data['webuntisKlasseId'];
+      // Nur automatisch erstellte Klassen verlassen (nicht manuell beigetretene)
+      if (existingKlasseId != null && existingKlasseId != webuntisKlasseId) {
+        debugPrint('[ReminderService] Klassenwechsel: verlasse "${data['name']}" (id=$existingKlasseId)');
+        await doc.reference.update({
+          'members': FieldValue.arrayRemove([stableUid]),
+          'memberNames.$stableUid': FieldValue.delete(),
+        });
+        // Leere Klasse löschen
+        final updated = await doc.reference.get();
+        final updatedData = updated.data() as Map<String, dynamic>?;
+        final members = List.from(updatedData?['members'] ?? []);
+        if (members.isEmpty) await doc.reference.delete();
+      }
+    }
+
+    // 3. Ziel-Klasse suchen
+    final classSnap = await _db
+        .collection('classes')
+        .where('webuntisKlasseId', isEqualTo: webuntisKlasseId)
+        .limit(1)
+        .get();
+
+    if (classSnap.docs.isNotEmpty) {
+      await classSnap.docs.first.reference.update({
+        'members': FieldValue.arrayUnion([stableUid]),
+        'memberNames.$stableUid': displayName,
+      });
+      debugPrint('[ReminderService] Auto-beigetreten: "$klasseName" (id=$webuntisKlasseId)');
+    } else {
+      final code = _generateCode();
+      await _db.collection('classes').add({
+        'name': klasseName,
+        'code': code,
+        'members': [stableUid],
+        'memberNames': {stableUid: displayName},
+        'createdBy': stableUid,
+        'createdByName': displayName,
+        'webuntisKlasseId': webuntisKlasseId,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+      debugPrint('[ReminderService] Auto-erstellt: "$klasseName" (id=$webuntisKlasseId)');
+    }
+  }
+
   // ── Reminders ──────────────────────────────────────────────────────────────
 
   Stream<List<Reminder>> remindersStream(String classId) {

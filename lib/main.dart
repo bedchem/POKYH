@@ -181,10 +181,23 @@ class _SplashScreenState extends State<SplashScreen>
     // Kick off profile image fetch in background — doesn't block navigation.
     if (restored) {
       service.fetchProfileImage().ignore();
-      // Sign in to Firebase with the restored WebUntis username
+      // Sign in to Firebase with the restored WebUntis username + Klasse
       if (service.username != null) {
         FirebaseAuthService.instance
-            .signInAnonymously(service.username!)
+            .signInAnonymously(
+              service.username!,
+              klasseId: service.klasseId,
+              klasseName: service.klasseName,
+            )
+            .then((_) {
+              final kid = service.klasseId;
+              final kname = service.klasseName;
+              if (kid != null && kname != null && kname.isNotEmpty) {
+                ReminderService()
+                    .autoJoinOrCreateWebuntisClass(kname, kid)
+                    .catchError((e) => debugPrint('[Restore] Auto-Klasse Fehler: $e'));
+              }
+            })
             .catchError((e) => debugPrint('[Restore] Firebase auth failed: $e'));
       }
       // Start polling for new messages
