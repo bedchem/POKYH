@@ -1,55 +1,81 @@
 rules_version = '2';
+
+// Helper: Gibt die stableUid des aktuellen Users zurück.
+// Schaut in users/{firebaseUid}.stableUid – das ist die geräteübergreifende ID.
+// Fallback: request.auth.uid (für Abwärtskompatibilität).
+
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Admins – nur über Firebase Console beschreibbar
-    match /admins/{uid} {
-      allow read: if request.auth != null && request.auth.uid == uid;
+    // ── Admins ────────────────────────────────────────────────────────────────
+    // Admin-Dokumente: admins/{stableUid} mit canCreateClass: true
+    // Lesen erlaubt wenn: eigene Firebase-UID stimmt, ODER stableUid stimmt
+    match /admins/{adminId} {
+      allow read: if request.auth != null && (
+        request.auth.uid == adminId
+        || get(/databases/$(database)/documents/users/$(request.auth.uid))
+             .data.get('stableUid', '') == adminId
+      );
       allow write: if false;
     }
 
-    // Benutzerprofil – Benutzername + UID für Mitgliederliste
-    match /users/{uid} {
-      // Jeder eingeloggte User darf Benutzernamen lesen (für Mitgliederliste)
+    // ── Users ─────────────────────────────────────────────────────────────────
+    // users/{firebaseUid} → gerätespezifisch, enthält stableUid
+    // users/{username}    → geräteübergreifend, enthält stableUid
+    match /users/{userId} {
       allow read: if request.auth != null;
-      // Nur der User selbst darf seinen eigenen Eintrag schreiben
-      allow write: if request.auth != null && request.auth.uid == uid;
+      // Eigenes Firebase-UID-Dokument: immer erlaubt
+      allow write: if request.auth != null && request.auth.uid == userId;
+      // Username-Dokument: Erstellen (neuer User) und Aktualisieren (neues Gerät)
+      allow create: if request.auth != null;
+      allow update: if request.auth != null;
     }
 
-    // Bewertungen für Mensa-Gerichte
+    // ── Mensa-Bewertungen ─────────────────────────────────────────────────────
     match /dish_ratings/{dishId} {
-      // Jeder eingeloggte User kann Durchschnitt und Anzahl lesen
       allow read: if request.auth != null;
-      // Aggregat (Durchschnitt + Anzahl) darf jeder eingeloggte User schreiben
       allow write: if request.auth != null;
 
-      match /votes/{uid} {
-        // User darf nur die eigene Stimme lesen/schreiben
-        allow read, write: if request.auth != null && request.auth.uid == uid;
+      match /votes/{voteId} {
+        // Erlaubt wenn voteId == Firebase-UID (alt) ODER voteId == stableUid (neu)
+        allow read, write: if request.auth != null && (
+          request.auth.uid == voteId
+          || get(/databases/$(database)/documents/users/$(request.auth.uid))
+               .data.get('stableUid', '') == voteId
+        );
       }
     }
 
-    // Klassen
+    // ── Klassen ───────────────────────────────────────────────────────────────
     match /classes/{classId} {
-      // Lesen: jeder eingeloggte User (für Code-Suche)
       allow read: if request.auth != null;
 
-      // Erstellen: nur Admins (doc in /admins/{uid} muss existieren)
-      allow create: if request.auth != null
-        && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+      // Erstellen: nur Admins (Dokument in admins/{firebaseUid} ODER admins/{stableUid})
+      allow create: if request.auth != null && (
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+        || exists(/databases/$(database)/documents/admins/$(
+             get(/databases/$(database)/documents/users/$(request.auth.uid))
+               .data.get('stableUid', '__none__')
+           ))
+      );
 
-      // Update: members und memberNames (beitreten / verlassen)
+      // Update: beitreten / verlassen (nur members + memberNames)
       allow update: if request.auth != null
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['members', 'memberNames']);
+        && request.resource.data.diff(resource.data).affectedKeys()
+           .hasOnly(['members', 'memberNames']);
 
-      // Löschen: erlaubt wenn keine Mitglieder mehr (nach Verlassen)
+      // Löschen: wenn keine Mitglieder mehr
       allow delete: if request.auth != null
         && resource.data.members.size() == 0;
 
-      // Erinnerungen – Mitglieder dürfen alles
+      // ── Erinnerungen ──────────────────────────────────────────────────────
       match /reminders/{reminderId} {
-        allow read, create, delete: if request.auth != null
-          && request.auth.uid in get(/databases/$(database)/documents/classes/$(classId)).data.members;
+        // Erlaubt wenn stableUid des Users in class.members ist
+        allow read, create, delete: if request.auth != null && (
+          get(/databases/$(database)/documents/users/$(request.auth.uid))
+            .data.get('stableUid', request.auth.uid)
+            in get(/databases/$(database)/documents/classes/$(classId)).data.members
+        );
         allow update: if false;
       }
     }

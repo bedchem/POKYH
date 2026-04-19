@@ -10,69 +10,117 @@ class FirebaseAuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
+  /// Firebase Auth UID – gerätespezifisch, nur für Firestore-Session & Admin-Checks.
   String? get userId => _auth.currentUser?.uid;
-  String? get username => _auth.currentUser?.displayName;
 
+  /// Benutzername wie eingegeben (z. B. "plat-feli").
+  String? _username;
+  String? get username => _username;
+
+  /// Stabile, geräteübergreifende UID aus Firestore users/{username}.
+  /// Gleicher Username → gleiche stableUid auf jedem Gerät.
+  String? _stableUid;
+  String? get stableUid => _stableUid;
+
+  /// Ob der User erfolgreich in Firebase angemeldet ist.
+  bool get isSignedIn => _auth.currentUser != null && _stableUid != null;
+
+  /// Anmelden: Firebase Anonymous Session + stableUid aus Firestore holen.
+  /// User-Daten werden NUR in Firestore gespeichert – nicht in Firebase Auth.
   Future<void> signInAnonymously(String username) async {
-    try {
-      if (_auth.currentUser != null) {
-        if (_auth.currentUser!.displayName != username) {
-          await _auth.currentUser!.updateDisplayName(username);
-        }
-        final uid = _auth.currentUser!.uid;
-        debugPrint('[FirebaseAuth] Already signed in as $uid');
-        await _writeUserRecord(uid, username);
-        return;
-      }
-      final cred = await _auth.signInAnonymously();
-      final uid = cred.user!.uid;
-      await cred.user?.updateDisplayName(username);
-      await _writeUserRecord(uid, username);
-      debugPrint('[FirebaseAuth] Signed in anonymously as $uid');
-    } catch (e) {
-      debugPrint('[FirebaseAuth] ERROR: $e');
-      rethrow;
+    _log('Anmeldung gestartet für "$username"...');
+
+    // Firebase Auth Session sicherstellen (für Firestore-Sicherheitsregeln nötig).
+    // Kein displayName setzen – Firebase Auth enthält keine Nutzerdaten.
+    if (_auth.currentUser == null) {
+      await _auth.signInAnonymously();
+      _log('Neue anonyme Firebase-Session erstellt (firebaseUid=${_auth.currentUser?.uid})');
+    } else {
+      _log('Bestehende Firebase-Session genutzt (firebaseUid=${_auth.currentUser!.uid})');
     }
+
+    final firebaseUid = _auth.currentUser!.uid;
+    _stableUid = await _resolveStableUid(username, firebaseUid);
+    _username = username;
+
+    _logBox(
+      '✅ ANGEMELDET',
+      'Username   : $username',
+      'StableUID  : $_stableUid',
+      'FirebaseUID: $firebaseUid',
+      '(StableUID ist auf jedem Gerät gleich)',
+    );
   }
 
-  /// Stores or updates the username in Firestore so other users can look it up.
-  Future<void> _writeUserRecord(String uid, String username) async {
+  /// Sucht oder erstellt users/{username} in Firestore und gibt die stableUid zurück.
+  /// - Erstes Gerät: erstellt das Dokument mit neuer stableUid
+  /// - Weiteres Gerät: liest die bestehende stableUid
+  /// Schreibt außerdem users/{firebaseUid} für Admin-Checks.
+  Future<String> _resolveStableUid(String username, String firebaseUid) async {
     try {
-      await _db.collection('users').doc(uid).set(
-        {'username': username, 'uid': uid, 'updatedAt': FieldValue.serverTimestamp()},
+      // 1. Username-Dokument lesen (geräteübergreifend stabil)
+      final usernameDoc = _db.collection('users').doc(username);
+      final snap = await usernameDoc.get();
+
+      String stableUid;
+      if (snap.exists) {
+        final existing = snap.data()?['stableUid'] as String?;
+        if (existing != null && existing.isNotEmpty) {
+          stableUid = existing;
+          _log('Bestehender User "$username" gefunden → stableUid=$stableUid');
+        } else {
+          // Dokument vorhanden aber stableUid fehlt – nachfüllen
+          stableUid = _db.collection('_').doc().id;
+          await usernameDoc.update({'stableUid': stableUid});
+          _log('StableUID für "$username" ergänzt → $stableUid');
+        }
+      } else {
+        // Erster Login mit diesem Username → neues User-Dokument anlegen
+        stableUid = _db.collection('_').doc().id;
+        await usernameDoc.set({
+          'username': username,
+          'stableUid': stableUid,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+        _log('Neuer User "$username" in Firestore angelegt → stableUid=$stableUid');
+      }
+
+      // 2. Gerätespezifisches Dokument (für Admin-Checks via Firebase UID)
+      await _db.collection('users').doc(firebaseUid).set(
+        {
+          'username': username,
+          'stableUid': stableUid,
+          'updatedAt': FieldValue.serverTimestamp(),
+        },
         SetOptions(merge: true),
       );
+
+      return stableUid;
     } catch (e) {
-      debugPrint('[FirebaseAuth] Could not write user record: $e');
+      _log('⚠️  Firestore-Fehler bei _resolveStableUid: $e');
+      _log('   Fallback: stableUid = username ("$username")');
+      return username;
     }
   }
 
-  /// Fetches usernames for a list of UIDs from the /users collection.
-  /// Returns a map of uid → username. Missing UIDs map to the UID itself.
-  Future<Map<String, String>> fetchUsernames(List<String> uids) async {
-    if (uids.isEmpty) return {};
-    final result = <String, String>{};
-    try {
-      // Firestore whereIn supports max 30 items per query
-      for (var i = 0; i < uids.length; i += 30) {
-        final batch = uids.sublist(i, (i + 30).clamp(0, uids.length));
-        final snap = await _db
-            .collection('users')
-            .where(FieldPath.documentId, whereIn: batch)
-            .get();
-        for (final doc in snap.docs) {
-          final name = doc.data()['username'] as String?;
-          if (name != null && name.isNotEmpty) {
-            result[doc.id] = name;
-          }
-        }
-      }
-    } catch (e) {
-      debugPrint('[FirebaseAuth] fetchUsernames error: $e');
+  // ── Logging-Helpers ─────────────────────────────────────────────────────────
+
+  static void _log(String msg) {
+    debugPrint('[FirebaseAuth] $msg');
+  }
+
+  static void _logBox(String title, String line1, String line2,
+      String line3, String line4) {
+    const w = 52;
+    final border = '─' * w;
+    debugPrint('┌$border┐');
+    debugPrint('│  $title${' ' * (w - title.length - 2)}│');
+    debugPrint('├$border┤');
+    for (final line in [line1, line2, line3, line4]) {
+      final padded = '  $line';
+      final padding = ' ' * (w - padded.length).clamp(0, w);
+      debugPrint('│$padded$padding│');
     }
-    for (final uid in uids) {
-      result.putIfAbsent(uid, () => uid);
-    }
-    return result;
+    debugPrint('└$border┘');
   }
 }

@@ -1561,25 +1561,19 @@ class _MembersSheetState extends State<_MembersSheet> {
   }
 
   Future<void> _load() async {
-    // Start with locally known names from memberNames map
-    final known = Map<String, String>.from(widget.cls.memberNames);
-    // Find UIDs we don't have a name for yet
-    final missing = widget.cls.members.where((uid) => !known.containsKey(uid)).toList();
-    if (missing.isNotEmpty) {
-      final fetched = await FirebaseAuthService.instance.fetchUsernames(missing);
-      known.addAll(fetched);
-    }
-    // Ensure every UID has at least a fallback entry
+    // memberNames already contains stableUid → displayName from Firestore
+    final names = Map<String, String>.from(widget.cls.memberNames);
+    // Fallback: if a member has no name entry, use their stableUid
     for (final uid in widget.cls.members) {
-      known.putIfAbsent(uid, () => uid);
+      names.putIfAbsent(uid, () => uid);
     }
-    if (mounted) setState(() => _names = known);
+    if (mounted) setState(() => _names = names);
   }
 
   @override
   Widget build(BuildContext context) {
     final cls = widget.cls;
-    final myUid = FirebaseAuthService.instance.userId;
+    final myStableUid = FirebaseAuthService.instance.stableUid;
 
     return SafeArea(
       child: Padding(
@@ -1633,7 +1627,7 @@ class _MembersSheetState extends State<_MembersSheet> {
             else
               ...cls.members.map((uid) {
                 final name = _names![uid] ?? uid;
-                final isMe = uid == myUid;
+                final isMe = uid == myStableUid;
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 10),
                   child: Row(

@@ -29,9 +29,15 @@ class RatingService {
   String _safeId(String dishId) =>
       dishId.replaceAll('/', '_').replaceAll('.', '_');
 
+  /// Stable vote key: stableUid if available, otherwise Firebase UID.
+  /// This ensures the same vote is shared across all devices of a user.
+  String? get _voteKey =>
+      FirebaseAuthService.instance.stableUid ??
+      FirebaseAuthService.instance.userId;
+
   Future<DishRating> getRating(String dishId) async {
     final safeId = _safeId(dishId);
-    final uid = FirebaseAuthService.instance.userId;
+    final voteKey = _voteKey;
 
     final dishDoc =
         await _db.collection('dish_ratings').doc(safeId).get();
@@ -44,12 +50,12 @@ class RatingService {
     }
 
     double? userRating;
-    if (uid != null) {
+    if (voteKey != null) {
       final voteDoc = await _db
           .collection('dish_ratings')
           .doc(safeId)
           .collection('votes')
-          .doc(uid)
+          .doc(voteKey)
           .get();
       if (voteDoc.exists) {
         userRating = (voteDoc.data()?['rating'] as num?)?.toDouble();
@@ -69,11 +75,11 @@ class RatingService {
     required String username,
   }) async {
     final safeId = _safeId(dishId);
-    final uid = FirebaseAuthService.instance.userId;
-    if (uid == null) throw Exception('Not authenticated');
+    final voteKey = _voteKey;
+    if (voteKey == null) throw Exception('Not authenticated');
 
     final dishRef = _db.collection('dish_ratings').doc(safeId);
-    final voteRef = dishRef.collection('votes').doc(uid);
+    final voteRef = dishRef.collection('votes').doc(voteKey);
 
     late DishRating result;
 

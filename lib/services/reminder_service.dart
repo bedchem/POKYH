@@ -100,9 +100,9 @@ class ReminderService {
   Future<void> initialize() async {
     if (_initialized) return;
     tz_data.initializeTimeZones();
-    final tzName = await FlutterTimezone.getLocalTimezone();
-    tz.setLocalLocation(tz.getLocation(tzName));
-    debugPrint('[ReminderService] Timezone set to $tzName');
+    final tzInfo = await FlutterTimezone.getLocalTimezone();
+    tz.setLocalLocation(tz.getLocation(tzInfo.identifier));
+    debugPrint('[ReminderService] Timezone set to ${tzInfo.identifier}');
 
     const androidSettings =
         AndroidInitializationSettings('@mipmap/ic_launcher');
@@ -142,23 +142,34 @@ class ReminderService {
   }
 
   String? get _uid => FirebaseAuthService.instance.userId;
-  String? get _displayName => FirebaseAuthService.instance.username;
+  String? get _stableUid => FirebaseAuthService.instance.stableUid;
 
   // ── Admin check ────────────────────────────────────────────────────────────
 
   bool? _adminCache;
 
   Future<bool> isAdmin() async {
-    // Only cache true — if false/error, retry next time
     if (_adminCache == true) return true;
-    final uid = _uid;
-    if (uid == null) return false;
+    // Check by stableUid first (cross-device), fall back to Firebase UID (legacy)
+    final stableUid = _stableUid;
+    final firebaseUid = _uid;
+    if (stableUid == null && firebaseUid == null) return false;
     try {
-      final doc = await _db.collection('admins').doc(uid).get();
-      debugPrint('[ReminderService] isAdmin doc.exists=${doc.exists} data=${doc.data()}');
-      final result = doc.exists && doc.data()?['canCreateClass'] == true;
+      final checks = <Future<DocumentSnapshot>>[];
+      if (stableUid != null) {
+        checks.add(_db.collection('admins').doc(stableUid).get());
+      }
+      if (firebaseUid != null && firebaseUid != stableUid) {
+        checks.add(_db.collection('admins').doc(firebaseUid).get());
+      }
+      final docs = await Future.wait(checks);
+      final result = docs.any((doc) {
+        if (!doc.exists) return false;
+        final data = doc.data() as Map<String, dynamic>?;
+        return data?['canCreateClass'] == true;
+      });
       if (result) _adminCache = true;
-      debugPrint('[ReminderService] isAdmin uid=$uid result=$result');
+      debugPrint('[ReminderService] isAdmin stableUid=$stableUid result=$result');
       return result;
     } catch (e) {
       debugPrint('[ReminderService] isAdmin error: $e');
@@ -171,11 +182,11 @@ class ReminderService {
   // ── Classes ────────────────────────────────────────────────────────────────
 
   Stream<List<ClassRoom>> classesStream() {
-    final uid = _uid;
-    if (uid == null) return Stream.value([]);
+    final stableUid = _stableUid;
+    if (stableUid == null || stableUid.isEmpty) return Stream.value([]);
     return _db
         .collection('classes')
-        .where('members', arrayContains: uid)
+        .where('members', arrayContains: stableUid)
         .snapshots()
         .map((snap) => snap.docs.map(ClassRoom.fromDoc).toList());
   }
@@ -191,17 +202,17 @@ class ReminderService {
   }
 
   Future<ClassRoom> createClass(String name) async {
-    final uid = _uid;
-    if (uid == null) throw Exception('Nicht angemeldet');
+    final stableUid = _stableUid;
+    if (stableUid == null || stableUid.isEmpty) throw Exception('Kein Benutzername gesetzt');
+    final displayName = FirebaseAuthService.instance.username ?? stableUid;
     final trimmedName = name.trim();
     final code = _generateCode();
-    final displayName = _displayName ?? uid;
     final ref = await _db.collection('classes').add({
       'name': trimmedName,
       'code': code,
-      'members': [uid],
-      'memberNames': {uid: displayName},
-      'createdBy': uid,
+      'members': [stableUid],
+      'memberNames': {stableUid: displayName},
+      'createdBy': stableUid,
       'createdByName': displayName,
       'createdAt': FieldValue.serverTimestamp(),
     });
@@ -209,21 +220,22 @@ class ReminderService {
       id: ref.id,
       name: trimmedName,
       code: code,
-      members: [uid],
-      createdByUid: uid,
+      members: [stableUid],
+      createdByUid: stableUid,
       createdByName: displayName,
     );
   }
 
   Future<ClassRoom> joinClass(String code, {bool isAdminUser = false}) async {
-    final uid = _uid;
-    if (uid == null) throw Exception('Nicht angemeldet');
+    final stableUid = _stableUid;
+    if (stableUid == null || stableUid.isEmpty) throw Exception('Kein Benutzername gesetzt');
+    final displayName = FirebaseAuthService.instance.username ?? stableUid;
 
     // Non-admins can only be in one class
     if (!isAdminUser) {
       final existing = await _db
           .collection('classes')
-          .where('members', arrayContains: uid)
+          .where('members', arrayContains: stableUid)
           .limit(1)
           .get();
       if (existing.docs.isNotEmpty) {
@@ -233,22 +245,21 @@ class ReminderService {
 
     final cls = await findClassByCode(code);
     if (cls == null) throw Exception('Klasse nicht gefunden.\nBitte Code prüfen.');
-    if (cls.members.contains(uid)) return cls;
-    final displayName = _displayName ?? uid;
+    if (cls.members.contains(stableUid)) return cls;
     await _db.collection('classes').doc(cls.id).update({
-      'members': FieldValue.arrayUnion([uid]),
-      'memberNames.$uid': displayName,
+      'members': FieldValue.arrayUnion([stableUid]),
+      'memberNames.$stableUid': displayName,
     });
     return cls;
   }
 
   Future<void> leaveClass(String classId) async {
-    final uid = _uid;
-    if (uid == null) return;
+    final stableUid = _stableUid;
+    if (stableUid == null || stableUid.isEmpty) return;
     final ref = _db.collection('classes').doc(classId);
     await ref.update({
-      'members': FieldValue.arrayRemove([uid]),
-      'memberNames.$uid': FieldValue.delete(),
+      'members': FieldValue.arrayRemove([stableUid]),
+      'memberNames.$stableUid': FieldValue.delete(),
     });
     // Delete class if no members remain
     final doc = await ref.get();
@@ -281,7 +292,7 @@ class ReminderService {
   }) async {
     final uid = _uid;
     if (uid == null) throw Exception('Nicht angemeldet');
-    final name = _displayName ?? uid;
+    final name = FirebaseAuthService.instance.username ?? uid;
 
     final ref = await _db
         .collection('classes')
@@ -310,7 +321,7 @@ class ReminderService {
   }
 
   Future<void> cleanupExpired(String classId) async {
-    if (_uid == null) return;
+    if (_uid == null && (_stableUid == null || _stableUid!.isEmpty)) return;
     try {
       final snap = await _db
           .collection('classes')
