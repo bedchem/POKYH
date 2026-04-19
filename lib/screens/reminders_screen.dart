@@ -1,0 +1,1770 @@
+import 'dart:async';
+import 'dart:io' show Platform;
+import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import '../services/firebase_auth_service.dart';
+import '../services/reminder_service.dart';
+import '../services/webuntis_service.dart';
+import '../theme/app_theme.dart';
+import '../widgets/top_bar_actions.dart';
+
+bool get _isIOS => Platform.isIOS;
+
+class RemindersScreen extends StatefulWidget {
+  final WebUntisService service;
+  const RemindersScreen({super.key, required this.service});
+
+  @override
+  State<RemindersScreen> createState() => _RemindersScreenState();
+}
+
+class _RemindersScreenState extends State<RemindersScreen> {
+  final _service = ReminderService();
+  List<ClassRoom> _classes = [];
+  String? _selectedClassId;
+  StreamSubscription<List<ClassRoom>>? _classesSub;
+  bool _isAdmin = false;
+  bool _adminLoaded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAdmin();
+    _classesSub = _service.classesStream().listen((classes) {
+      if (!mounted) return;
+      setState(() {
+        _classes = classes;
+        if (_selectedClassId == null && classes.isNotEmpty) {
+          _selectedClassId = classes.first.id;
+        }
+        if (_selectedClassId != null &&
+            !classes.any((c) => c.id == _selectedClassId)) {
+          _selectedClassId = classes.isNotEmpty ? classes.first.id : null;
+        }
+      });
+      if (_selectedClassId != null) {
+        _service.cleanupExpired(_selectedClassId!);
+      }
+    });
+  }
+
+  Future<void> _loadAdmin() async {
+    final admin = await _service.isAdmin();
+    if (mounted) setState(() { _isAdmin = admin; _adminLoaded = true; });
+  }
+
+  @override
+  void dispose() {
+    _classesSub?.cancel();
+    super.dispose();
+  }
+
+  // ── Class actions ──────────────────────────────────────────────────────────
+
+  void _showJoinOrCreateSheet() {
+    if (_isIOS) {
+      showCupertinoModalPopup(
+        context: context,
+        builder: (ctx) => CupertinoActionSheet(
+          title: const Text('Klasse'),
+          actions: [
+            if (_isAdmin)
+              CupertinoActionSheetAction(
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  _showCreateClassDialog();
+                },
+                child: const Text('Neue Klasse erstellen'),
+              ),
+            CupertinoActionSheetAction(
+              onPressed: () {
+                Navigator.pop(ctx);
+                _showJoinClassDialog();
+              },
+              child: const Text('Klasse beitreten'),
+            ),
+          ],
+          cancelButton: CupertinoActionSheetAction(
+            isDefaultAction: true,
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Abbrechen'),
+          ),
+        ),
+      );
+    } else {
+      showModalBottomSheet(
+        context: context,
+        backgroundColor: AppTheme.surface,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+        ),
+        builder: (ctx) => SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Text(
+                  'Klasse',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.textPrimary,
+                  ),
+                ),
+              ),
+              if (_isAdmin)
+                ListTile(
+                  leading:
+                      Icon(Icons.add_circle_outline, color: AppTheme.accent),
+                  title: Text(
+                    'Neue Klasse erstellen',
+                    style: TextStyle(color: AppTheme.textPrimary),
+                  ),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _showCreateClassDialog();
+                  },
+                ),
+              ListTile(
+                leading:
+                    Icon(Icons.group_add_outlined, color: AppTheme.accent),
+                title: Text(
+                  'Klasse beitreten',
+                  style: TextStyle(color: AppTheme.textPrimary),
+                ),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _showJoinClassDialog();
+                },
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        ),
+      );
+    }
+  }
+
+  void _showCreateClassDialog() {
+    final controller = TextEditingController();
+    _showInputDialog(
+      title: 'Klasse erstellen',
+      placeholder: 'Klassenname',
+      controller: controller,
+      confirmLabel: 'Erstellen',
+      onConfirm: () async {
+        final name = controller.text.trim();
+        if (name.isEmpty) return;
+        final cls = await _service.createClass(name);
+        if (!mounted) return;
+        setState(() => _selectedClassId = cls.id);
+        _showCodeSheet(cls);
+      },
+    );
+  }
+
+  void _showJoinClassDialog() {
+    final controller = TextEditingController();
+    _showInputDialog(
+      title: 'Klasse beitreten',
+      placeholder: 'Klassen-Code (6 Zeichen)',
+      controller: controller,
+      confirmLabel: 'Beitreten',
+      onConfirm: () async {
+        final code = controller.text.trim();
+        if (code.isEmpty) return;
+        final cls = await _service.joinClass(code, isAdminUser: _isAdmin);
+        if (!mounted) return;
+        setState(() => _selectedClassId = cls.id);
+      },
+    );
+  }
+
+  void _showCodeSheet(ClassRoom cls) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppTheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                _isIOS ? CupertinoIcons.checkmark_seal_fill : Icons.check_circle,
+                color: AppTheme.success,
+                size: 40,
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Klasse erstellt!',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: AppTheme.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Teile diesen Code mit deiner Klasse:',
+                style: TextStyle(fontSize: 14, color: AppTheme.textSecondary),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 20),
+              GestureDetector(
+                onTap: () {
+                  Clipboard.setData(ClipboardData(text: cls.code));
+                  Navigator.pop(ctx);
+                  _showToast('Code kopiert: ${cls.code}');
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 32,
+                    vertical: 16,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppTheme.accent.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: AppTheme.accent.withValues(alpha: 0.3),
+                    ),
+                  ),
+                  child: Text(
+                    cls.code,
+                    style: TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.w800,
+                      color: AppTheme.accent,
+                      letterSpacing: 6,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'Tippen zum Kopieren',
+                style: TextStyle(fontSize: 12, color: AppTheme.textTertiary),
+              ),
+              const SizedBox(height: 16),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showMembersSheet(ClassRoom cls) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppTheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => _MembersSheet(cls: cls),
+    );
+  }
+
+  void _showLeaveClassDialog(ClassRoom cls) {
+    if (_isIOS) {
+      showCupertinoDialog(
+        context: context,
+        builder: (ctx) => CupertinoAlertDialog(
+          title: const Text('Klasse verlassen'),
+          content: Text('Möchtest du „${cls.name}" wirklich verlassen?'),
+          actions: [
+            CupertinoDialogAction(
+              isDefaultAction: true,
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Abbrechen'),
+            ),
+            CupertinoDialogAction(
+              isDestructiveAction: true,
+              onPressed: () async {
+                Navigator.pop(ctx);
+                await _service.leaveClass(cls.id);
+              },
+              child: const Text('Verlassen'),
+            ),
+          ],
+        ),
+      );
+    } else {
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: AppTheme.surface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: Text(
+            'Klasse verlassen',
+            style: TextStyle(color: AppTheme.textPrimary),
+          ),
+          content: Text(
+            'Möchtest du „${cls.name}" wirklich verlassen?',
+            style: TextStyle(color: AppTheme.textSecondary),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Abbrechen'),
+            ),
+            TextButton(
+              onPressed: () async {
+                Navigator.pop(ctx);
+                await _service.leaveClass(cls.id);
+              },
+              child: Text(
+                'Verlassen',
+                style: TextStyle(color: AppTheme.danger),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+  }
+
+  // ── Reminder actions ───────────────────────────────────────────────────────
+
+  void _showCreateReminderSheet() {
+    final classId = _selectedClassId;
+    if (classId == null) return;
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppTheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => _CreateReminderSheet(
+        classId: classId,
+        service: _service,
+        onCreated: () => Navigator.pop(ctx),
+      ),
+    );
+  }
+
+  void _confirmDeleteReminder(Reminder reminder) {
+    if (_isIOS) {
+      showCupertinoDialog(
+        context: context,
+        builder: (ctx) => CupertinoAlertDialog(
+          title: const Text('Erinnerung löschen'),
+          content: Text('„${reminder.title}" wirklich löschen?'),
+          actions: [
+            CupertinoDialogAction(
+              isDefaultAction: true,
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Abbrechen'),
+            ),
+            CupertinoDialogAction(
+              isDestructiveAction: true,
+              onPressed: () async {
+                Navigator.pop(ctx);
+                await _service.deleteReminder(reminder.classId, reminder.id);
+              },
+              child: const Text('Löschen'),
+            ),
+          ],
+        ),
+      );
+    } else {
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: AppTheme.surface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: Text('Erinnerung löschen',
+              style: TextStyle(color: AppTheme.textPrimary)),
+          content: Text('„${reminder.title}" wirklich löschen?',
+              style: TextStyle(color: AppTheme.textSecondary)),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Abbrechen')),
+            TextButton(
+              onPressed: () async {
+                Navigator.pop(ctx);
+                await _service.deleteReminder(reminder.classId, reminder.id);
+              },
+              child: Text('Löschen', style: TextStyle(color: AppTheme.danger)),
+            ),
+          ],
+        ),
+      );
+    }
+  }
+
+  // ── Helpers ────────────────────────────────────────────────────────────────
+
+  void _showInputDialog({
+    required String title,
+    required String placeholder,
+    required TextEditingController controller,
+    required String confirmLabel,
+    required Future<void> Function() onConfirm,
+  }) {
+    bool loading = false;
+    String? errorText;
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setInner) => AlertDialog(
+          backgroundColor: AppTheme.surface,
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Text(title, style: TextStyle(color: AppTheme.textPrimary)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TextField(
+                controller: controller,
+                autofocus: true,
+                style: TextStyle(color: AppTheme.textPrimary),
+                decoration: InputDecoration(
+                  hintText: placeholder,
+                  hintStyle: TextStyle(color: AppTheme.textTertiary),
+                  enabledBorder: UnderlineInputBorder(
+                    borderSide: BorderSide(
+                        color: AppTheme.border.withValues(alpha: 0.4)),
+                  ),
+                  focusedBorder: UnderlineInputBorder(
+                    borderSide: BorderSide(color: AppTheme.accent),
+                  ),
+                ),
+              ),
+              if (errorText != null) ...[
+                const SizedBox(height: 8),
+                Text(
+                  errorText!,
+                  style: TextStyle(fontSize: 12, color: AppTheme.danger),
+                ),
+              ],
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Abbrechen'),
+            ),
+            TextButton(
+              onPressed: loading
+                  ? null
+                  : () async {
+                      setInner(() {
+                        loading = true;
+                        errorText = null;
+                      });
+                      try {
+                        await onConfirm();
+                        if (ctx.mounted) Navigator.pop(ctx);
+                      } catch (e) {
+                        if (ctx.mounted) {
+                          setInner(() {
+                            loading = false;
+                            errorText = e.toString().replaceFirst('Exception: ', '');
+                          });
+                        }
+                      }
+                    },
+              child: loading
+                  ? SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: AppTheme.accent,
+                      ),
+                    )
+                  : Text(
+                      confirmLabel,
+                      style: TextStyle(color: AppTheme.accent),
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showToast(String message) {
+    final overlay = Overlay.of(context);
+    final entry = OverlayEntry(
+      builder: (ctx) => _ToastOverlay(message: message),
+    );
+    overlay.insert(entry);
+    Future.delayed(const Duration(seconds: 2), () => entry.remove());
+  }
+
+  // ── Build ──────────────────────────────────────────────────────────────────
+
+  @override
+  Widget build(BuildContext context) {
+    final selectedClass =
+        _classes.where((c) => c.id == _selectedClassId).firstOrNull;
+
+    return Scaffold(
+      backgroundColor: AppTheme.bg,
+      body: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+              child: Row(
+                children: [
+                  if (Navigator.canPop(context))
+                    GestureDetector(
+                      onTap: () => Navigator.pop(context),
+                      child: Container(
+                        width: 34,
+                        height: 34,
+                        decoration: BoxDecoration(
+                          color: AppTheme.surface,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Icon(
+                          _isIOS
+                              ? CupertinoIcons.chevron_left
+                              : Icons.arrow_back,
+                          size: 16,
+                          color: AppTheme.textSecondary,
+                        ),
+                      ),
+                    ),
+                  if (Navigator.canPop(context)) const SizedBox(width: 12),
+                  Text(
+                    'Erinnerungen',
+                    style: TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.w700,
+                      color: AppTheme.textPrimary,
+                      letterSpacing: -0.5,
+                    ),
+                  ),
+                  const Spacer(),
+                  TopBarActions(service: widget.service),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 12),
+
+            // Class selector row
+            SizedBox(
+              height: 38,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                children: [
+                  ..._classes.map(
+                    (cls) => Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: GestureDetector(
+                        onLongPress: () => _showLeaveClassDialog(cls),
+                        child: _ClassChip(
+                          label: cls.name,
+                          code: cls.code,
+                          selected: _selectedClassId == cls.id,
+                          memberCount: cls.members.length,
+                          onTap: () {
+                            if (_selectedClassId == cls.id) {
+                              _showMembersSheet(cls);
+                            } else {
+                              setState(() => _selectedClassId = cls.id);
+                              _service.cleanupExpired(cls.id);
+                            }
+                          },
+                          onMembersTap: () => _showMembersSheet(cls),
+                        ),
+                      ),
+                    ),
+                  ),
+                  // Show join/create button only if admin OR not yet in a class
+                  if (_adminLoaded && (_isAdmin || _classes.isEmpty))
+                    GestureDetector(
+                      onTap: _showJoinOrCreateSheet,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppTheme.surface,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: AppTheme.border.withValues(alpha: 0.4),
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              _isIOS ? CupertinoIcons.plus : Icons.add,
+                              size: 14,
+                              color: AppTheme.textSecondary,
+                            ),
+                            const SizedBox(width: 5),
+                            Text(
+                              _isAdmin ? 'Klasse' : 'Beitreten',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: AppTheme.textSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 14),
+
+            // Content
+            Expanded(
+              child: _classes.isEmpty
+                  ? _EmptyClassesState(
+                      isAdmin: _isAdmin,
+                      onJoinOrCreate: _showJoinOrCreateSheet,
+                    )
+                  : selectedClass == null
+                  ? const SizedBox.shrink()
+                  : _RemindersList(
+                      classRoom: selectedClass,
+                      service: _service,
+                      onDelete: _confirmDeleteReminder,
+                    ),
+            ),
+          ],
+        ),
+      ),
+      floatingActionButton: _selectedClassId != null && _classes.isNotEmpty
+          ? FloatingActionButton(
+              onPressed: _showCreateReminderSheet,
+              backgroundColor: AppTheme.accent,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: const Icon(Icons.add, color: Colors.white),
+            )
+          : null,
+    );
+  }
+}
+
+// ── Class chip ────────────────────────────────────────────────────────────────
+
+class _ClassChip extends StatelessWidget {
+  final String label;
+  final String code;
+  final bool selected;
+  final int memberCount;
+  final VoidCallback onTap;
+  final VoidCallback onMembersTap;
+
+  const _ClassChip({
+    required this.label,
+    required this.code,
+    required this.selected,
+    required this.memberCount,
+    required this.onTap,
+    required this.onMembersTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: EdgeInsets.only(
+          left: 14,
+          right: selected ? 8 : 14,
+          top: 8,
+          bottom: 8,
+        ),
+        decoration: BoxDecoration(
+          color: selected ? AppTheme.accent : AppTheme.surface,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: selected
+                ? AppTheme.accent
+                : AppTheme.border.withValues(alpha: 0.4),
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: selected ? Colors.white : AppTheme.textSecondary,
+              ),
+            ),
+            if (selected) ...[
+              const SizedBox(width: 6),
+              GestureDetector(
+                onTap: onMembersTap,
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.2),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    _isIOS ? CupertinoIcons.person_2_fill : Icons.group,
+                    size: 12,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Empty state ───────────────────────────────────────────────────────────────
+
+class _EmptyClassesState extends StatelessWidget {
+  final VoidCallback onJoinOrCreate;
+  final bool isAdmin;
+  const _EmptyClassesState({required this.onJoinOrCreate, required this.isAdmin});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 40),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 64,
+              height: 64,
+              decoration: BoxDecoration(
+                color: AppTheme.accent.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: Icon(
+                _isIOS ? CupertinoIcons.bell_fill : Icons.notifications_outlined,
+                size: 28,
+                color: AppTheme.accent,
+              ),
+            ),
+            const SizedBox(height: 18),
+            Text(
+              'Noch keine Klasse',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: AppTheme.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Tritt einer Klasse bei oder erstelle eine neue, um gemeinsam Hausaufgaben-Erinnerungen zu teilen.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 14,
+                color: AppTheme.textSecondary,
+                height: 1.5,
+              ),
+            ),
+            const SizedBox(height: 24),
+            GestureDetector(
+              onTap: onJoinOrCreate,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 13,
+                ),
+                decoration: BoxDecoration(
+                  color: AppTheme.accent,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Text(
+                  isAdmin ? 'Klasse beitreten oder erstellen' : 'Klasse beitreten',
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Reminders list ────────────────────────────────────────────────────────────
+
+class _RemindersList extends StatelessWidget {
+  final ClassRoom classRoom;
+  final ReminderService service;
+  final void Function(Reminder) onDelete;
+
+  const _RemindersList({
+    required this.classRoom,
+    required this.service,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<List<Reminder>>(
+      stream: service.remindersStream(classRoom.id),
+      builder: (context, snap) {
+        if (snap.connectionState == ConnectionState.waiting) {
+          return const Center(child: CupertinoActivityIndicator(radius: 14));
+        }
+
+        final reminders = snap.data ?? [];
+        final active = reminders.where((r) => !r.isExpired).toList();
+
+        if (active.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  _isIOS
+                      ? CupertinoIcons.checkmark_circle
+                      : Icons.check_circle_outline,
+                  size: 40,
+                  color: AppTheme.textTertiary,
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Keine Erinnerungen',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Tippe auf + um eine Erinnerung\nfür diese Klasse zu erstellen.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: AppTheme.textTertiary,
+                    height: 1.5,
+                  ),
+                ),
+                // Info about class code
+                const SizedBox(height: 24),
+                GestureDetector(
+                  onTap: () {
+                    Clipboard.setData(ClipboardData(text: classRoom.code));
+                    ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+                      SnackBar(
+                        content: Text('Code kopiert: ${classRoom.code}'),
+                        behavior: SnackBarBehavior.floating,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        margin:
+                            const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                        backgroundColor: AppTheme.surface,
+                      ),
+                    );
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppTheme.surface,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: AppTheme.border.withValues(alpha: 0.3),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          _isIOS
+                              ? CupertinoIcons.share
+                              : Icons.share_outlined,
+                          size: 14,
+                          color: AppTheme.textTertiary,
+                        ),
+                        const SizedBox(width: 7),
+                        Text(
+                          'Code: ${classRoom.code}',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: AppTheme.textSecondary,
+                            letterSpacing: 1.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+
+        return ListView.separated(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
+          itemCount: active.length + 1,
+          separatorBuilder: (context, index) => const SizedBox(height: 10),
+          itemBuilder: (context, i) {
+            if (i == 0) {
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Row(
+                  children: [
+                    Icon(
+                      _isIOS ? CupertinoIcons.share : Icons.share_outlined,
+                      size: 12,
+                      color: AppTheme.textTertiary,
+                    ),
+                    const SizedBox(width: 5),
+                    Text(
+                      'Klassen-Code: ${classRoom.code}',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppTheme.textTertiary,
+                        letterSpacing: 1,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    GestureDetector(
+                      onTap: () => Clipboard.setData(
+                          ClipboardData(text: classRoom.code)),
+                      child: Icon(
+                        _isIOS
+                            ? CupertinoIcons.doc_on_clipboard
+                            : Icons.content_copy,
+                        size: 11,
+                        color: AppTheme.textTertiary,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }
+
+            final reminder = active[i - 1];
+            return _ReminderCard(
+              reminder: reminder,
+              onDelete: () => onDelete(reminder),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+// ── Reminder card ─────────────────────────────────────────────────────────────
+
+class _ReminderCard extends StatefulWidget {
+  final Reminder reminder;
+  final VoidCallback onDelete;
+
+  const _ReminderCard({required this.reminder, required this.onDelete});
+
+  @override
+  State<_ReminderCard> createState() => _ReminderCardState();
+}
+
+class _ReminderCardState extends State<_ReminderCard> {
+  Timer? _ticker;
+
+  @override
+  void initState() {
+    super.initState();
+    if (!widget.reminder.isDue) {
+      _ticker = Timer.periodic(const Duration(seconds: 30), (_) {
+        if (mounted) setState(() {});
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _ticker?.cancel();
+    super.dispose();
+  }
+
+  String _formatRemindAt(DateTime dt) {
+    final now = DateTime.now();
+    final diff = dt.difference(now);
+
+    if (widget.reminder.isDue) {
+      final ago = now.difference(dt);
+      if (ago.inMinutes < 60) return 'vor ${ago.inMinutes} Min.';
+      if (ago.inHours < 24) return 'vor ${ago.inHours} Std.';
+      return 'vor ${ago.inDays} Tag(en)';
+    }
+
+    if (diff.inMinutes < 60) return 'in ${diff.inMinutes} Min.';
+    if (diff.inHours < 24) return 'in ${diff.inHours} Std.';
+    if (diff.inDays == 1) return 'morgen';
+
+    final weekdays = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
+    String pad2(int n) => n.toString().padLeft(2, '0');
+    return '${weekdays[dt.weekday - 1]}, ${pad2(dt.day)}.${pad2(dt.month)} · ${pad2(dt.hour)}:${pad2(dt.minute)}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final r = widget.reminder;
+    final isDue = r.isDue;
+
+    final statusColor = isDue ? AppTheme.warning : AppTheme.accent;
+    final statusLabel = isDue ? 'Fällig' : 'Ausstehend';
+    final statusIcon = isDue
+        ? (_isIOS ? CupertinoIcons.bell_fill : Icons.notifications_active)
+        : (_isIOS ? CupertinoIcons.clock : Icons.access_time_rounded);
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppTheme.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isDue
+              ? AppTheme.warning.withValues(alpha: 0.3)
+              : AppTheme.border.withValues(alpha: 0.2),
+        ),
+        boxShadow: isDue
+            ? [
+                BoxShadow(
+                  color: AppTheme.warning.withValues(alpha: 0.08),
+                  blurRadius: 12,
+                  offset: const Offset(0, 3),
+                ),
+              ]
+            : null,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Title row
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Text(
+                  r.title,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: AppTheme.textPrimary,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              // Status badge
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: statusColor.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(statusIcon, size: 10, color: statusColor),
+                    const SizedBox(width: 4),
+                    Text(
+                      statusLabel,
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        color: statusColor,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 4),
+              GestureDetector(
+                onTap: widget.onDelete,
+                child: Icon(
+                  _isIOS ? CupertinoIcons.trash : Icons.delete_outline,
+                  size: 17,
+                  color: AppTheme.textTertiary,
+                ),
+              ),
+            ],
+          ),
+
+          // Body
+          if (r.body.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(
+              r.body,
+              style: TextStyle(
+                fontSize: 14,
+                color: AppTheme.textSecondary,
+                height: 1.4,
+              ),
+            ),
+          ],
+
+          const SizedBox(height: 10),
+
+          // Footer: creator + time
+          Row(
+            children: [
+              Icon(
+                _isIOS ? CupertinoIcons.person_fill : Icons.person_outline,
+                size: 12,
+                color: AppTheme.textTertiary,
+              ),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  r.createdByName,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: AppTheme.textTertiary,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              Icon(
+                _isIOS ? CupertinoIcons.bell : Icons.notifications_outlined,
+                size: 12,
+                color: statusColor.withValues(alpha: 0.7),
+              ),
+              const SizedBox(width: 4),
+              Text(
+                _formatRemindAt(r.remindAt),
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  color: statusColor,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Create reminder sheet ─────────────────────────────────────────────────────
+
+class _CreateReminderSheet extends StatefulWidget {
+  final String classId;
+  final ReminderService service;
+  final VoidCallback onCreated;
+
+  const _CreateReminderSheet({
+    required this.classId,
+    required this.service,
+    required this.onCreated,
+  });
+
+  @override
+  State<_CreateReminderSheet> createState() => _CreateReminderSheetState();
+}
+
+class _CreateReminderSheetState extends State<_CreateReminderSheet> {
+  final _titleCtrl = TextEditingController();
+  final _bodyCtrl = TextEditingController();
+  DateTime _remindAt = DateTime.now().add(const Duration(hours: 1));
+  bool _loading = false;
+
+  @override
+  void dispose() {
+    _titleCtrl.dispose();
+    _bodyCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    final title = _titleCtrl.text.trim();
+    if (title.isEmpty) return;
+
+    setState(() => _loading = true);
+    try {
+      await widget.service.createReminder(
+        classId: widget.classId,
+        title: title,
+        body: _bodyCtrl.text.trim(),
+        remindAt: _remindAt,
+      );
+      widget.onCreated();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+          SnackBar(
+            content: Text('$e'),
+            backgroundColor: AppTheme.danger,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          ),
+        );
+        setState(() => _loading = false);
+      }
+    }
+  }
+
+  void _pickDateTime() async {
+    if (_isIOS) {
+      DateTime picked = _remindAt;
+      await showCupertinoModalPopup(
+        context: context,
+        builder: (ctx) => Container(
+          height: 300,
+          color: AppTheme.surface,
+          child: Column(
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  CupertinoButton(
+                    child: const Text('Abbrechen'),
+                    onPressed: () => Navigator.pop(ctx),
+                  ),
+                  CupertinoButton(
+                    child: const Text('Fertig'),
+                    onPressed: () {
+                      setState(() => _remindAt = picked);
+                      Navigator.pop(ctx);
+                    },
+                  ),
+                ],
+              ),
+              Expanded(
+                child: CupertinoDatePicker(
+                  mode: CupertinoDatePickerMode.dateAndTime,
+                  initialDateTime: _remindAt,
+                  minimumDate: DateTime.now().add(const Duration(minutes: 1)),
+                  use24hFormat: true,
+                  onDateTimeChanged: (dt) => picked = dt,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    } else {
+      final date = await showDatePicker(
+        context: context,
+        initialDate: _remindAt,
+        firstDate: DateTime.now(),
+        lastDate: DateTime.now().add(const Duration(days: 365)),
+        builder: (context, child) => Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: ColorScheme.dark(
+              primary: AppTheme.accent,
+              surface: AppTheme.surface,
+            ),
+          ),
+          child: child!,
+        ),
+      );
+      if (date == null || !mounted) return;
+
+      final time = await showTimePicker(
+        context: context,
+        initialTime: TimeOfDay.fromDateTime(_remindAt),
+        builder: (context, child) => Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: ColorScheme.dark(
+              primary: AppTheme.accent,
+              surface: AppTheme.surface,
+            ),
+          ),
+          child: child!,
+        ),
+      );
+      if (time == null || !mounted) return;
+
+      setState(() {
+        _remindAt = DateTime(
+          date.year,
+          date.month,
+          date.day,
+          time.hour,
+          time.minute,
+        );
+      });
+    }
+  }
+
+  String _formatPickedExact(DateTime dt) {
+    final weekdays = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
+    String pad2(int n) => n.toString().padLeft(2, '0');
+    return '${weekdays[dt.weekday - 1]}, ${pad2(dt.day)}.${pad2(dt.month)}.${dt.year} · ${pad2(dt.hour)}:${pad2(dt.minute)}';
+  }
+
+  String? _formatPickedRelative(DateTime dt) {
+    final diff = dt.difference(DateTime.now());
+    if (diff.inMinutes < 60 && diff.inMinutes >= 0) return 'in ${diff.inMinutes} Min.';
+    return null;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+
+    return Padding(
+      padding: EdgeInsets.only(bottom: bottomInset),
+      child: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Handle
+              Center(
+                child: Container(
+                  width: 36,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppTheme.border.withValues(alpha: 0.5),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              Text(
+                'Neue Erinnerung',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                  color: AppTheme.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              // Title field
+              _Field(
+                controller: _titleCtrl,
+                label: 'Titel',
+                placeholder: 'z.B. Mathe Hausaufgabe',
+                maxLines: 1,
+              ),
+
+              const SizedBox(height: 12),
+
+              // Body field
+              _Field(
+                controller: _bodyCtrl,
+                label: 'Notiz (optional)',
+                placeholder: 'z.B. Seite 42, Aufgabe 3',
+                maxLines: 3,
+              ),
+
+              const SizedBox(height: 12),
+
+              // Date/time picker
+              GestureDetector(
+                onTap: _pickDateTime,
+                child: Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: AppTheme.card,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: AppTheme.border.withValues(alpha: 0.3),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        _isIOS
+                            ? CupertinoIcons.calendar_badge_plus
+                            : Icons.event_outlined,
+                        size: 18,
+                        color: AppTheme.accent,
+                      ),
+                      const SizedBox(width: 10),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Erinnerung am',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: AppTheme.textTertiary,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            _formatPickedExact(_remindAt),
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: AppTheme.textPrimary,
+                            ),
+                          ),
+                          if (_formatPickedRelative(_remindAt) != null) ...[
+                            const SizedBox(height: 1),
+                            Text(
+                              _formatPickedRelative(_remindAt)!,
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: AppTheme.accent,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                      const Spacer(),
+                      Icon(
+                        _isIOS
+                            ? CupertinoIcons.chevron_right
+                            : Icons.chevron_right,
+                        size: 16,
+                        color: AppTheme.textTertiary,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 20),
+
+              // Submit button
+              GestureDetector(
+                onTap: _loading ? null : _submit,
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 15),
+                  decoration: BoxDecoration(
+                    color: _titleCtrl.text.isEmpty
+                        ? AppTheme.accent.withValues(alpha: 0.5)
+                        : AppTheme.accent,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Center(
+                    child: _loading
+                        ? const CupertinoActivityIndicator(
+                            color: Colors.white,
+                            radius: 10,
+                          )
+                        : const Text(
+                            'Erinnerung erstellen',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white,
+                            ),
+                          ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _Field extends StatelessWidget {
+  final TextEditingController controller;
+  final String label;
+  final String placeholder;
+  final int maxLines;
+
+  const _Field({
+    required this.controller,
+    required this.label,
+    required this.placeholder,
+    required this.maxLines,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
+            color: AppTheme.textTertiary,
+          ),
+        ),
+        const SizedBox(height: 6),
+        TextField(
+          controller: controller,
+          maxLines: maxLines,
+          style: TextStyle(fontSize: 15, color: AppTheme.textPrimary),
+          decoration: InputDecoration(
+            hintText: placeholder,
+            hintStyle: TextStyle(color: AppTheme.textTertiary),
+            filled: true,
+            fillColor: AppTheme.card,
+            contentPadding: const EdgeInsets.all(12),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide.none,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ── Members sheet ─────────────────────────────────────────────────────────────
+
+class _MembersSheet extends StatefulWidget {
+  final ClassRoom cls;
+  const _MembersSheet({required this.cls});
+
+  @override
+  State<_MembersSheet> createState() => _MembersSheetState();
+}
+
+class _MembersSheetState extends State<_MembersSheet> {
+  Map<String, String>? _names;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    // Start with locally known names from memberNames map
+    final known = Map<String, String>.from(widget.cls.memberNames);
+    // Find UIDs we don't have a name for yet
+    final missing = widget.cls.members.where((uid) => !known.containsKey(uid)).toList();
+    if (missing.isNotEmpty) {
+      final fetched = await FirebaseAuthService.instance.fetchUsernames(missing);
+      known.addAll(fetched);
+    }
+    // Ensure every UID has at least a fallback entry
+    for (final uid in widget.cls.members) {
+      known.putIfAbsent(uid, () => uid);
+    }
+    if (mounted) setState(() => _names = known);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cls = widget.cls;
+    final myUid = FirebaseAuthService.instance.userId;
+
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppTheme.border.withValues(alpha: 0.5),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Icon(
+                  _isIOS ? CupertinoIcons.person_2_fill : Icons.group,
+                  size: 18,
+                  color: AppTheme.accent,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    '${cls.name} – Mitglieder',
+                    style: TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w700,
+                      color: AppTheme.textPrimary,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              '${cls.members.length} ${cls.members.length == 1 ? "Mitglied" : "Mitglieder"}',
+              style: TextStyle(fontSize: 13, color: AppTheme.textSecondary),
+            ),
+            const SizedBox(height: 14),
+            if (_names == null)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 16),
+                child: Center(child: CupertinoActivityIndicator(radius: 12)),
+              )
+            else
+              ...cls.members.map((uid) {
+                final name = _names![uid] ?? uid;
+                final isMe = uid == myUid;
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 36,
+                        height: 36,
+                        decoration: BoxDecoration(
+                          color: AppTheme.accent.withValues(alpha: 0.12),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Center(
+                          child: Text(
+                            name.isNotEmpty ? name[0].toUpperCase() : '?',
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                              color: AppTheme.accent,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          name,
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w500,
+                            color: AppTheme.textPrimary,
+                          ),
+                        ),
+                      ),
+                      if (isMe)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 3,
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppTheme.accent.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            'Du',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: AppTheme.accent,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                );
+              }),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Toast ─────────────────────────────────────────────────────────────────────
+
+class _ToastOverlay extends StatefulWidget {
+  final String message;
+  const _ToastOverlay({required this.message});
+
+  @override
+  State<_ToastOverlay> createState() => _ToastOverlayState();
+}
+
+class _ToastOverlayState extends State<_ToastOverlay>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<double> _opacity;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+    );
+    _opacity = CurvedAnimation(parent: _ctrl, curve: Curves.easeOut);
+    _ctrl.forward();
+    Future.delayed(const Duration(milliseconds: 1400), () {
+      if (mounted) _ctrl.reverse();
+    });
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned(
+      bottom: MediaQuery.of(context).padding.bottom + 80,
+      left: 40,
+      right: 40,
+      child: FadeTransition(
+        opacity: _opacity,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+          decoration: BoxDecoration(
+            color: AppTheme.surface,
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.3),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Text(
+            widget.message,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+              color: AppTheme.textPrimary,
+              decoration: TextDecoration.none,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}

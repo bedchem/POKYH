@@ -658,7 +658,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               icon: _isIOS
                                   ? CupertinoIcons.building_2_fill
                                   : Icons.school_outlined,
-                              text: 'LBS Brixen',
+                              text: AppConfig.schoolName,
                             ),
                             if (widget.service.studentId != null) ...[
                               const SizedBox(height: 2),

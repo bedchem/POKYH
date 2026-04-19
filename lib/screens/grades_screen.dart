@@ -5,6 +5,7 @@ import 'package:flutter/cupertino.dart';
 import '../config/app_config.dart';
 import '../services/webuntis_service.dart';
 import '../theme/app_theme.dart';
+import '../widgets/top_bar_actions.dart';
 import 'login_screen.dart';
 
 class GradesScreen extends StatefulWidget {
@@ -104,18 +105,43 @@ class _GradesScreenState extends State<GradesScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'Noten',
-                  style: TextStyle(
-                    fontSize: 34,
-                    fontWeight: FontWeight.w700,
-                    color: AppTheme.textPrimary,
-                    letterSpacing: -0.5,
-                  ),
+                Row(
+                  children: [
+                    GestureDetector(
+                      onTap: () => Navigator.pop(context),
+                      child: Container(
+                        width: 34,
+                        height: 34,
+                        decoration: BoxDecoration(
+                          color: AppTheme.surface,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Icon(
+                          Platform.isIOS
+                              ? CupertinoIcons.chevron_left
+                              : Icons.arrow_back,
+                          size: 16,
+                          color: AppTheme.textSecondary,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Text(
+                      'Noten',
+                      style: TextStyle(
+                        fontSize: 28,
+                        fontWeight: FontWeight.w700,
+                        color: AppTheme.textPrimary,
+                        letterSpacing: -0.5,
+                      ),
+                    ),
+                    const Spacer(),
+                    TopBarActions(service: widget.service),
+                  ],
                 ),
                 if (!_loading && _error == null && _subjects.isNotEmpty)
                   Padding(
-                    padding: const EdgeInsets.only(top: 4),
+                    padding: const EdgeInsets.only(top: 4, left: 46),
                     child: Text(
                       '${_subjects.length} Fächer · Schuljahr ${AppConfig.currentSchoolYear}',
                       style: TextStyle(
@@ -226,10 +252,13 @@ class _GradesScreenState extends State<GradesScreen> {
       ],
     );
 
-    return SafeArea(
-      child: RefreshIndicator(
-        onRefresh: () => _load(forceRefresh: true),
-        child: scrollView,
+    return Scaffold(
+      backgroundColor: AppTheme.bg,
+      body: SafeArea(
+        child: RefreshIndicator(
+          onRefresh: () => _load(forceRefresh: true),
+          child: scrollView,
+        ),
       ),
     );
   }

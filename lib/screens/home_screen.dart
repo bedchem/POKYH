@@ -8,11 +8,11 @@ import '../services/webuntis_service.dart';
 import '../services/dish_service.dart';
 import '../theme/app_theme.dart';
 import 'timetable_screen.dart' show TimetableScreen, TimetableScreenState;
-import 'grades_screen.dart';
 import 'mensa_screen.dart';
 import 'login_screen.dart';
 import 'profile_screen.dart';
 import 'messages_screen.dart';
+import 'hub_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   final WebUntisService service;
@@ -81,7 +81,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         },
       ),
       TimetableScreen(service: widget.service, key: _timetableKey),
-      GradesScreen(service: widget.service),
+      HubScreen(service: widget.service),
       MensaScreen(controller: _mensaController, service: widget.service),
     ];
   }
@@ -443,8 +443,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 Expanded(
                   child: _TabItem(
                     layout: navLayout,
-                    icon: CupertinoIcons.chart_bar_fill,
-                    label: 'Noten',
+                    icon: CupertinoIcons.square_grid_2x2_fill,
+                    label: 'Schule',
                     active: _tab == 2,
                     onTap: () => _setTab(2),
                   ),
