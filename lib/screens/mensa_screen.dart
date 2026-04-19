@@ -1,10 +1,13 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
+import 'dart:math' as math;
 import 'dart:ui';
 import '../models/dish.dart';
 import '../services/dish_service.dart';
 import '../services/webuntis_service.dart';
+import '../services/rating_service.dart';
+import '../services/firebase_auth_service.dart';
 import '../theme/app_theme.dart';
 
 class MensaScreenController extends ChangeNotifier {
@@ -126,7 +129,7 @@ class _MensaScreenState extends State<MensaScreen> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => _DishDetailSheet(dish: dish),
+      builder: (_) => _DishDetailSheet(dish: dish, username: widget.service?.username),
     );
   }
 
@@ -610,13 +613,239 @@ class _DishCard extends StatelessWidget {
 
 class _DishDetailSheet extends StatefulWidget {
   final Dish dish;
-  const _DishDetailSheet({required this.dish});
+  final String? username;
+  const _DishDetailSheet({required this.dish, this.username});
 
   @override
   State<_DishDetailSheet> createState() => _DishDetailSheetState();
 }
 
 class _DishDetailSheetState extends State<_DishDetailSheet> {
+  double? _userRating;
+  double _avgRating = 0;
+  int _voteCount = 0;
+  bool _ratingLoading = true;
+  bool _submitting = false;
+  bool _editMode = false;
+  double? _hoverRating;
+  bool _wasDragging = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRating();
+  }
+
+  Future<void> _loadRating() async {
+    try {
+      final r = await RatingService.instance.getRating(widget.dish.id);
+      if (!mounted) return;
+      setState(() {
+        _userRating = r.userRating;
+        _avgRating = r.avgRating;
+        _voteCount = r.voteCount;
+        _ratingLoading = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _ratingLoading = false);
+    }
+  }
+
+  Future<void> _submitRating(double stars) async {
+    if (_submitting) return;
+    setState(() { _submitting = true; _editMode = false; _hoverRating = null; });
+    try {
+      final username = widget.username ??
+          FirebaseAuthService.instance.username ??
+          'anonym';
+      final r = await RatingService.instance.submitRating(
+        widget.dish.id,
+        stars,
+        username: username,
+      );
+      if (!mounted) return;
+      setState(() {
+        _userRating = r.userRating;
+        _avgRating = r.avgRating;
+        _voteCount = r.voteCount;
+      });
+    } catch (_) {
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
+  }
+
+  static const double _starSize = 38.0;
+  static const double _starGap = 10.0;
+  static const double _starRowWidth = 5 * _starSize + 4 * _starGap;
+
+  double _posToRating(double dx) {
+    final raw = (dx / _starRowWidth * 5).clamp(0.05, 5.0);
+    return (raw * 10).round() / 10;
+  }
+
+  Widget _buildRatingSection() {
+    if (_ratingLoading) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 6),
+        child: CupertinoActivityIndicator(radius: 11),
+      );
+    }
+
+    final isLoggedIn = FirebaseAuthService.instance.userId != null;
+    final showSelector = isLoggedIn && (_userRating == null || _editMode) && !_submitting;
+    final displayHover = _hoverRating ?? 0.0;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      decoration: BoxDecoration(
+        color: AppTheme.surface,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Average row – always visible
+          Row(
+            children: [
+              ...List.generate(5, (i) {
+                final fraction = (_avgRating - i).clamp(0.0, 1.0);
+                return Padding(
+                  padding: const EdgeInsets.only(right: 3),
+                  child: _StarIcon(
+                    fillFraction: _voteCount > 0 ? fraction : 0.0,
+                    color: AppTheme.warning,
+                    emptyColor: AppTheme.textTertiary.withValues(alpha: 0.3),
+                    size: 15,
+                  ),
+                );
+              }),
+              const SizedBox(width: 8),
+              Text(
+                _voteCount > 0 ? _avgRating.toStringAsFixed(1) : '–',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  color: AppTheme.textPrimary,
+                ),
+              ),
+              const SizedBox(width: 5),
+              Expanded(
+                child: Text(
+                  _voteCount == 0
+                      ? 'Noch keine Bewertungen'
+                      : '($_voteCount ${_voteCount == 1 ? "Bewertung" : "Bewertungen"})',
+                  style: TextStyle(fontSize: 13, color: AppTheme.textSecondary),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+
+          if (showSelector) ...[
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: Divider(
+                height: 1,
+                color: AppTheme.textTertiary.withValues(alpha: 0.15),
+              ),
+            ),
+            Text(
+              'Wie gut ist dieses Gericht?',
+              style: TextStyle(fontSize: 13, color: AppTheme.textSecondary),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Tippen oder wischen',
+              style: TextStyle(fontSize: 11, color: AppTheme.textTertiary),
+            ),
+            const SizedBox(height: 10),
+            // Slider-style star row (Listener fires on every raw pointer event,
+            // no slop threshold — taps and swipes both work immediately)
+            Listener(
+              onPointerDown: (e) {
+                _wasDragging = false;
+                setState(() => _hoverRating = _posToRating(e.localPosition.dx));
+              },
+              onPointerMove: (e) {
+                _wasDragging = true;
+                setState(() => _hoverRating = _posToRating(e.localPosition.dx));
+              },
+              onPointerUp: (e) {
+                if (_hoverRating != null) {
+                  final value = _wasDragging
+                      ? _hoverRating!
+                      : _hoverRating!.ceil().clamp(1, 5).toDouble();
+                  _submitRating(value);
+                }
+              },
+              child: SizedBox(
+                width: _starRowWidth,
+                height: _starSize,
+                child: Row(
+                  children: List.generate(5, (i) {
+                    final fraction = (displayHover - i).clamp(0.0, 1.0);
+                    return Padding(
+                      padding: EdgeInsets.only(right: i < 4 ? _starGap : 0),
+                      child: _StarIcon(
+                        fillFraction: fraction,
+                        color: AppTheme.warning,
+                        emptyColor: AppTheme.textTertiary.withValues(alpha: 0.35),
+                        size: _starSize,
+                      ),
+                    );
+                  }),
+                ),
+              ),
+            ),
+            if (_hoverRating != null) ...[
+              const SizedBox(height: 6),
+              Text(
+                _hoverRating! == _hoverRating!.roundToDouble()
+                    ? '${_hoverRating!.toInt()} / 5'
+                    : '${_hoverRating!.toStringAsFixed(1)} / 5',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: AppTheme.warning,
+                ),
+              ),
+            ],
+          ] else if (_submitting) ...[
+            const SizedBox(height: 10),
+            const CupertinoActivityIndicator(radius: 10),
+          ] else if (_userRating != null) ...[
+            const SizedBox(height: 8),
+            GestureDetector(
+              onTap: () => setState(() {
+                _editMode = true;
+                _hoverRating = _userRating;
+              }),
+              child: Row(
+                children: [
+                  Text(
+                    'Deine Bewertung: ${_userRating! == _userRating!.roundToDouble() ? _userRating!.toInt() : _userRating!.toStringAsFixed(1)} / 5',
+                    style: TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Andern',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: AppTheme.accent,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final dish = widget.dish;
@@ -744,6 +973,10 @@ class _DishDetailSheetState extends State<_DishDetailSheet> {
                         ),
                       ],
 
+                      // ── Rating (above description) ──
+                      const SizedBox(height: 16),
+                      _buildRatingSection(),
+
                       // ── Description ──
                       if (dish.hasDescription()) ...[
                         const SizedBox(height: 16),
@@ -796,7 +1029,7 @@ class _DishDetailSheetState extends State<_DishDetailSheet> {
                       if (dish.hasNutrition) ...[
                         const SizedBox(height: 20),
                         Text(
-                          'Nährwerte',
+                          'N\u00e4hrwerte',
                           style: TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.w700,
@@ -804,8 +1037,6 @@ class _DishDetailSheetState extends State<_DishDetailSheet> {
                           ),
                         ),
                         const SizedBox(height: 12),
-
-                        // Main nutrition cards
                         Row(
                           children: [
                             if (dish.calories > 0)
@@ -845,8 +1076,6 @@ class _DishDetailSheetState extends State<_DishDetailSheet> {
                               ),
                           ],
                         ),
-
-                        // Nutrition bar visual
                         if (dish.calories > 0 &&
                             dish.protein > 0 &&
                             dish.fat > 0) ...[
@@ -953,6 +1182,107 @@ class _DishDetailSheetState extends State<_DishDetailSheet> {
       },
     );
   }
+}
+
+// ── Star Icon ────────────────────────────────────────────────────────────────
+
+class _StarIcon extends StatelessWidget {
+  /// 0.0 = empty outline, 1.0 = fully filled, 0.0–1.0 = partial fill
+  final double fillFraction;
+  final Color color;
+  final Color emptyColor;
+  final double size;
+
+  const _StarIcon({
+    required this.fillFraction,
+    required this.color,
+    required this.emptyColor,
+    this.size = 24,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(
+      size: Size(size, size),
+      painter: _StarPainter(
+        fillFraction: fillFraction.clamp(0.0, 1.0),
+        color: color,
+        emptyColor: emptyColor,
+      ),
+    );
+  }
+}
+
+class _StarPainter extends CustomPainter {
+  final double fillFraction;
+  final Color color;
+  final Color emptyColor;
+
+  const _StarPainter({
+    required this.fillFraction,
+    required this.color,
+    required this.emptyColor,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final path = _buildPath(size);
+
+    // Outline (always)
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = fillFraction > 0 ? color : emptyColor
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.6
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round
+        ..isAntiAlias = true,
+    );
+
+    // Fill up to fillFraction of the width
+    if (fillFraction > 0) {
+      canvas.save();
+      canvas.clipRect(Rect.fromLTWH(0, 0, size.width * fillFraction, size.height));
+      canvas.drawPath(
+        path,
+        Paint()
+          ..color = color
+          ..style = PaintingStyle.fill
+          ..isAntiAlias = true,
+      );
+      canvas.restore();
+    }
+  }
+
+  Path _buildPath(Size size) {
+    final cx = size.width / 2;
+    final cy = size.height / 2;
+    final outerR = size.width * 0.48;
+    final innerR = outerR * 0.42;
+    const points = 5;
+    final path = Path();
+
+    for (int i = 0; i < points * 2; i++) {
+      final r = i.isEven ? outerR : innerR;
+      final angle = (i * math.pi / points) - math.pi / 2;
+      final x = cx + r * math.cos(angle);
+      final y = cy + r * math.sin(angle);
+      if (i == 0) {
+        path.moveTo(x, y);
+      } else {
+        path.lineTo(x, y);
+      }
+    }
+    path.close();
+    return path;
+  }
+
+  @override
+  bool shouldRepaint(_StarPainter old) =>
+      old.fillFraction != fillFraction ||
+      old.color != color ||
+      old.emptyColor != emptyColor;
 }
 
 // ── Nutrition Card ───────────────────────────────────────────────────────────

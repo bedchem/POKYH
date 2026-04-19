@@ -9,6 +9,7 @@ import 'package:local_auth/local_auth.dart';
 import '../services/webuntis_service.dart';
 import '../theme/app_theme.dart';
 import '../services/secure_credential_service.dart';
+import '../services/firebase_auth_service.dart';
 import 'home_screen.dart';
 
 const int _kMaxBiometricAttempts = 3;
@@ -372,6 +373,9 @@ class _LoginScreenState extends State<LoginScreen>
   }
 
   void _afterSuccessfulLogin(String username) {
+    FirebaseAuthService.instance
+        .signInAnonymously(username)
+        .catchError((e) => debugPrint('[Login] Firebase auth failed: $e'));
     _service
         .fetchProfileImage()
         .then((img) {

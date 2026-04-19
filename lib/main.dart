@@ -7,6 +7,7 @@ import 'config/app_config.dart';
 import 'firebase_options.dart';
 import 'services/webuntis_service.dart';
 import 'services/notification_service.dart';
+import 'services/firebase_auth_service.dart';
 import 'screens/login_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/messages_screen.dart';
@@ -178,6 +179,12 @@ class _SplashScreenState extends State<SplashScreen>
     // Kick off profile image fetch in background — doesn't block navigation.
     if (restored) {
       service.fetchProfileImage().ignore();
+      // Sign in to Firebase with the restored WebUntis username
+      if (service.username != null) {
+        FirebaseAuthService.instance
+            .signInAnonymously(service.username!)
+            .catchError((e) => debugPrint('[Restore] Firebase auth failed: $e'));
+      }
       // Start polling for new messages
       final notifService = NotificationService();
       notifService.startPolling(service);

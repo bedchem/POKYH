@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -82,11 +83,24 @@ class NotificationService {
   // ── FCM token ────────────────────────────────────────────────────────────
 
   Future<void> _logFcmToken() async {
+    // On iOS the APNS token is registered asynchronously after launch.
+    // getToken() fails if called before it arrives, so we poll briefly first.
+    if (defaultTargetPlatform == TargetPlatform.iOS) {
+      bool apnsReady = false;
+      for (int i = 0; i < 6; i++) {
+        try {
+          final apns = await _messaging.getAPNSToken();
+          if (apns != null) { apnsReady = true; break; }
+        } catch (_) {}
+        await Future.delayed(const Duration(seconds: 3));
+      }
+      if (!apnsReady) return;
+    }
+
     try {
       final token = await _messaging.getToken();
       if (token != null) {
         debugPrint('FCM Token: $token');
-        // Store token for potential backend registration
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('fcm_token', token);
       }
@@ -94,7 +108,6 @@ class NotificationService {
       debugPrint('FCM token error: $e');
     }
 
-    // Listen for token refresh
     _messaging.onTokenRefresh.listen((token) async {
       debugPrint('FCM Token refreshed: $token');
       final prefs = await SharedPreferences.getInstance();
