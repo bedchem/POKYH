@@ -9,6 +9,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../config/app_config.dart';
 import '../main.dart' show appVersion;
 import '../services/dish_service.dart';
+import '../services/firebase_auth_service.dart';
 import '../services/webuntis_service.dart';
 import '../services/update_service.dart';
 import '../theme/app_theme.dart';
@@ -173,6 +174,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (id.isEmpty) return;
     Clipboard.setData(ClipboardData(text: id));
     _showToast('ID kopiert: $id');
+  }
+
+  void _copyFirebaseUid() {
+    final uid = FirebaseAuthService.instance.userId ?? '';
+    if (uid.isEmpty) return;
+    Clipboard.setData(ClipboardData(text: uid));
+    _showToast('Firebase-UID kopiert');
   }
 
   // ──────────────────────────────────────────────────────────────────────────
@@ -665,6 +673,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 ),
                               ),
                             ],
+                            Builder(builder: (context) {
+                              final uid = FirebaseAuthService.instance.userId;
+                              if (uid == null) return const SizedBox.shrink();
+                              return Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const SizedBox(height: 2),
+                                  GestureDetector(
+                                    onTap: _copyFirebaseUid,
+                                    child: _MetaRow(
+                                      icon: _isIOS
+                                          ? CupertinoIcons.flame
+                                          : Icons.local_fire_department_outlined,
+                                      text: 'UID: $uid',
+                                      hint: 'Tippen zum Kopieren',
+                                    ),
+                                  ),
+                                ],
+                              );
+                            }),
                             const SizedBox(height: 6),
                             Container(
                               padding: const EdgeInsets.symmetric(
@@ -924,9 +952,12 @@ class _MetaRow extends StatelessWidget {
           color: AppTheme.textTertiary.withValues(alpha: 0.7),
         ),
         const SizedBox(width: 5),
-        Text(
-          text,
-          style: TextStyle(fontSize: 13, color: AppTheme.textSecondary),
+        Flexible(
+          child: Text(
+            text,
+            style: TextStyle(fontSize: 13, color: AppTheme.textSecondary),
+            overflow: TextOverflow.ellipsis,
+          ),
         ),
         if (hint != null) ...[
           const SizedBox(width: 4),
