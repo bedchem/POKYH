@@ -103,6 +103,7 @@ class WebUntisService {
 
   void _cacheTimetable(DateTime weekStart, List<TimetableEntry> entries) {
     _timetableCache[_weekKey(weekStart)] = _CachedData(entries);
+    _saveTimetableDiskCache(weekStart, entries);
   }
 
   String _weekKey(DateTime d) =>
@@ -294,8 +295,9 @@ class WebUntisService {
 
       if (_sessionId == null || _studentId == null) return false;
 
-      // Pre-warm grades cache from disk immediately — no network needed.
+      // Pre-warm caches from disk immediately — no network needed.
       _loadGradesDiskCache(prefs);
+      _loadTimetableDiskCache(prefs);
       await _loadReadMessageIds();
 
       // Refresh bearer token in the background so the first timetable load
@@ -962,6 +964,8 @@ class WebUntisService {
 
   static const _kGradesCacheKey = 'grades_cache_v1';
   static const _kGradesCacheTimeKey = 'grades_cache_time_v1';
+  static const _kTimetableCachePrefix = 'timetable_cache_v1_';
+  static const _kTimetableCacheTimePrefix = 'timetable_cache_time_v1_';
 
   void _saveGradesDiskCache(List<SubjectGrades> grades) async {
     try {
@@ -993,6 +997,61 @@ class WebUntisService {
 
       // Only pre-warm if no fresher data is already in memory.
       _gradesCache ??= _CachedData(list);
+    } catch (_) {}
+  }
+
+  // ── TIMETABLE DISK CACHE ──────────────────────────────────────────────────
+
+  void _saveTimetableDiskCache(DateTime weekStart, List<TimetableEntry> entries) async {
+    try {
+      final key = _weekKey(weekStart);
+      final prefs = await SharedPreferences.getInstance();
+      final encoded = jsonEncode(entries.map((e) => e.toJson()).toList());
+      await prefs.setString('$_kTimetableCachePrefix$key', encoded);
+      await prefs.setInt('$_kTimetableCacheTimePrefix$key', DateTime.now().millisecondsSinceEpoch);
+    } catch (_) {}
+  }
+
+  void _loadTimetableDiskCache(SharedPreferences prefs) {
+    try {
+      final now = DateTime.now();
+      final allKeys = prefs.getKeys();
+      for (final storeKey in allKeys) {
+        if (!storeKey.startsWith(_kTimetableCachePrefix)) continue;
+        final weekKey = storeKey.substring(_kTimetableCachePrefix.length);
+        if (_timetableCache.containsKey(weekKey)) continue;
+
+        final timeMs = prefs.getInt('$_kTimetableCacheTimePrefix$weekKey');
+        if (timeMs == null) continue;
+        final age = now.difference(DateTime.fromMillisecondsSinceEpoch(timeMs));
+        if (age > const Duration(days: 7)) continue;
+
+        final encoded = prefs.getString(storeKey);
+        if (encoded == null) continue;
+        final list = (jsonDecode(encoded) as List)
+            .map((j) => TimetableEntry.fromJson(j as Map<String, dynamic>))
+            .toList();
+        _timetableCache[weekKey] = _CachedData(list);
+      }
+    } catch (_) {}
+  }
+
+  /// Clears in-memory and disk caches (grades + timetable). Does NOT clear
+  /// the session — call this when the user explicitly wants a fresh reload.
+  Future<void> clearLocalCaches() async {
+    _clearCaches();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_kGradesCacheKey);
+      await prefs.remove(_kGradesCacheTimeKey);
+      final timetableKeys = prefs.getKeys()
+          .where((k) =>
+              k.startsWith(_kTimetableCachePrefix) ||
+              k.startsWith(_kTimetableCacheTimePrefix))
+          .toList();
+      for (final k in timetableKeys) {
+        await prefs.remove(k);
+      }
     } catch (_) {}
   }
 
@@ -1242,6 +1301,48 @@ class TimetableEntry {
   String get displayName => subjectLong.isNotEmpty
       ? subjectLong
       : (subjectName.isNotEmpty ? subjectName : lessonText);
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'lessonId': lessonId,
+    'date': date,
+    'startTime': startTime,
+    'endTime': endTime,
+    'subjectName': subjectName,
+    'subjectLong': subjectLong,
+    'teacherName': teacherName,
+    'roomName': roomName,
+    'cellState': cellState,
+    'lessonText': lessonText,
+    'isCancelled': isCancelled,
+    'isExam': isExam,
+    'isSubstitution': isSubstitution,
+    'isAdditional': isAdditional,
+    'originalSubjectName': originalSubjectName,
+    'originalSubjectLong': originalSubjectLong,
+    'originalTeacherName': originalTeacherName,
+  };
+
+  factory TimetableEntry.fromJson(Map<String, dynamic> j) => TimetableEntry(
+    id: (j['id'] as num? ?? 0).toInt(),
+    lessonId: (j['lessonId'] as num? ?? 0).toInt(),
+    date: (j['date'] as num? ?? 0).toInt(),
+    startTime: (j['startTime'] as num? ?? 0).toInt(),
+    endTime: (j['endTime'] as num? ?? 0).toInt(),
+    subjectName: j['subjectName'] as String? ?? '',
+    subjectLong: j['subjectLong'] as String? ?? '',
+    teacherName: j['teacherName'] as String? ?? '',
+    roomName: j['roomName'] as String? ?? '',
+    cellState: j['cellState'] as String? ?? '',
+    lessonText: j['lessonText'] as String? ?? '',
+    isCancelled: j['isCancelled'] == true,
+    isExam: j['isExam'] == true,
+    isSubstitution: j['isSubstitution'] == true,
+    isAdditional: j['isAdditional'] == true,
+    originalSubjectName: j['originalSubjectName'] as String? ?? '',
+    originalSubjectLong: j['originalSubjectLong'] as String? ?? '',
+    originalTeacherName: j['originalTeacherName'] as String? ?? '',
+  );
 }
 
 class SubjectGrades {

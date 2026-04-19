@@ -1535,21 +1535,31 @@ class _WeekOverviewCard extends StatelessWidget {
   );
 
   List<_DayMarker> _dayMarkersForEntries(List<TimetableEntry> entries) {
-    final markers = <_DayMarker>[];
-
+    final seen = <_DayMarker>{};
     for (final entry in entries) {
       final marker = _markerForEntry(entry);
-      if (marker != null) markers.add(marker);
+      if (marker != null) seen.add(marker);
     }
-
-    markers.sort((a, b) => _dayMarkerPriority(a).compareTo(_dayMarkerPriority(b)));
+    // Sort ascending by priority so the HIGHEST priority (exam) is last → rightmost in fan.
+    final markers = seen.toList()
+      ..sort((a, b) => _dayMarkerPriority(a).compareTo(_dayMarkerPriority(b)));
     return markers;
   }
 
   _DayMarker? _markerForEntry(TimetableEntry entry) {
     if (entry.isExam) return _DayMarker.exam;
     if (entry.isCancelled) return _DayMarker.cancelled;
+    // Substitution vor Additional prüfen: eine Vertretung die zusätzlich als
+    // Zusatzstunde markiert ist wird im Stundenplan auch als Vertretung
+    // (orange) dargestellt.
+    if (entry.isSubstitution) return _DayMarker.substitution;
     if (entry.isAdditional) return _DayMarker.additional;
+    // Ganztägiges Ereignis / Veranstaltung: kein Fach aber Lesson-Text.
+    if (entry.subjectName.trim().isEmpty &&
+        entry.lessonText.trim().isNotEmpty) {
+      return _DayMarker.event;
+    }
+    // Info-Text an normaler Stunde (z.B. Lehrer-Notiz).
     if (entry.lessonText.trim().isNotEmpty) return _DayMarker.info;
     return null;
   }
@@ -1717,20 +1727,24 @@ class _WeekOverviewCard extends StatelessWidget {
   }
 }
 
-enum _DayMarker { exam, cancelled, substitution, additional, info }
+enum _DayMarker { exam, cancelled, substitution, additional, event, info }
 
+// Higher value → further right in the fan (more visible on the right side).
+// Ranking: info < event < additional < substitution < cancelled < exam
 int _dayMarkerPriority(_DayMarker marker) {
   switch (marker) {
-    case _DayMarker.exam:
-      return 0;
-    case _DayMarker.substitution:
-      return 1;
-    case _DayMarker.cancelled:
-      return 2;
-    case _DayMarker.additional:
-      return 3;
     case _DayMarker.info:
+      return 0;
+    case _DayMarker.event:
+      return 1;
+    case _DayMarker.additional:
+      return 2;
+    case _DayMarker.substitution:
+      return 3;
+    case _DayMarker.cancelled:
       return 4;
+    case _DayMarker.exam:
+      return 5;
   }
 }
 
@@ -1741,15 +1755,21 @@ class _DayIconFan extends StatelessWidget {
   const _DayIconFan({required this.markers, required this.isToday});
 
   (IconData, Color) _styleFor(_DayMarker marker) {
+    // Farben EXAKT wie im Stundenplan:
+    // cancelled → danger (rot), exam → warning (gelb),
+    // substitution → orange, additional → accent (blau),
+    // event → tint (grün), info → textSecondary (grau).
     switch (marker) {
       case _DayMarker.exam:
         return (CupertinoIcons.doc_text_fill, AppTheme.warning);
       case _DayMarker.cancelled:
         return (CupertinoIcons.xmark_octagon_fill, AppTheme.danger);
       case _DayMarker.substitution:
-        return (CupertinoIcons.person_2_fill, AppTheme.tint);
+        return (CupertinoIcons.person_2_fill, AppTheme.orange);
       case _DayMarker.additional:
         return (CupertinoIcons.plus_app_fill, AppTheme.accent);
+      case _DayMarker.event:
+        return (CupertinoIcons.star_circle_fill, AppTheme.tint);
       case _DayMarker.info:
         return (CupertinoIcons.info_circle_fill, AppTheme.textSecondary);
     }
@@ -1759,6 +1779,33 @@ class _DayIconFan extends StatelessWidget {
   Widget build(BuildContext context) {
     final visible = markers;
     final count = visible.length;
+
+    // Single marker: perfectly centered.
+    if (count == 1) {
+      final iconStyle = _styleFor(visible[0]);
+      final iconSize = isToday ? 17.3 : 16.5;
+      final chipSize = iconSize + 5;
+      return SizedBox(
+        width: 38,
+        height: 38,
+        child: Center(
+          child: Container(
+            width: chipSize,
+            height: chipSize,
+            decoration: BoxDecoration(
+              color: iconStyle.$2.withValues(alpha: isToday ? 0.95 : 0.90),
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.75),
+                width: 0.8,
+              ),
+            ),
+            child: Icon(iconStyle.$1, size: iconSize, color: Colors.white),
+          ),
+        ),
+      );
+    }
+
     final baseIconSize = count <= 2
         ? 16.5
         : count <= 4
@@ -1769,27 +1816,32 @@ class _DayIconFan extends StatelessWidget {
     final iconSize = isToday ? baseIconSize + 0.8 : baseIconSize;
     final fanWidth = 38.0;
     final fanHeight = 38.0;
-    final step = count <= 1
-        ? 0.0
-        : count <= 3
+    final step = count <= 3
         ? 7.2
         : count <= 5
         ? 5.9
         : count <= 7
         ? 5.0
         : 4.4;
-    final halfSpan = count <= 1 ? 1.0 : ((count - 1) * step) / 2;
+    final halfSpan = ((count - 1) * step) / 2;
     final arcDepth = 4.0;
     final centerFillWidth = count <= 2 ? 18.0 : (20.0 + (count - 2) * 1.6);
     final centerFillAlpha = isToday ? 0.30 : 0.24;
     final chipSize = iconSize + 5;
 
-    // Compute the arc envelope first so we can center it exactly.
     final envelopeWidth = chipSize + (halfSpan * 2);
-    final envelopeHeight = chipSize + arcDepth;
     final baseLeft = (fanWidth - envelopeWidth) / 2;
-    final baseTop = (fanHeight - envelopeHeight) / 2;
-    final apexY = baseTop;
+
+    // Compute average dy across all icons so the group is vertically centered.
+    double avgDy = 0;
+    for (int i = 0; i < count; i++) {
+      final n = (i / (count - 1)) * 2 - 1;
+      avgDy += (n * n) * arcDepth;
+    }
+    avgDy /= count;
+    // baseTop such that (baseTop + avgDy + chipSize/2) == fanHeight/2.
+    final baseTop = fanHeight / 2 - chipSize / 2 - avgDy;
+
     final centerX = fanWidth / 2;
     final centerY = fanHeight / 2;
 
@@ -1800,7 +1852,6 @@ class _DayIconFan extends StatelessWidget {
         alignment: Alignment.center,
         clipBehavior: Clip.none,
         children: [
-          // Fill only the transparent middle area to improve readability.
           Positioned(
             left: centerX - centerFillWidth / 2,
             top: centerY - (iconSize + 3) / 2,
@@ -1816,18 +1867,17 @@ class _DayIconFan extends StatelessWidget {
           for (int i = 0; i < count; i++)
             Builder(
               builder: (_) {
-                final normalized = count == 1 ? 0.0 : (i / (count - 1)) * 2 - 1;
-                final absNorm = normalized < 0 ? -normalized : normalized;
+                final normalized = (i / (count - 1)) * 2 - 1;
+                final absNorm = normalized.abs();
                 final curve = absNorm * absNorm;
                 final dx = normalized * halfSpan;
-                // Inverted arc: edge icons sit lower than the center icon.
                 final dy = curve * arcDepth;
                 final angle = normalized * 0.20;
                 final iconStyle = _styleFor(visible[i]);
 
                 return Positioned(
                   left: baseLeft + halfSpan + dx,
-                  top: apexY + dy,
+                  top: baseTop + dy,
                   child: Transform.rotate(
                     angle: angle,
                     child: Container(

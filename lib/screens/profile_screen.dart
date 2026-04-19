@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../config/app_config.dart';
 import '../main.dart' show appVersion;
+import '../services/dish_service.dart';
 import '../services/webuntis_service.dart';
 import '../services/update_service.dart';
 import '../theme/app_theme.dart';
@@ -142,12 +143,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _clearCache() async {
     setState(() => _clearingCache = true);
     try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.remove('mensa_cache');
-      await DefaultCacheManager().emptyCache();
+      await Future.wait([
+        DishService().clearCache(),
+        widget.service.clearLocalCaches(),
+        DefaultCacheManager().emptyCache(),
+      ]);
       imageCache.clear();
       imageCache.clearLiveImages();
-      await Future.delayed(const Duration(milliseconds: 400));
       if (!mounted) return;
       _showToast('Cache geleert');
     } catch (_) {
@@ -233,9 +235,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
         builder: (ctx) => CupertinoAlertDialog(
           title: Text(AppConfig.appName),
           content: Text(
-            'Version $_appVersion\n\n'
-            'Die All‑in‑One Schul‑App für die ${AppConfig.schoolName}.\n\n'
-            '© ${AppConfig.copyrightYear} – MIT Lizenz',
+                'Version $_appVersion\n\n'
+                'Die All-in-One Schul-App für die ${AppConfig.schoolName}.\n'
+                'Made with <3 by Plattnericus & Ryhox\n\n'
+                '© ${AppConfig.copyrightYear} – MIT Lizenz',
           ),
           actions: [
             CupertinoDialogAction(
