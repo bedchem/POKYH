@@ -153,26 +153,45 @@ class ReminderService {
 
   Future<bool> isAdmin() async {
     if (_adminCache == true) return true;
-    // Check by stableUid first (cross-device), fall back to Firebase UID (legacy)
+    final username = FirebaseAuthService.instance.username;
     final stableUid = _stableUid;
     final firebaseUid = _uid;
-    if (stableUid == null && firebaseUid == null) return false;
+    if (username == null && stableUid == null && firebaseUid == null) {
+      return false;
+    }
     try {
-      final checks = <Future<DocumentSnapshot>>[];
-      if (stableUid != null) {
-        checks.add(_db.collection('admins').doc(stableUid).get());
+      bool result = false;
+
+      // Primary: users/{username}.isAdmin  → set in Firebase Console
+      if (username != null) {
+        final doc = await _db.collection('users').doc(username).get();
+        if (doc.exists) {
+          final data = doc.data() as Map<String, dynamic>?;
+          if (data?['isAdmin'] == true) result = true;
+        }
       }
-      if (firebaseUid != null && firebaseUid != stableUid) {
-        checks.add(_db.collection('admins').doc(firebaseUid).get());
+
+      // Fallback: legacy admins collection
+      if (!result) {
+        final checks = <Future<DocumentSnapshot>>[];
+        if (stableUid != null) {
+          checks.add(_db.collection('admins').doc(stableUid).get());
+        }
+        if (firebaseUid != null && firebaseUid != stableUid) {
+          checks.add(_db.collection('admins').doc(firebaseUid).get());
+        }
+        if (checks.isNotEmpty) {
+          final docs = await Future.wait(checks);
+          result = docs.any((doc) {
+            if (!doc.exists) return false;
+            final data = doc.data() as Map<String, dynamic>?;
+            return data?['canCreateClass'] == true;
+          });
+        }
       }
-      final docs = await Future.wait(checks);
-      final result = docs.any((doc) {
-        if (!doc.exists) return false;
-        final data = doc.data() as Map<String, dynamic>?;
-        return data?['canCreateClass'] == true;
-      });
+
       if (result) _adminCache = true;
-      debugPrint('[ReminderService] isAdmin stableUid=$stableUid result=$result');
+      debugPrint('[ReminderService] isAdmin username=$username result=$result');
       return result;
     } catch (e) {
       debugPrint('[ReminderService] isAdmin error: $e');

@@ -742,6 +742,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
                       onDelete: _confirmDeleteReminder,
                       currentUserStableUid: _myStableUid,
                       currentUsername: _myUsername,
+                      isAdmin: _isAdmin,
                     ),
             ),
           ],
@@ -963,11 +964,13 @@ class _RemindersList extends StatelessWidget {
   final void Function(Reminder) onDelete;
   final String? currentUserStableUid;
   final String? currentUsername;
+  final bool isAdmin;
 
   const _RemindersList({
     required this.classRoom,
     required this.service,
     required this.onDelete,
+    required this.isAdmin,
     this.currentUserStableUid,
     this.currentUsername,
   });
@@ -1121,6 +1124,7 @@ class _RemindersList extends StatelessWidget {
               onDelete: () => onDelete(reminder),
               currentUserStableUid: currentUserStableUid,
               currentUsername: currentUsername,
+              isAdmin: isAdmin,
             );
           },
         );
@@ -1136,10 +1140,12 @@ class _ReminderCard extends StatefulWidget {
   final VoidCallback onDelete;
   final String? currentUserStableUid;
   final String? currentUsername;
+  final bool isAdmin;
 
   const _ReminderCard({
     required this.reminder,
     required this.onDelete,
+    required this.isAdmin,
     this.currentUserStableUid,
     this.currentUsername,
   });
@@ -1286,7 +1292,7 @@ class _ReminderCardState extends State<_ReminderCard> {
                   ],
                 ),
               ),
-              if (_isCreator()) ...[
+              if (_isCreator() || widget.isAdmin) ...[
                 const SizedBox(width: 4),
                 GestureDetector(
                   onTap: widget.onDelete,

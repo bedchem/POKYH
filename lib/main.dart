@@ -172,14 +172,22 @@ class _SplashScreenState extends State<SplashScreen>
     );
   }
 
+  /// Prefetch all commonly-used data in parallel so screens open instantly.
+  static void _prefetchAll(WebUntisService service) {
+    service.getAllGrades().ignore();
+    service.getAbsences().ignore();
+    service.getMessages().ignore();
+  }
+
   Future<void> _tryRestoreSession() async {
     final service = WebUntisService();
     final restored = await service.restoreSession();
 
     if (!mounted) return;
 
-    // Kick off profile image fetch in background — doesn't block navigation.
     if (restored) {
+      // Prefetch all data so screens open instantly.
+      _prefetchAll(service);
       service.fetchProfileImage().ignore();
       // Sign in to Firebase with the restored WebUntis username + Klasse
       if (service.username != null) {

@@ -13,12 +13,6 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   debugPrint('FCM background message: ${message.notification?.title}');
 }
 
-/// Handles FCM push notifications and foreground message polling.
-///
-/// Push notifications require a backend that sends FCM messages when
-/// new WebUntis messages arrive. This service sets up the FCM
-/// infrastructure and polls for new messages while the app is in
-/// the foreground.
 class NotificationService {
   static final NotificationService _instance = NotificationService._();
   factory NotificationService() => _instance;
@@ -26,6 +20,7 @@ class NotificationService {
 
   final FirebaseMessaging _messaging = FirebaseMessaging.instance;
   final _localNotifs = FlutterLocalNotificationsPlugin();
+  bool _localNotifsReady = false;
   Timer? _pollTimer;
   WebUntisService? _service;
   Set<int> _knownMessageIds = {};
@@ -42,6 +37,18 @@ class NotificationService {
       badge: true,
       sound: true,
     );
+
+    // Initialize local notifications for both platforms.
+    const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
+    const darwinInit = DarwinInitializationSettings(
+      requestAlertPermission: false,
+      requestBadgePermission: false,
+      requestSoundPermission: false,
+    );
+    await _localNotifs.initialize(
+      const InitializationSettings(android: androidInit, iOS: darwinInit),
+    );
+    _localNotifsReady = true;
 
     await _createAndroidChannel();
     _setupFcmListeners();
@@ -66,30 +73,52 @@ class NotificationService {
   /// Firestore so the backend can send targeted push notifications.
   Future<void> saveFcmTokenForUser(String stableUid) async {
     try {
-      // On iOS the APNS token arrives asynchronously after launch.
-      // Poll up to 5 times (3 s each) before giving up.
       if (defaultTargetPlatform == TargetPlatform.iOS) {
+        bool apnsReady = false;
         for (int i = 0; i < 5; i++) {
           try {
             final apns = await _messaging.getAPNSToken();
-            if (apns != null) break;
+            if (apns != null) {
+              apnsReady = true;
+              break;
+            }
           } catch (_) {}
           await Future.delayed(const Duration(seconds: 3));
+        }
+        if (!apnsReady) {
+          // APNS not ready yet — retry after 60 s when it is likely available.
+          Future.delayed(
+            const Duration(seconds: 60),
+            () => saveFcmTokenForUser(stableUid),
+          );
+          debugPrint('FCM: APNS not ready, retry in 60 s');
+          return;
         }
       }
 
       final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('fcm_token') ?? await _messaging.getToken();
+      final token =
+          prefs.getString('fcm_token') ?? await _messaging.getToken();
       if (token == null) return;
 
-      // Cache locally so future calls don't re-fetch.
       await prefs.setString('fcm_token', token);
-
       await FirebaseFirestore.instance
           .collection('users')
           .doc(stableUid)
           .set({'fcmToken': token}, SetOptions(merge: true));
       debugPrint('FCM token saved to Firestore for $stableUid');
+
+      // Keep Firestore in sync when the token rotates.
+      _messaging.onTokenRefresh.listen((newToken) async {
+        await prefs.setString('fcm_token', newToken);
+        try {
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(stableUid)
+              .set({'fcmToken': newToken}, SetOptions(merge: true));
+          debugPrint('FCM token refreshed for $stableUid');
+        } catch (_) {}
+      });
     } catch (e) {
       debugPrint('FCM token save failed: $e');
     }
@@ -109,7 +138,6 @@ class NotificationService {
         AppConfig.messagesCheckInterval,
         (_) => _checkForNewMessages(),
       );
-      // Immediate check on start
       _checkForNewMessages();
     });
   }
@@ -123,8 +151,7 @@ class NotificationService {
     onNewMessages = null;
   }
 
-  /// Callback to display in-app notification banners.
-  /// Set this from the widget layer.
+  /// In-app banner callback — set from the widget layer.
   void Function(int newCount, String? firstSubject)? onNewMessages;
 
   // ── Permissions ──────────────────────────────────────────────────────────
@@ -137,9 +164,7 @@ class NotificationService {
         sound: true,
         provisional: false,
       );
-      debugPrint(
-        'FCM permission: ${settings.authorizationStatus}',
-      );
+      debugPrint('FCM permission: ${settings.authorizationStatus}');
     } catch (e) {
       debugPrint('FCM permission error: $e');
     }
@@ -148,14 +173,15 @@ class NotificationService {
   // ── FCM token ────────────────────────────────────────────────────────────
 
   Future<void> _logFcmToken() async {
-    // On iOS the APNS token is registered asynchronously after launch.
-    // getToken() fails if called before it arrives, so we poll briefly first.
     if (defaultTargetPlatform == TargetPlatform.iOS) {
       bool apnsReady = false;
       for (int i = 0; i < 6; i++) {
         try {
           final apns = await _messaging.getAPNSToken();
-          if (apns != null) { apnsReady = true; break; }
+          if (apns != null) {
+            apnsReady = true;
+            break;
+          }
         } catch (_) {}
         await Future.delayed(const Duration(seconds: 3));
       }
@@ -183,18 +209,52 @@ class NotificationService {
   // ── FCM message listeners ────────────────────────────────────────────────
 
   void _setupFcmListeners() {
-    // Foreground messages from FCM (if backend sends them)
-    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+    // Foreground FCM message: show OS notification + refresh messages list.
+    FirebaseMessaging.onMessage.listen((RemoteMessage message) async {
       debugPrint('FCM foreground message: ${message.notification?.title}');
-      // Trigger a message check to refresh the messages list
+      final notif = message.notification;
+      if (notif != null) {
+        await _showLocalNotification(
+          notif.title ?? 'POKYH',
+          notif.body ?? '',
+        );
+      }
       _checkForNewMessages();
     });
 
-    // When user taps a notification that opened the app
+    // Notification tapped while app was in background.
     FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
       debugPrint('FCM notification tapped: ${message.notification?.title}');
       _checkForNewMessages();
     });
+  }
+
+  // ── Local notification display ────────────────────────────────────────────
+
+  Future<void> _showLocalNotification(String title, String body) async {
+    if (!_localNotifsReady) return;
+    try {
+      const android = AndroidNotificationDetails(
+        'pokyh_fcm',
+        'Mitteilungen',
+        channelDescription: 'Push-Benachrichtigungen für neue Nachrichten',
+        importance: Importance.high,
+        priority: Priority.high,
+      );
+      const darwin = DarwinNotificationDetails(
+        presentAlert: true,
+        presentBadge: true,
+        presentSound: true,
+      );
+      await _localNotifs.show(
+        1,
+        title,
+        body,
+        const NotificationDetails(android: android, iOS: darwin),
+      );
+    } catch (e) {
+      debugPrint('Local notification failed: $e');
+    }
   }
 
   // ── Polling ──────────────────────────────────────────────────────────────
@@ -207,18 +267,20 @@ class NotificationService {
       final messages = await service.getMessages(forceRefresh: true);
       final currentIds = messages.map((m) => m.id).toSet();
 
-      // Find truly new messages (IDs we haven't seen before)
       final newIds = currentIds.difference(_knownMessageIds);
       if (newIds.isNotEmpty && _knownMessageIds.isNotEmpty) {
-        // Only notify if we had previous data (skip first load)
-        final newMessages = messages.where((m) => newIds.contains(m.id)).toList();
+        final newMessages =
+            messages.where((m) => newIds.contains(m.id)).toList();
         final unreadNew = newMessages.where((m) => !m.isRead).toList();
 
         if (unreadNew.isNotEmpty) {
-          onNewMessages?.call(
-            unreadNew.length,
-            unreadNew.first.subject,
+          final count = unreadNew.length;
+          final subject = unreadNew.first.subject;
+          await _showLocalNotification(
+            count == 1 ? 'Neue Mitteilung' : '$count neue Mitteilungen',
+            subject,
           );
+          onNewMessages?.call(count, unreadNew.first.subject);
         }
       }
 
