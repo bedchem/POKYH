@@ -85,7 +85,9 @@ flutter build ios --release
 # Package into IPA
 mkdir -p Payload
 cp -R build/ios/iphoneos/Runner.app Payload/
-zip -r Runner.ipa Payload
+
+zip -r ~/Downloads/Runner.ipa Payload
+
 rm -rf Payload
 ```
 
