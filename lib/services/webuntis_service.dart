@@ -122,10 +122,21 @@ class WebUntisService {
     return c.data;
   }
 
+  // ── Absences in-memory cache ──────────────────────────────────────────────
+
+  _CachedData<List<AbsenceEntry>>? _absencesCache;
+
+  List<AbsenceEntry>? get cachedAbsences {
+    final c = _absencesCache;
+    if (c == null || c.isExpired(_gradesTTL)) return null;
+    return c.data;
+  }
+
   void _clearCaches() {
     _timetableCache.clear();
     _gradesCache = null;
     _messagesCache = null;
+    _absencesCache = null;
   }
 
   // ── AUTH ──────────────────────────────────────────────────────────────────
@@ -198,9 +209,22 @@ class WebUntisService {
           .timeout(_timeout);
 
       if (response.statusCode == 200) {
-        _bearerToken = response.body.trim().replaceAll('"', '');
+        final candidate = response.body.trim().replaceAll('"', '');
+        // Only store it if it looks like a real JWT, not an HTML error page.
+        if (_isValidBearerToken(candidate)) {
+          _bearerToken = candidate;
+        }
       }
     } catch (_) {}
+  }
+
+  static bool _isValidBearerToken(String? token) {
+    if (token == null || token.isEmpty) return false;
+    if (token.contains('<') || token.contains('\n') || token.contains('\r')) {
+      return false;
+    }
+    // A JWT has exactly two dots separating three base64url segments.
+    return token.contains('.');
   }
 
   Future<void> _fetchSchoolYear() async {
@@ -540,6 +564,80 @@ class WebUntisService {
       );
     } catch (_) {
       return null;
+    }
+  }
+
+  // ── ABSENCES ─────────────────────────────────────────────────────────────
+
+  Future<List<AbsenceEntry>> getAbsences({bool forceRefresh = false}) async {
+    if (_studentId == null) {
+      throw WebUntisException('Nicht angemeldet', isAuthError: true);
+    }
+
+    // Refresh the token if missing or stale (e.g. stored HTML from a prior expired session).
+    if (!_isValidBearerToken(_bearerToken)) {
+      await _fetchBearerToken();
+    }
+    if (!_isValidBearerToken(_bearerToken)) {
+      throw WebUntisException('Sitzung abgelaufen', isAuthError: true);
+    }
+
+    if (!forceRefresh) {
+      final mem = cachedAbsences;
+      if (mem != null) return mem;
+    }
+
+    final now = DateTime.now();
+    final startYear = now.month >= 9 ? now.year : now.year - 1;
+    final startDate =
+        '${startYear}0901';
+    final endDate =
+        '${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}';
+
+    try {
+      final response = await _client
+          .get(
+            Uri.parse(
+              '$_baseUrl/api/classreg/absences/students?studentId=$_studentId&startDate=$startDate&endDate=$endDate&excuseStatusId=-1',
+            ),
+            headers: {
+              'Authorization': 'Bearer $_bearerToken',
+              'Cookie': _cookieHeader,
+            },
+          )
+          .timeout(const Duration(seconds: 20));
+
+      if (response.statusCode == 401 || response.statusCode == 403) {
+        throw WebUntisException('Sitzung abgelaufen', isAuthError: true);
+      }
+
+      if (response.statusCode != 200) {
+        throw WebUntisException('Fehler beim Laden der Abwesenheiten');
+      }
+
+      final body = jsonDecode(response.body);
+      final data = body['data'];
+      final List raw =
+          (data is Map ? (data['absences'] ?? data['absence'] ?? data) : body)
+              as List? ??
+          [];
+
+      final entries = raw
+          .whereType<Map<String, dynamic>>()
+          .map(AbsenceEntry.fromJson)
+          .toList();
+
+      entries.sort((a, b) => b.startDate.compareTo(a.startDate));
+
+      _absencesCache = _CachedData(entries);
+      return entries;
+    } on TimeoutException {
+      throw WebUntisException('Verbindung abgelaufen');
+    } on FormatException {
+      throw WebUntisException('Sitzung abgelaufen', isAuthError: true);
+    } catch (e) {
+      if (e is WebUntisException) rethrow;
+      throw WebUntisException('Fehler beim Laden der Abwesenheiten: $e');
     }
   }
 
@@ -1832,5 +1930,117 @@ class HomeworkEntry {
     final s = dueDate.toString();
     if (s.length != 8) return s;
     return '${s.substring(6)}.${s.substring(4, 6)}.${s.substring(0, 4)}';
+  }
+}
+
+// ── ABSENCE MODEL ─────────────────────────────────────────────────────────────
+
+class AbsenceEntry {
+  final int id;
+  final int startDate;   // YYYYMMDD
+  final int endDate;     // YYYYMMDD
+  final int startTime;   // HHMM
+  final int endTime;     // HHMM
+  final bool isExcused;
+  final String? reasonName;   // e.g. "Krankheit", "Sonstige"
+  final String? absenceType;  // e.g. "Vorwegentschuldigung", "Nachentschuldigung"
+  final String? subjectName;
+  final String? teacherName;
+  final String? note;         // student note / Bemerkung
+  final String? excuseNote;   // excuse text from teacher
+  final int hours;
+
+  const AbsenceEntry({
+    required this.id,
+    required this.startDate,
+    required this.endDate,
+    required this.startTime,
+    required this.endTime,
+    required this.isExcused,
+    this.reasonName,
+    this.absenceType,
+    this.subjectName,
+    this.teacherName,
+    this.note,
+    this.excuseNote,
+    required this.hours,
+  });
+
+  factory AbsenceEntry.fromJson(Map<String, dynamic> j) {
+    final excuseStatus = j['excuseStatus']?.toString() ?? '';
+    final isExcused =
+        j['isExcused'] == true ||
+        excuseStatus.toLowerCase() == 'excused' ||
+        (j['excuseStatusId'] != null && (j['excuseStatusId'] as num) > 0);
+
+    int parseHours() {
+      final h = j['hours'] ?? j['lessonCount'] ?? j['periods'];
+      if (h is int) return h;
+      if (h is double) return h.toInt();
+      if (h is String) return int.tryParse(h) ?? 1;
+      final st = j['startTime'] as int? ?? 0;
+      final et = j['endTime'] as int? ?? 0;
+      if (st > 0 && et > st) {
+        final stH = st ~/ 100, stM = st % 100;
+        final etH = et ~/ 100, etM = et % 100;
+        final minutes = (etH * 60 + etM) - (stH * 60 + stM);
+        return (minutes / 45).ceil().clamp(1, 20);
+      }
+      return 1;
+    }
+
+    String? clean(dynamic v) {
+      final s = v?.toString().trim();
+      return (s == null || s.isEmpty) ? null : s;
+    }
+
+    final excuse = j['excuse'] is Map ? j['excuse'] as Map : null;
+
+    return AbsenceEntry(
+      id: (j['id'] ?? 0) as int,
+      startDate: (j['startDate'] ?? j['date'] ?? 0) as int,
+      endDate: (j['endDate'] ?? j['startDate'] ?? j['date'] ?? 0) as int,
+      startTime: (j['startTime'] ?? 0) as int,
+      endTime: (j['endTime'] ?? 0) as int,
+      isExcused: isExcused,
+      reasonName: clean(j['reasonName'] ?? j['reason']),
+      absenceType: clean(
+        j['absenceType'] ?? j['type'] ?? j['absenceTypeName'] ?? j['typeName'],
+      ),
+      subjectName: clean(j['subject'] ?? j['subjectName']),
+      teacherName: clean(j['teacherName'] ?? j['teacher']),
+      note: clean(
+        j['text'] ?? j['studentText'] ?? j['comment'] ?? j['note'] ?? j['bemerkung'],
+      ),
+      excuseNote: clean(
+        excuse?['text'] ?? excuse?['comment'] ?? j['excuseText'] ?? j['excuseComment'],
+      ),
+      hours: parseHours(),
+    );
+  }
+
+  String get dateFormatted {
+    final s = startDate.toString();
+    if (s.length != 8) return s;
+    return '${s.substring(6)}.${s.substring(4, 6)}.${s.substring(0, 4)}';
+  }
+
+  String get timeFormatted {
+    if (startTime == 0 && endTime == 0) return '';
+    final sh = (startTime ~/ 100).toString().padLeft(2, '0');
+    final sm = (startTime % 100).toString().padLeft(2, '0');
+    final eh = (endTime ~/ 100).toString().padLeft(2, '0');
+    final em = (endTime % 100).toString().padLeft(2, '0');
+    return '$sh:$sm – $eh:$em';
+  }
+
+  DateTime get startDateTime {
+    final s = startDate.toString();
+    if (s.length != 8) return DateTime.now();
+    return DateTime(
+      int.parse(s.substring(0, 4)),
+      int.parse(s.substring(4, 6)),
+      int.parse(s.substring(6, 8)),
+    );
   }
 }

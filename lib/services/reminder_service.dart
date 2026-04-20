@@ -53,6 +53,7 @@ class Reminder {
   final String body;
   final String createdByUid;
   final String createdByName;
+  final String createdByUsername;
   final DateTime remindAt;
   final DateTime? createdAt;
 
@@ -63,6 +64,7 @@ class Reminder {
     required this.body,
     required this.createdByUid,
     required this.createdByName,
+    required this.createdByUsername,
     required this.remindAt,
     this.createdAt,
   });
@@ -80,6 +82,7 @@ class Reminder {
       body: data['body'] as String? ?? '',
       createdByUid: data['createdBy'] as String? ?? '',
       createdByName: data['createdByName'] as String? ?? 'Unbekannt',
+      createdByUsername: data['createdByUsername'] as String? ?? '',
       remindAt: (data['remindAt'] as Timestamp).toDate(),
       createdAt: data['createdAt'] != null
           ? (data['createdAt'] as Timestamp).toDate()
@@ -372,10 +375,12 @@ class ReminderService {
     required String body,
     required DateTime remindAt,
   }) async {
-    final uid = _uid;
-    if (uid == null) throw Exception('Nicht angemeldet');
-    final name = FirebaseAuthService.instance.username ?? uid;
+    // stableUid ist geräteübergreifend – damit können alle Geräte des Nutzers löschen
+    final creatorId = _stableUid ?? _uid;
+    if (creatorId == null) throw Exception('Nicht angemeldet');
+    final name = FirebaseAuthService.instance.username ?? creatorId;
 
+    final username = FirebaseAuthService.instance.username ?? '';
     final ref = await _db
         .collection('classes')
         .doc(classId)
@@ -383,8 +388,9 @@ class ReminderService {
         .add({
       'title': title.trim(),
       'body': body.trim(),
-      'createdBy': uid,
+      'createdBy': creatorId,
       'createdByName': name,
+      'createdByUsername': username,
       'remindAt': Timestamp.fromDate(remindAt),
       'createdAt': FieldValue.serverTimestamp(),
     });

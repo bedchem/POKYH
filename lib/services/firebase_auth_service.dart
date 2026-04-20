@@ -25,6 +25,27 @@ class FirebaseAuthService {
   /// Ob der User erfolgreich in Firebase angemeldet ist.
   bool get isSignedIn => _auth.currentUser != null && _stableUid != null;
 
+  /// Gibt die stableUid zurück – lädt sie ggf. aus Firestore wenn noch nicht im Memory.
+  /// Nötig weil signInAnonymously beim Session-Restore async läuft.
+  Future<String?> resolveStableUid() async {
+    if (_stableUid != null) return _stableUid;
+    final uid = _auth.currentUser?.uid;
+    if (uid == null) return null;
+    try {
+      final doc = await _db.collection('users').doc(uid).get();
+      if (doc.exists) {
+        final resolved = doc.data()?['stableUid'] as String?;
+        if (resolved != null && resolved.isNotEmpty) {
+          _stableUid = resolved;
+          return resolved;
+        }
+      }
+    } catch (e) {
+      _log('resolveStableUid Fehler: $e');
+    }
+    return null;
+  }
+
   int? _klasseId;
   String? _klasseName;
   int? get webuntisKlasseId => _klasseId;

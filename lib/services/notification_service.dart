@@ -1,11 +1,17 @@
 import 'dart:async';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../config/app_config.dart';
 import 'webuntis_service.dart';
+
+@pragma('vm:entry-point')
+Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  debugPrint('FCM background message: ${message.notification?.title}');
+}
 
 /// Handles FCM push notifications and foreground message polling.
 ///
@@ -19,15 +25,74 @@ class NotificationService {
   NotificationService._();
 
   final FirebaseMessaging _messaging = FirebaseMessaging.instance;
+  final _localNotifs = FlutterLocalNotificationsPlugin();
   Timer? _pollTimer;
   WebUntisService? _service;
   Set<int> _knownMessageIds = {};
 
   /// Called once on app startup.
   Future<void> initialize() async {
+    FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+
     await _requestPermissions();
+
+    // iOS: show banners/badges/sound while the app is in the foreground.
+    await _messaging.setForegroundNotificationPresentationOptions(
+      alert: true,
+      badge: true,
+      sound: true,
+    );
+
+    await _createAndroidChannel();
     _setupFcmListeners();
     _logFcmToken();
+  }
+
+  Future<void> _createAndroidChannel() async {
+    final androidPlugin = _localNotifs
+        .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>();
+    await androidPlugin?.createNotificationChannel(
+      const AndroidNotificationChannel(
+        'pokyh_fcm',
+        'Mitteilungen',
+        description: 'Push-Benachrichtigungen für neue Nachrichten',
+        importance: Importance.high,
+      ),
+    );
+  }
+
+  /// Call this after the user is authenticated to persist the FCM token to
+  /// Firestore so the backend can send targeted push notifications.
+  Future<void> saveFcmTokenForUser(String stableUid) async {
+    try {
+      // On iOS the APNS token arrives asynchronously after launch.
+      // Poll up to 5 times (3 s each) before giving up.
+      if (defaultTargetPlatform == TargetPlatform.iOS) {
+        for (int i = 0; i < 5; i++) {
+          try {
+            final apns = await _messaging.getAPNSToken();
+            if (apns != null) break;
+          } catch (_) {}
+          await Future.delayed(const Duration(seconds: 3));
+        }
+      }
+
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('fcm_token') ?? await _messaging.getToken();
+      if (token == null) return;
+
+      // Cache locally so future calls don't re-fetch.
+      await prefs.setString('fcm_token', token);
+
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(stableUid)
+          .set({'fcmToken': token}, SetOptions(merge: true));
+      debugPrint('FCM token saved to Firestore for $stableUid');
+    } catch (e) {
+      debugPrint('FCM token save failed: $e');
+    }
   }
 
   /// Start periodic message checks for the given service.

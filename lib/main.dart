@@ -190,6 +190,10 @@ class _SplashScreenState extends State<SplashScreen>
               klasseName: service.klasseName,
             )
             .then((_) {
+              final stableUid = FirebaseAuthService.instance.stableUid;
+              if (stableUid != null) {
+                NotificationService().saveFcmTokenForUser(stableUid).ignore();
+              }
               final kid = service.klasseId;
               final kname = service.klasseName;
               if (kid != null && kname != null && kname.isNotEmpty) {

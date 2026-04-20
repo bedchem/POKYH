@@ -3,6 +3,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import '../services/webuntis_service.dart';
 import '../theme/app_theme.dart';
+import 'absences_screen.dart';
 import 'grades_screen.dart';
 import 'reminders_screen.dart';
 
@@ -60,6 +61,17 @@ class HubScreen extends StatelessWidget {
                 subtitle: 'Hausaufgaben & Klassen-Erinnerungen',
                 color: AppTheme.tint,
                 onTap: () => _open(context, RemindersScreen(service: service)),
+              ),
+              const SizedBox(height: 14),
+              _HubCard(
+                icon: _isIOS
+                    ? CupertinoIcons.person_crop_circle_badge_xmark
+                    : Icons.event_busy_rounded,
+                title: 'Abwesenheiten',
+                subtitle: 'Fehlstunden & Entschuldigungen',
+                color: AppTheme.orange,
+                onTap: () =>
+                    _open(context, AbsencesScreen(service: service)),
               ),
             ],
           ),

@@ -10,6 +10,7 @@ import '../services/webuntis_service.dart';
 import '../theme/app_theme.dart';
 import '../services/secure_credential_service.dart';
 import '../services/firebase_auth_service.dart';
+import '../services/notification_service.dart';
 import '../services/reminder_service.dart';
 import 'home_screen.dart';
 
@@ -380,6 +381,10 @@ class _LoginScreenState extends State<LoginScreen>
     FirebaseAuthService.instance
         .signInAnonymously(username, klasseId: klasseId, klasseName: klasseName)
         .then((_) {
+          final stableUid = FirebaseAuthService.instance.stableUid;
+          if (stableUid != null) {
+            NotificationService().saveFcmTokenForUser(stableUid).ignore();
+          }
           if (klasseId != null && klasseName != null && klasseName.isNotEmpty) {
             ReminderService()
                 .autoJoinOrCreateWebuntisClass(klasseName, klasseId)

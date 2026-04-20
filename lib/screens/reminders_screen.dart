@@ -32,15 +32,34 @@ class _RemindersScreenState extends State<RemindersScreen> {
   bool _autoJoinLoading = false;
   String? _autoJoinError;
 
+  bool _streamHasEmitted = false;
+  Timer? _loadingTimeout;
+  String? _myStableUid;
+  String? _myUsername;
+
   @override
   void initState() {
     super.initState();
     _loadAdmin();
+    _loadMyStableUid();
     // Auto-Join sofort beim Öffnen starten (nicht auf Stream warten)
     _maybeAutoJoin();
+    // Timeout: Falls Firestore nach 8 Sek. keine Daten liefert (kein Internet)
+    _loadingTimeout = Timer(const Duration(seconds: 8), () {
+      if (mounted && !_streamHasEmitted) {
+        setState(() {
+          _streamHasEmitted = true;
+          if (_classes.isEmpty && _autoJoinError == null && !_autoJoinLoading) {
+            _autoJoinError = 'Verbindung fehlgeschlagen.\nBitte Internetverbindung prüfen und erneut versuchen.';
+          }
+        });
+      }
+    });
     _classesSub = _service.classesStream().listen((classes) {
       if (!mounted) return;
       setState(() {
+        _streamHasEmitted = true;
+        _loadingTimeout?.cancel();
         _classes = classes;
         if (_selectedClassId == null && classes.isNotEmpty) {
           _selectedClassId = classes.first.id;
@@ -89,6 +108,16 @@ class _RemindersScreenState extends State<RemindersScreen> {
     }
   }
 
+  Future<void> _loadMyStableUid() async {
+    final uid = await FirebaseAuthService.instance.resolveStableUid();
+    if (mounted) {
+      setState(() {
+        _myStableUid = uid;
+        _myUsername = FirebaseAuthService.instance.username;
+      });
+    }
+  }
+
   Future<void> _loadAdmin() async {
     final admin = await _service.isAdmin();
     if (mounted) setState(() { _isAdmin = admin; _adminLoaded = true; });
@@ -97,6 +126,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
   @override
   void dispose() {
     _classesSub?.cancel();
+    _loadingTimeout?.cancel();
     super.dispose();
   }
 
@@ -375,19 +405,31 @@ class _RemindersScreenState extends State<RemindersScreen> {
   void _showCreateReminderSheet() {
     final classId = _selectedClassId;
     if (classId == null) return;
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: AppTheme.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) => _CreateReminderSheet(
-        classId: classId,
-        service: _service,
-        onCreated: () => Navigator.pop(ctx),
-      ),
-    );
+    if (_isIOS) {
+      showCupertinoModalPopup(
+        context: context,
+        builder: (ctx) => _IosCreateReminderSheet(
+          classId: classId,
+          service: _service,
+          onCreated: () => Navigator.pop(ctx),
+        ),
+      );
+    } else {
+      showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        useSafeArea: true,
+        backgroundColor: AppTheme.surface,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+        builder: (ctx) => _AndroidCreateReminderSheet(
+          classId: classId,
+          service: _service,
+          onCreated: () => Navigator.pop(ctx),
+        ),
+      );
+    }
   }
 
   void _confirmDeleteReminder(Reminder reminder) {
@@ -408,6 +450,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
               onPressed: () async {
                 Navigator.pop(ctx);
                 await _service.deleteReminder(reminder.classId, reminder.id);
+                if (mounted) _showToast('Erinnerung gelöscht');
               },
               child: const Text('Löschen'),
             ),
@@ -434,6 +477,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
               onPressed: () async {
                 Navigator.pop(ctx);
                 await _service.deleteReminder(reminder.classId, reminder.id);
+                if (mounted) _showToast('Erinnerung gelöscht');
               },
               child: Text('Löschen', style: TextStyle(color: AppTheme.danger)),
             ),
@@ -674,7 +718,15 @@ class _RemindersScreenState extends State<RemindersScreen> {
 
             // Content
             Expanded(
-              child: _classes.isEmpty
+              child: !_streamHasEmitted
+                  ? _EmptyClassesState(
+                      isAdmin: _isAdmin,
+                      onJoinOrCreate: _showJoinOrCreateSheet,
+                      isLoading: true,
+                      errorMessage: null,
+                      onRetry: _tryAutoJoin,
+                    )
+                  : _classes.isEmpty
                   ? _EmptyClassesState(
                       isAdmin: _isAdmin,
                       onJoinOrCreate: _showJoinOrCreateSheet,
@@ -688,6 +740,8 @@ class _RemindersScreenState extends State<RemindersScreen> {
                       classRoom: selectedClass,
                       service: _service,
                       onDelete: _confirmDeleteReminder,
+                      currentUserStableUid: _myStableUid,
+                      currentUsername: _myUsername,
                     ),
             ),
           ],
@@ -907,11 +961,15 @@ class _RemindersList extends StatelessWidget {
   final ClassRoom classRoom;
   final ReminderService service;
   final void Function(Reminder) onDelete;
+  final String? currentUserStableUid;
+  final String? currentUsername;
 
   const _RemindersList({
     required this.classRoom,
     required this.service,
     required this.onDelete,
+    this.currentUserStableUid,
+    this.currentUsername,
   });
 
   @override
@@ -1061,6 +1119,8 @@ class _RemindersList extends StatelessWidget {
             return _ReminderCard(
               reminder: reminder,
               onDelete: () => onDelete(reminder),
+              currentUserStableUid: currentUserStableUid,
+              currentUsername: currentUsername,
             );
           },
         );
@@ -1074,8 +1134,15 @@ class _RemindersList extends StatelessWidget {
 class _ReminderCard extends StatefulWidget {
   final Reminder reminder;
   final VoidCallback onDelete;
+  final String? currentUserStableUid;
+  final String? currentUsername;
 
-  const _ReminderCard({required this.reminder, required this.onDelete});
+  const _ReminderCard({
+    required this.reminder,
+    required this.onDelete,
+    this.currentUserStableUid,
+    this.currentUsername,
+  });
 
   @override
   State<_ReminderCard> createState() => _ReminderCardState();
@@ -1087,17 +1154,43 @@ class _ReminderCardState extends State<_ReminderCard> {
   @override
   void initState() {
     super.initState();
-    if (!widget.reminder.isDue) {
-      _ticker = Timer.periodic(const Duration(seconds: 30), (_) {
-        if (mounted) setState(() {});
-      });
-    }
+    _startTicker();
+  }
+
+  void _startTicker() {
+    _ticker?.cancel();
+    if (widget.reminder.isDue) return;
+    // Use 1-second interval so display never shows "0 Min."
+    _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() {});
+    });
   }
 
   @override
   void dispose() {
     _ticker?.cancel();
     super.dispose();
+  }
+
+  bool _isCreator() {
+    final r = widget.reminder;
+    final stable = widget.currentUserStableUid;
+    final username = widget.currentUsername;
+
+    // stableUid match (same across all devices for same WebUntis account)
+    if (stable != null && stable.isNotEmpty && r.createdByUid.isNotEmpty) {
+      if (r.createdByUid == stable) return true;
+    }
+    // username match – fallback for reminders created before stableUid was stored,
+    // or when stableUid was null at creation time and Firebase UID was used instead
+    if (username != null && username.isNotEmpty) {
+      if (r.createdByUsername == username) return true;
+      // Legacy: some reminders stored username directly as createdBy
+      if (r.createdByUid == username) return true;
+      // createdByName was set to username at creation time
+      if (r.createdByName == username) return true;
+    }
+    return false;
   }
 
   String _formatRemindAt(DateTime dt) {
@@ -1111,6 +1204,7 @@ class _ReminderCardState extends State<_ReminderCard> {
       return 'vor ${ago.inDays} Tag(en)';
     }
 
+    if (diff.inSeconds < 60) return 'gleich';
     if (diff.inMinutes < 60) return 'in ${diff.inMinutes} Min.';
     if (diff.inHours < 24) return 'in ${diff.inHours} Std.';
     if (diff.inDays == 1) return 'morgen';
@@ -1192,15 +1286,17 @@ class _ReminderCardState extends State<_ReminderCard> {
                   ],
                 ),
               ),
-              const SizedBox(width: 4),
-              GestureDetector(
-                onTap: widget.onDelete,
-                child: Icon(
-                  _isIOS ? CupertinoIcons.trash : Icons.delete_outline,
-                  size: 17,
-                  color: AppTheme.textTertiary,
+              if (_isCreator()) ...[
+                const SizedBox(width: 4),
+                GestureDetector(
+                  onTap: widget.onDelete,
+                  child: Icon(
+                    _isIOS ? CupertinoIcons.trash : Icons.delete_outline,
+                    size: 17,
+                    color: AppTheme.textTertiary,
+                  ),
                 ),
-              ),
+              ],
             ],
           ),
 
@@ -1260,24 +1356,25 @@ class _ReminderCardState extends State<_ReminderCard> {
   }
 }
 
-// ── Create reminder sheet ─────────────────────────────────────────────────────
+// ── iOS create reminder sheet ─────────────────────────────────────────────────
 
-class _CreateReminderSheet extends StatefulWidget {
+class _IosCreateReminderSheet extends StatefulWidget {
   final String classId;
   final ReminderService service;
   final VoidCallback onCreated;
 
-  const _CreateReminderSheet({
+  const _IosCreateReminderSheet({
     required this.classId,
     required this.service,
     required this.onCreated,
   });
 
   @override
-  State<_CreateReminderSheet> createState() => _CreateReminderSheetState();
+  State<_IosCreateReminderSheet> createState() =>
+      _IosCreateReminderSheetState();
 }
 
-class _CreateReminderSheetState extends State<_CreateReminderSheet> {
+class _IosCreateReminderSheetState extends State<_IosCreateReminderSheet> {
   final _titleCtrl = TextEditingController();
   final _bodyCtrl = TextEditingController();
   DateTime _remindAt = DateTime.now().add(const Duration(hours: 1));
@@ -1293,7 +1390,6 @@ class _CreateReminderSheetState extends State<_CreateReminderSheet> {
   Future<void> _submit() async {
     final title = _titleCtrl.text.trim();
     if (title.isEmpty) return;
-
     setState(() => _loading = true);
     try {
       await widget.service.createReminder(
@@ -1305,15 +1401,18 @@ class _CreateReminderSheetState extends State<_CreateReminderSheet> {
       widget.onCreated();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-          SnackBar(
+        showCupertinoDialog(
+          context: context,
+          builder: (ctx) => CupertinoAlertDialog(
+            title: const Text('Fehler'),
             content: Text('$e'),
-            backgroundColor: AppTheme.danger,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            actions: [
+              CupertinoDialogAction(
+                isDefaultAction: true,
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('OK'),
+              ),
+            ],
           ),
         );
         setState(() => _loading = false);
@@ -1322,115 +1421,74 @@ class _CreateReminderSheetState extends State<_CreateReminderSheet> {
   }
 
   void _pickDateTime() async {
-    if (_isIOS) {
-      DateTime picked = _remindAt;
-      await showCupertinoModalPopup(
-        context: context,
-        builder: (ctx) => Container(
-          height: 300,
-          color: AppTheme.surface,
-          child: Column(
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  CupertinoButton(
-                    child: const Text('Abbrechen'),
-                    onPressed: () => Navigator.pop(ctx),
-                  ),
-                  CupertinoButton(
-                    child: const Text('Fertig'),
-                    onPressed: () {
-                      setState(() => _remindAt = picked);
-                      Navigator.pop(ctx);
-                    },
-                  ),
-                ],
-              ),
-              Expanded(
-                child: CupertinoDatePicker(
-                  mode: CupertinoDatePickerMode.dateAndTime,
-                  initialDateTime: _remindAt,
-                  minimumDate: DateTime.now().add(const Duration(minutes: 1)),
-                  use24hFormat: true,
-                  onDateTimeChanged: (dt) => picked = dt,
+    DateTime picked = _remindAt;
+    await showCupertinoModalPopup(
+      context: context,
+      builder: (ctx) => Container(
+        height: 320,
+        color: AppTheme.surface,
+        child: Column(
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                CupertinoButton(
+                  child: const Text('Abbrechen'),
+                  onPressed: () => Navigator.pop(ctx),
                 ),
+                CupertinoButton(
+                  child: const Text('Fertig'),
+                  onPressed: () {
+                    setState(() => _remindAt = picked);
+                    Navigator.pop(ctx);
+                  },
+                ),
+              ],
+            ),
+            Expanded(
+              child: CupertinoDatePicker(
+                mode: CupertinoDatePickerMode.dateAndTime,
+                initialDateTime: _remindAt,
+                minimumDate: DateTime.now().add(const Duration(minutes: 1)),
+                use24hFormat: true,
+                onDateTimeChanged: (dt) => picked = dt,
               ),
-            ],
-          ),
-        ),
-      );
-    } else {
-      final date = await showDatePicker(
-        context: context,
-        initialDate: _remindAt,
-        firstDate: DateTime.now(),
-        lastDate: DateTime.now().add(const Duration(days: 365)),
-        builder: (context, child) => Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: ColorScheme.dark(
-              primary: AppTheme.accent,
-              surface: AppTheme.surface,
             ),
-          ),
-          child: child!,
+          ],
         ),
-      );
-      if (date == null || !mounted) return;
-
-      final time = await showTimePicker(
-        context: context,
-        initialTime: TimeOfDay.fromDateTime(_remindAt),
-        builder: (context, child) => Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: ColorScheme.dark(
-              primary: AppTheme.accent,
-              surface: AppTheme.surface,
-            ),
-          ),
-          child: child!,
-        ),
-      );
-      if (time == null || !mounted) return;
-
-      setState(() {
-        _remindAt = DateTime(
-          date.year,
-          date.month,
-          date.day,
-          time.hour,
-          time.minute,
-        );
-      });
-    }
+      ),
+    );
   }
 
-  String _formatPickedExact(DateTime dt) {
+  String _formatExact(DateTime dt) {
     final weekdays = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
     String pad2(int n) => n.toString().padLeft(2, '0');
     return '${weekdays[dt.weekday - 1]}, ${pad2(dt.day)}.${pad2(dt.month)}.${dt.year} · ${pad2(dt.hour)}:${pad2(dt.minute)}';
   }
 
-  String? _formatPickedRelative(DateTime dt) {
+  String? _formatRelative(DateTime dt) {
     final diff = dt.difference(DateTime.now());
-    if (diff.inMinutes < 60 && diff.inMinutes >= 0) return 'in ${diff.inMinutes} Min.';
+    if (diff.inSeconds < 60) return 'gleich';
+    if (diff.inMinutes < 60) return 'in ${diff.inMinutes} Min.';
     return null;
   }
 
   @override
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
-
-    return Padding(
+    return Container(
+      decoration: BoxDecoration(
+        color: AppTheme.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+      ),
       padding: EdgeInsets.only(bottom: bottomInset),
       child: SingleChildScrollView(
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Handle
               Center(
                 child: Container(
                   width: 36,
@@ -1451,28 +1509,21 @@ class _CreateReminderSheetState extends State<_CreateReminderSheet> {
                 ),
               ),
               const SizedBox(height: 20),
-
-              // Title field
-              _Field(
+              _CupertinoField(
                 controller: _titleCtrl,
                 label: 'Titel',
                 placeholder: 'z.B. Mathe Hausaufgabe',
                 maxLines: 1,
+                onChanged: () => setState(() {}),
               ),
-
               const SizedBox(height: 12),
-
-              // Body field
-              _Field(
+              _CupertinoField(
                 controller: _bodyCtrl,
                 label: 'Notiz (optional)',
                 placeholder: 'z.B. Seite 42, Aufgabe 3',
                 maxLines: 3,
               ),
-
               const SizedBox(height: 12),
-
-              // Date/time picker
               GestureDetector(
                 onTap: _pickDateTime,
                 child: Container(
@@ -1481,66 +1532,43 @@ class _CreateReminderSheetState extends State<_CreateReminderSheet> {
                     color: AppTheme.card,
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color: AppTheme.border.withValues(alpha: 0.3),
-                    ),
+                        color: AppTheme.border.withValues(alpha: 0.3)),
                   ),
                   child: Row(
                     children: [
-                      Icon(
-                        _isIOS
-                            ? CupertinoIcons.calendar_badge_plus
-                            : Icons.event_outlined,
-                        size: 18,
-                        color: AppTheme.accent,
-                      ),
+                      Icon(CupertinoIcons.calendar_badge_plus,
+                          size: 18, color: AppTheme.accent),
                       const SizedBox(width: 10),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Erinnerung am',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: AppTheme.textTertiary,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            _formatPickedExact(_remindAt),
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: AppTheme.textPrimary,
-                            ),
-                          ),
-                          if (_formatPickedRelative(_remindAt) != null) ...[
-                            const SizedBox(height: 1),
-                            Text(
-                              _formatPickedRelative(_remindAt)!,
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: AppTheme.accent,
-                              ),
-                            ),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Erinnerung am',
+                                style: TextStyle(
+                                    fontSize: 11,
+                                    color: AppTheme.textTertiary)),
+                            const SizedBox(height: 2),
+                            Text(_formatExact(_remindAt),
+                                style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppTheme.textPrimary)),
+                            if (_formatRelative(_remindAt) != null) ...[
+                              const SizedBox(height: 1),
+                              Text(_formatRelative(_remindAt)!,
+                                  style: TextStyle(
+                                      fontSize: 11, color: AppTheme.accent)),
+                            ],
                           ],
-                        ],
+                        ),
                       ),
-                      const Spacer(),
-                      Icon(
-                        _isIOS
-                            ? CupertinoIcons.chevron_right
-                            : Icons.chevron_right,
-                        size: 16,
-                        color: AppTheme.textTertiary,
-                      ),
+                      Icon(CupertinoIcons.chevron_right,
+                          size: 16, color: AppTheme.textTertiary),
                     ],
                   ),
                 ),
               ),
-
               const SizedBox(height: 20),
-
-              // Submit button
               GestureDetector(
                 onTap: _loading ? null : _submit,
                 child: AnimatedContainer(
@@ -1556,9 +1584,7 @@ class _CreateReminderSheetState extends State<_CreateReminderSheet> {
                   child: Center(
                     child: _loading
                         ? const CupertinoActivityIndicator(
-                            color: Colors.white,
-                            radius: 10,
-                          )
+                            color: Colors.white, radius: 10)
                         : const Text(
                             'Erinnerung erstellen',
                             style: TextStyle(
@@ -1578,17 +1604,358 @@ class _CreateReminderSheetState extends State<_CreateReminderSheet> {
   }
 }
 
-class _Field extends StatelessWidget {
+// ── Android create reminder sheet ─────────────────────────────────────────────
+
+class _AndroidCreateReminderSheet extends StatefulWidget {
+  final String classId;
+  final ReminderService service;
+  final VoidCallback onCreated;
+
+  const _AndroidCreateReminderSheet({
+    required this.classId,
+    required this.service,
+    required this.onCreated,
+  });
+
+  @override
+  State<_AndroidCreateReminderSheet> createState() =>
+      _AndroidCreateReminderSheetState();
+}
+
+class _AndroidCreateReminderSheetState
+    extends State<_AndroidCreateReminderSheet> {
+  final _formKey = GlobalKey<FormState>();
+  final _titleCtrl = TextEditingController();
+  final _bodyCtrl = TextEditingController();
+  DateTime _remindAt = DateTime.now().add(const Duration(hours: 1));
+  bool _loading = false;
+
+  @override
+  void dispose() {
+    _titleCtrl.dispose();
+    _bodyCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (!(_formKey.currentState?.validate() ?? false)) return;
+    setState(() => _loading = true);
+    try {
+      await widget.service.createReminder(
+        classId: widget.classId,
+        title: _titleCtrl.text.trim(),
+        body: _bodyCtrl.text.trim(),
+        remindAt: _remindAt,
+      );
+      widget.onCreated();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+          SnackBar(
+            content: Text('$e'),
+            backgroundColor: AppTheme.danger,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12)),
+            margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          ),
+        );
+        setState(() => _loading = false);
+      }
+    }
+  }
+
+  Future<void> _pickDateTime() async {
+    final date = await showDatePicker(
+      context: context,
+      initialDate: _remindAt,
+      firstDate: DateTime.now(),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+      builder: (ctx, child) => Theme(
+        data: ThemeData(
+          colorScheme: ColorScheme.fromSeed(
+            seedColor: AppTheme.accent,
+            brightness: AppTheme.currentBrightness,
+          ),
+        ),
+        child: child!,
+      ),
+    );
+    if (date == null || !mounted) return;
+
+    final time = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(_remindAt),
+      builder: (ctx, child) => Theme(
+        data: ThemeData(
+          colorScheme: ColorScheme.fromSeed(
+            seedColor: AppTheme.accent,
+            brightness: AppTheme.currentBrightness,
+          ),
+        ),
+        child: child!,
+      ),
+    );
+    if (time == null || !mounted) return;
+
+    setState(() {
+      _remindAt = DateTime(
+          date.year, date.month, date.day, time.hour, time.minute);
+    });
+  }
+
+  String _formatExact(DateTime dt) {
+    final weekdays = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
+    String pad2(int n) => n.toString().padLeft(2, '0');
+    return '${weekdays[dt.weekday - 1]}, ${pad2(dt.day)}.${pad2(dt.month)}.${dt.year}  ${pad2(dt.hour)}:${pad2(dt.minute)}';
+  }
+
+  String? _formatRelative(DateTime dt) {
+    final diff = dt.difference(DateTime.now());
+    if (diff.inSeconds < 60) return 'gleich';
+    if (diff.inMinutes < 60) return 'in ${diff.inMinutes} Min.';
+    return null;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+    final rel = _formatRelative(_remindAt);
+
+    return Padding(
+      padding: EdgeInsets.only(bottom: bottomInset),
+      child: SingleChildScrollView(
+        child: Form(
+          key: _formKey,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // M3 drag handle
+                Center(
+                  child: Container(
+                    width: 32,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: AppTheme.border.withValues(alpha: 0.6),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+
+                // Title
+                Row(
+                  children: [
+                    const Icon(Icons.notifications_outlined, size: 22),
+                    const SizedBox(width: 10),
+                    Text(
+                      'Neue Erinnerung',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.textPrimary,
+                        letterSpacing: 0.1,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+
+                // Title field
+                TextFormField(
+                  controller: _titleCtrl,
+                  autofocus: true,
+                  textCapitalization: TextCapitalization.sentences,
+                  style: TextStyle(color: AppTheme.textPrimary),
+                  decoration: InputDecoration(
+                    labelText: 'Titel',
+                    hintText: 'z.B. Mathe Hausaufgabe',
+                    hintStyle: TextStyle(color: AppTheme.textTertiary),
+                    prefixIcon: const Icon(Icons.title_outlined),
+                    filled: true,
+                    fillColor: AppTheme.card,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(
+                          color: AppTheme.border.withValues(alpha: 0.3)),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide:
+                          BorderSide(color: AppTheme.accent, width: 2),
+                    ),
+                    errorBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: AppTheme.danger),
+                    ),
+                  ),
+                  onChanged: (_) => setState(() {}),
+                  validator: (v) =>
+                      (v == null || v.trim().isEmpty) ? 'Pflichtfeld' : null,
+                ),
+                const SizedBox(height: 12),
+
+                // Notes field
+                TextFormField(
+                  controller: _bodyCtrl,
+                  maxLines: 3,
+                  textCapitalization: TextCapitalization.sentences,
+                  style: TextStyle(color: AppTheme.textPrimary),
+                  decoration: InputDecoration(
+                    labelText: 'Notiz (optional)',
+                    hintText: 'z.B. Seite 42, Aufgabe 3',
+                    hintStyle: TextStyle(color: AppTheme.textTertiary),
+                    prefixIcon: const Padding(
+                      padding: EdgeInsets.only(bottom: 48),
+                      child: Icon(Icons.notes_outlined),
+                    ),
+                    filled: true,
+                    fillColor: AppTheme.card,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(
+                          color: AppTheme.border.withValues(alpha: 0.3)),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide:
+                          BorderSide(color: AppTheme.accent, width: 2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+
+                // Date/time row (Material InkWell)
+                Material(
+                  color: AppTheme.card,
+                  borderRadius: BorderRadius.circular(12),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(12),
+                    onTap: _pickDateTime,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 14),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                            color: AppTheme.border.withValues(alpha: 0.3)),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.event_outlined,
+                              size: 20, color: AppTheme.accent),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Erinnerung am',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: AppTheme.textTertiary,
+                                    letterSpacing: 0.4,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  _formatExact(_remindAt),
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w500,
+                                    color: AppTheme.textPrimary,
+                                  ),
+                                ),
+                                if (rel != null) ...[
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    rel,
+                                    style: TextStyle(
+                                        fontSize: 11, color: AppTheme.accent),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                          Icon(Icons.edit_calendar_outlined,
+                              size: 18, color: AppTheme.textTertiary),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 28),
+
+                // Create button (Material FilledButton style)
+                SizedBox(
+                  width: double.infinity,
+                  height: 52,
+                  child: FilledButton.icon(
+                    onPressed: _loading || _titleCtrl.text.trim().isEmpty
+                        ? null
+                        : _submit,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppTheme.accent,
+                      disabledBackgroundColor:
+                          AppTheme.accent.withValues(alpha: 0.4),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14)),
+                    ),
+                    icon: _loading
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                                strokeWidth: 2, color: Colors.white),
+                          )
+                        : const Icon(Icons.add_alert_outlined,
+                            color: Colors.white),
+                    label: Text(
+                      _loading ? 'Wird erstellt…' : 'Erinnerung erstellen',
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// Cupertino-native text field — used inside showCupertinoModalPopup where no
+// Material ancestor exists and TextField would crash.
+class _CupertinoField extends StatelessWidget {
   final TextEditingController controller;
   final String label;
   final String placeholder;
   final int maxLines;
+  final VoidCallback? onChanged;
 
-  const _Field({
+  const _CupertinoField({
     required this.controller,
     required this.label,
     required this.placeholder,
     required this.maxLines,
+    this.onChanged,
   });
 
   @override
@@ -1605,21 +1972,20 @@ class _Field extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 6),
-        TextField(
+        CupertinoTextField(
           controller: controller,
           maxLines: maxLines,
+          placeholder: placeholder,
+          placeholderStyle: TextStyle(color: AppTheme.textTertiary),
           style: TextStyle(fontSize: 15, color: AppTheme.textPrimary),
-          decoration: InputDecoration(
-            hintText: placeholder,
-            hintStyle: TextStyle(color: AppTheme.textTertiary),
-            filled: true,
-            fillColor: AppTheme.card,
-            contentPadding: const EdgeInsets.all(12),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide.none,
-            ),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: AppTheme.card,
+            borderRadius: BorderRadius.circular(12),
           ),
+          autocorrect: false,
+          enableSuggestions: false,
+          onChanged: onChanged != null ? (_) => onChanged!() : null,
         ),
       ],
     );
