@@ -1268,15 +1268,6 @@ class _TimeIndicator extends StatelessWidget {
                       ),
                     ),
                   ),
-                // Leading dot (on top of everything)
-                Container(
-                  width: dotSize,
-                  height: dotSize,
-                  decoration: const BoxDecoration(
-                    color: AppTheme.accent,
-                    shape: BoxShape.circle,
-                  ),
-                ),
               ],
             );
           },
