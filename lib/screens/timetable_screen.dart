@@ -14,12 +14,14 @@ class _SlotInfo {
   final TimetableEntry? display;
   final TimetableEntry? replacement;
   final bool isNow;
+  final bool isPast;
   final _SlotKind kind;
   final List<HomeworkEntry> homework;
   const _SlotInfo({
     this.display,
     this.replacement,
     this.isNow = false,
+    this.isPast = false,
     this.kind = _SlotKind.empty,
     this.homework = const [],
   });
@@ -449,11 +451,24 @@ class TimetableScreenState extends State<TimetableScreen> {
     }
 
     final isNow = _isToday(offset, dayIndex) && _isCurrentLesson(display, now);
+    final isPast = !isNow && (() {
+      final day = _dayForOffset(offset, dayIndex);
+      final today = DateTime(now.year, now.month, now.day);
+      final lessonDay = DateTime(day.year, day.month, day.day);
+      if (lessonDay.isBefore(today)) return true;
+      if (lessonDay.isAtSameMomentAs(today)) {
+        final nowMins = now.hour * 60 + now.minute;
+        final endMins = (display.endTime ~/ 100) * 60 + (display.endTime % 100);
+        return nowMins >= endMins;
+      }
+      return false;
+    })();
     final homework = homeworkByLesson[display.lessonId] ?? [];
     return _SlotInfo(
       display: display,
       replacement: repl,
       isNow: isNow,
+      isPast: isPast,
       kind: kind,
       homework: homework,
     );
@@ -1453,6 +1468,7 @@ class _MergedCell extends StatelessWidget {
     final entry = primary.display!;
     final subjectColor = AppTheme.colorForSubject(entry.subjectName);
     final hasHomework = slots.any((s) => s.homework.isNotEmpty);
+    final isPast = slots.any((s) => s.isPast);
 
     // Slightly lighter than before in both themes.
     final cellBg = Color.alphaBlend(
@@ -1501,13 +1517,22 @@ class _MergedCell extends StatelessWidget {
       child: Container(
         height: height,
         decoration: BoxDecoration(
-          color: cellBg,
+          color: isPast
+              ? Color.alphaBlend(Colors.black.withValues(alpha: 0.18), cellBg)
+              : cellBg,
           borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: borderColor, width: borderWidth),
+          border: Border.all(
+            color: isPast
+                ? borderColor.withValues(alpha: borderColor.a * 0.55)
+                : borderColor,
+            width: borderWidth,
+          ),
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(5),
-          child: Row(
+          child: Opacity(
+            opacity: isPast ? 0.55 : 1.0,
+            child: Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               // Left accent bar
@@ -1531,6 +1556,7 @@ class _MergedCell extends StatelessWidget {
               ),
             ],
           ),
+        ),
         ),
       ),
     );

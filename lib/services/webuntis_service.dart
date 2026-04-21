@@ -606,7 +606,7 @@ class WebUntisService {
           .where((g) => g.markValue > 0)
           .toList();
 
-      gradeEntries.sort((a, b) => b.lastUpdate.compareTo(a.lastUpdate));
+      gradeEntries.sort((a, b) => b.date.compareTo(a.date));
 
       return SubjectGrades(
         lessonId: lessonId,
