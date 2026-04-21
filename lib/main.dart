@@ -47,9 +47,12 @@ void main() async {
 
 ThemeMode _themeModeFrom(String value) {
   switch (value) {
-    case 'light':  return ThemeMode.light;
-    case 'dark':   return ThemeMode.dark;
-    default:       return ThemeMode.system;
+    case 'light':
+      return ThemeMode.light;
+    case 'dark':
+      return ThemeMode.dark;
+    default:
+      return ThemeMode.system;
   }
 }
 
@@ -185,47 +188,7 @@ class _SplashScreenState extends State<SplashScreen>
 
     if (!mounted) return;
 
-    if (restored) {
-      // Prefetch all data so screens open instantly.
-      _prefetchAll(service);
-      service.fetchProfileImage().ignore();
-      // Sign in to Firebase with the restored WebUntis username + Klasse
-      if (service.username != null) {
-        FirebaseAuthService.instance
-            .signInAnonymously(
-              service.username!,
-              klasseId: service.klasseId,
-              klasseName: service.klasseName,
-            )
-            .then((_) {
-              final stableUid = FirebaseAuthService.instance.stableUid;
-              if (stableUid != null) {
-                NotificationService().saveFcmTokenForUser(stableUid).ignore();
-              }
-              final kid = service.klasseId;
-              final kname = service.klasseName;
-              if (kid != null && kname != null && kname.isNotEmpty) {
-                ReminderService()
-                    .autoJoinOrCreateWebuntisClass(kname, kid)
-                    .catchError((e) => debugPrint('[Restore] Auto-Klasse Fehler: $e'));
-              }
-            })
-            .catchError((e) => debugPrint('[Restore] Firebase auth failed: $e'));
-      }
-      // Start polling for new messages
-      final notifService = NotificationService();
-      notifService.startPolling(service);
-      notifService.onNewMessages = (count, subject) {
-        final ctx = navigatorKey.currentContext;
-        if (ctx != null) {
-          _showNewMessageBanner(ctx, count, subject, service);
-        }
-      };
-    }
-
-    final target = restored
-        ? HomeScreen(service: service)
-        : const LoginScreen();
+    final target = restored ? AuthGate(service: service) : const LoginScreen();
 
     Navigator.pushReplacement(
       context,
@@ -285,6 +248,103 @@ class _SplashScreenState extends State<SplashScreen>
           ),
         ),
       ),
+    );
+  }
+}
+
+class AuthGate extends StatefulWidget {
+  final WebUntisService service;
+  const AuthGate({super.key, required this.service});
+
+  @override
+  State<AuthGate> createState() => _AuthGateState();
+}
+
+class _AuthGateState extends State<AuthGate> {
+  @override
+  void initState() {
+    super.initState();
+    _check();
+  }
+
+  Future<void> _check() async {
+    final valid = await widget.service.validateSession();
+    if (!mounted) return;
+    if (!valid) {
+      await widget.service.clearSession();
+      Navigator.pushReplacement(
+        context,
+        PageRouteBuilder(
+          pageBuilder: (_, _, _) => const LoginScreen(),
+          transitionsBuilder: (_, a, _, child) =>
+              FadeTransition(opacity: a, child: child),
+          transitionDuration: const Duration(milliseconds: 300),
+        ),
+      );
+      return;
+    }
+
+    await _initializeSession();
+  }
+
+  Future<void> _initializeSession() async {
+    _SplashScreenState._prefetchAll(widget.service);
+    widget.service.fetchProfileImage().ignore();
+    if (widget.service.username != null) {
+      FirebaseAuthService.instance
+          .signInAnonymously(
+            widget.service.username!,
+            klasseId: widget.service.klasseId,
+            klasseName: widget.service.klasseName,
+          )
+          .then((_) {
+            final stableUid = FirebaseAuthService.instance.stableUid;
+            if (stableUid != null) {
+              NotificationService().saveFcmTokenForUser(stableUid).ignore();
+            }
+            final kid = widget.service.klasseId;
+            final kname = widget.service.klasseName;
+            if (kid != null && kname != null && kname.isNotEmpty) {
+              ReminderService()
+                  .autoJoinOrCreateWebuntisClass(kname, kid)
+                  .catchError(
+                    (e) => debugPrint('[Restore] Auto-Klasse Fehler: $e'),
+                  );
+            }
+          })
+          .catchError((e) => debugPrint('[Restore] Firebase auth failed: $e'));
+    }
+    final notifService = NotificationService();
+    notifService.startPolling(widget.service);
+    notifService.onNewMessages = (count, subject) {
+      final ctx = navigatorKey.currentContext;
+      if (ctx != null) {
+        _SplashScreenState._showNewMessageBanner(
+          ctx,
+          count,
+          subject,
+          widget.service,
+        );
+      }
+    };
+
+    if (!mounted) return;
+    Navigator.pushReplacement(
+      context,
+      PageRouteBuilder(
+        pageBuilder: (_, _, _) => HomeScreen(service: widget.service),
+        transitionsBuilder: (_, a, _, child) =>
+            FadeTransition(opacity: a, child: child),
+        transitionDuration: const Duration(milliseconds: 300),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppTheme.bg,
+      body: const Center(child: CupertinoActivityIndicator()),
     );
   }
 }

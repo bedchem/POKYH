@@ -36,6 +36,8 @@
 		<string>sidestore</string>
 		<string>altstore</string>
 		<string>itms-services</string>
+		<string>https</string>
+		<string>http</string>
 	</array>
 	<key>NSFaceIDUsageDescription</key>
 	<string>Face ID für Login verwenden</string>

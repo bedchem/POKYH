@@ -7,6 +7,7 @@ import '../services/firebase_auth_service.dart';
 import '../services/reminder_service.dart';
 import '../services/webuntis_service.dart';
 import '../theme/app_theme.dart';
+import '../utils/error_message.dart';
 import '../widgets/top_bar_actions.dart';
 
 bool get _isIOS => Platform.isIOS;
@@ -50,7 +51,8 @@ class _RemindersScreenState extends State<RemindersScreen> {
         setState(() {
           _streamHasEmitted = true;
           if (_classes.isEmpty && _autoJoinError == null && !_autoJoinLoading) {
-            _autoJoinError = 'Verbindung fehlgeschlagen.\nBitte Internetverbindung prüfen und erneut versuchen.';
+            _autoJoinError =
+                'Verbindung fehlgeschlagen.\nBitte Internetverbindung prüfen und erneut versuchen.';
           }
         });
       }
@@ -91,7 +93,11 @@ class _RemindersScreenState extends State<RemindersScreen> {
     if (klasseId == null || klasseName == null || klasseName.isEmpty) return;
 
     debugPrint('[RemindersScreen] Auto-Join: "$klasseName" (id=$klasseId)');
-    if (mounted) setState(() { _autoJoinLoading = true; _autoJoinError = null; });
+    if (mounted)
+      setState(() {
+        _autoJoinLoading = true;
+        _autoJoinError = null;
+      });
 
     try {
       await _service.autoJoinOrCreateWebuntisClass(klasseName, klasseId);
@@ -102,7 +108,8 @@ class _RemindersScreenState extends State<RemindersScreen> {
       if (mounted) {
         setState(() {
           _autoJoinLoading = false;
-          _autoJoinError = 'Automatische Zuweisung fehlgeschlagen.\nTritt manuell bei.';
+          _autoJoinError =
+              'Automatische Zuweisung fehlgeschlagen.\nTritt manuell bei.';
         });
       }
     }
@@ -120,7 +127,11 @@ class _RemindersScreenState extends State<RemindersScreen> {
 
   Future<void> _loadAdmin() async {
     final admin = await _service.isAdmin();
-    if (mounted) setState(() { _isAdmin = admin; _adminLoaded = true; });
+    if (mounted)
+      setState(() {
+        _isAdmin = admin;
+        _adminLoaded = true;
+      });
   }
 
   @override
@@ -186,8 +197,10 @@ class _RemindersScreenState extends State<RemindersScreen> {
               ),
               if (_isAdmin)
                 ListTile(
-                  leading:
-                      Icon(Icons.add_circle_outline, color: AppTheme.accent),
+                  leading: Icon(
+                    Icons.add_circle_outline,
+                    color: AppTheme.accent,
+                  ),
                   title: Text(
                     'Neue Klasse erstellen',
                     style: TextStyle(color: AppTheme.textPrimary),
@@ -198,8 +211,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
                   },
                 ),
               ListTile(
-                leading:
-                    Icon(Icons.group_add_outlined, color: AppTheme.accent),
+                leading: Icon(Icons.group_add_outlined, color: AppTheme.accent),
                 title: Text(
                   'Klasse beitreten',
                   style: TextStyle(color: AppTheme.textPrimary),
@@ -266,7 +278,9 @@ class _RemindersScreenState extends State<RemindersScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(
-                _isIOS ? CupertinoIcons.checkmark_seal_fill : Icons.check_circle,
+                _isIOS
+                    ? CupertinoIcons.checkmark_seal_fill
+                    : Icons.check_circle,
                 color: AppTheme.success,
                 size: 40,
               ),
@@ -465,14 +479,19 @@ class _RemindersScreenState extends State<RemindersScreen> {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
-          title: Text('Erinnerung löschen',
-              style: TextStyle(color: AppTheme.textPrimary)),
-          content: Text('„${reminder.title}" wirklich löschen?',
-              style: TextStyle(color: AppTheme.textSecondary)),
+          title: Text(
+            'Erinnerung löschen',
+            style: TextStyle(color: AppTheme.textPrimary),
+          ),
+          content: Text(
+            '„${reminder.title}" wirklich löschen?',
+            style: TextStyle(color: AppTheme.textSecondary),
+          ),
           actions: [
             TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('Abbrechen')),
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Abbrechen'),
+            ),
             TextButton(
               onPressed: () async {
                 Navigator.pop(ctx);
@@ -503,8 +522,9 @@ class _RemindersScreenState extends State<RemindersScreen> {
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setInner) => AlertDialog(
           backgroundColor: AppTheme.surface,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
           title: Text(title, style: TextStyle(color: AppTheme.textPrimary)),
           content: Column(
             mainAxisSize: MainAxisSize.min,
@@ -519,7 +539,8 @@ class _RemindersScreenState extends State<RemindersScreen> {
                   hintStyle: TextStyle(color: AppTheme.textTertiary),
                   enabledBorder: UnderlineInputBorder(
                     borderSide: BorderSide(
-                        color: AppTheme.border.withValues(alpha: 0.4)),
+                      color: AppTheme.border.withValues(alpha: 0.4),
+                    ),
                   ),
                   focusedBorder: UnderlineInputBorder(
                     borderSide: BorderSide(color: AppTheme.accent),
@@ -555,7 +576,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
                         if (ctx.mounted) {
                           setInner(() {
                             loading = false;
-                            errorText = e.toString().replaceFirst('Exception: ', '');
+                            errorText = simplifyErrorMessage(e);
                           });
                         }
                       }
@@ -593,8 +614,9 @@ class _RemindersScreenState extends State<RemindersScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final selectedClass =
-        _classes.where((c) => c.id == _selectedClassId).firstOrNull;
+    final selectedClass = _classes
+        .where((c) => c.id == _selectedClassId)
+        .firstOrNull;
 
     return Scaffold(
       backgroundColor: AppTheme.bg,
@@ -879,7 +901,9 @@ class _EmptyClassesState extends StatelessWidget {
                       ),
                     )
                   : Icon(
-                      _isIOS ? CupertinoIcons.bell_fill : Icons.notifications_outlined,
+                      _isIOS
+                          ? CupertinoIcons.bell_fill
+                          : Icons.notifications_outlined,
                       size: 28,
                       color: AppTheme.accent,
                     ),
@@ -898,27 +922,44 @@ class _EmptyClassesState extends StatelessWidget {
               Text(
                 'Deine WebUntis-Klasse wird automatisch erkannt.',
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 14, color: AppTheme.textSecondary, height: 1.5),
+                style: TextStyle(
+                  fontSize: 14,
+                  color: AppTheme.textSecondary,
+                  height: 1.5,
+                ),
               )
             else if (errorMessage != null) ...[
               Text(
                 errorMessage!,
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 14, color: AppTheme.danger, height: 1.5),
+                style: TextStyle(
+                  fontSize: 14,
+                  color: AppTheme.danger,
+                  height: 1.5,
+                ),
               ),
               const SizedBox(height: 16),
               GestureDetector(
                 onTap: onRetry,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 10,
+                  ),
                   decoration: BoxDecoration(
                     color: AppTheme.surface,
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: AppTheme.border.withValues(alpha: 0.4)),
+                    border: Border.all(
+                      color: AppTheme.border.withValues(alpha: 0.4),
+                    ),
                   ),
                   child: Text(
                     'Erneut versuchen',
-                    style: TextStyle(fontSize: 14, color: AppTheme.accent, fontWeight: FontWeight.w600),
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: AppTheme.accent,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
               ),
@@ -926,20 +967,29 @@ class _EmptyClassesState extends StatelessWidget {
               Text(
                 'Deine WebUntis-Klasse wird automatisch erkannt. Falls das nicht klappt, tritt manuell bei.',
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 14, color: AppTheme.textSecondary, height: 1.5),
+                style: TextStyle(
+                  fontSize: 14,
+                  color: AppTheme.textSecondary,
+                  height: 1.5,
+                ),
               ),
             if (!isLoading) ...[
               const SizedBox(height: 24),
               GestureDetector(
                 onTap: onJoinOrCreate,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 13),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 13,
+                  ),
                   decoration: BoxDecoration(
                     color: AppTheme.accent,
                     borderRadius: BorderRadius.circular(14),
                   ),
                   child: Text(
-                    isAdmin ? 'Klasse beitreten oder erstellen' : 'Manuell beitreten',
+                    isAdmin
+                        ? 'Klasse beitreten oder erstellen'
+                        : 'Manuell beitreten',
                     style: const TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w600,
@@ -1030,8 +1080,7 @@ class _RemindersList extends StatelessWidget {
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        margin:
-                            const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                        margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                         backgroundColor: AppTheme.surface,
                       ),
                     );
@@ -1052,9 +1101,7 @@ class _RemindersList extends StatelessWidget {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(
-                          _isIOS
-                              ? CupertinoIcons.share
-                              : Icons.share_outlined,
+                          _isIOS ? CupertinoIcons.share : Icons.share_outlined,
                           size: 14,
                           color: AppTheme.textTertiary,
                         ),
@@ -1104,7 +1151,8 @@ class _RemindersList extends StatelessWidget {
                     const SizedBox(width: 6),
                     GestureDetector(
                       onTap: () => Clipboard.setData(
-                          ClipboardData(text: classRoom.code)),
+                        ClipboardData(text: classRoom.code),
+                      ),
                       child: Icon(
                         _isIOS
                             ? CupertinoIcons.doc_on_clipboard
@@ -1333,10 +1381,7 @@ class _ReminderCardState extends State<_ReminderCard> {
               Expanded(
                 child: Text(
                   r.createdByName,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: AppTheme.textTertiary,
-                  ),
+                  style: TextStyle(fontSize: 12, color: AppTheme.textTertiary),
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
@@ -1411,7 +1456,7 @@ class _IosCreateReminderSheetState extends State<_IosCreateReminderSheet> {
           context: context,
           builder: (ctx) => CupertinoAlertDialog(
             title: const Text('Fehler'),
-            content: Text('$e'),
+            content: Text(simplifyErrorMessage(e)),
             actions: [
               CupertinoDialogAction(
                 isDefaultAction: true,
@@ -1538,38 +1583,55 @@ class _IosCreateReminderSheetState extends State<_IosCreateReminderSheet> {
                     color: AppTheme.card,
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                        color: AppTheme.border.withValues(alpha: 0.3)),
+                      color: AppTheme.border.withValues(alpha: 0.3),
+                    ),
                   ),
                   child: Row(
                     children: [
-                      Icon(CupertinoIcons.calendar_badge_plus,
-                          size: 18, color: AppTheme.accent),
+                      Icon(
+                        CupertinoIcons.calendar_badge_plus,
+                        size: 18,
+                        color: AppTheme.accent,
+                      ),
                       const SizedBox(width: 10),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text('Erinnerung am',
-                                style: TextStyle(
-                                    fontSize: 11,
-                                    color: AppTheme.textTertiary)),
+                            Text(
+                              'Erinnerung am',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: AppTheme.textTertiary,
+                              ),
+                            ),
                             const SizedBox(height: 2),
-                            Text(_formatExact(_remindAt),
-                                style: TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w600,
-                                    color: AppTheme.textPrimary)),
+                            Text(
+                              _formatExact(_remindAt),
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: AppTheme.textPrimary,
+                              ),
+                            ),
                             if (_formatRelative(_remindAt) != null) ...[
                               const SizedBox(height: 1),
-                              Text(_formatRelative(_remindAt)!,
-                                  style: TextStyle(
-                                      fontSize: 11, color: AppTheme.accent)),
+                              Text(
+                                _formatRelative(_remindAt)!,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: AppTheme.accent,
+                                ),
+                              ),
                             ],
                           ],
                         ),
                       ),
-                      Icon(CupertinoIcons.chevron_right,
-                          size: 16, color: AppTheme.textTertiary),
+                      Icon(
+                        CupertinoIcons.chevron_right,
+                        size: 16,
+                        color: AppTheme.textTertiary,
+                      ),
                     ],
                   ),
                 ),
@@ -1590,7 +1652,9 @@ class _IosCreateReminderSheetState extends State<_IosCreateReminderSheet> {
                   child: Center(
                     child: _loading
                         ? const CupertinoActivityIndicator(
-                            color: Colors.white, radius: 10)
+                            color: Colors.white,
+                            radius: 10,
+                          )
                         : const Text(
                             'Erinnerung erstellen',
                             style: TextStyle(
@@ -1658,11 +1722,12 @@ class _AndroidCreateReminderSheetState
       if (mounted) {
         ScaffoldMessenger.maybeOf(context)?.showSnackBar(
           SnackBar(
-            content: Text('$e'),
+            content: Text(simplifyErrorMessage(e)),
             backgroundColor: AppTheme.danger,
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12)),
+              borderRadius: BorderRadius.circular(12),
+            ),
             margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
           ),
         );
@@ -1706,7 +1771,12 @@ class _AndroidCreateReminderSheetState
 
     setState(() {
       _remindAt = DateTime(
-          date.year, date.month, date.day, time.hour, time.minute);
+        date.year,
+        date.month,
+        date.day,
+        time.hour,
+        time.minute,
+      );
     });
   }
 
@@ -1790,12 +1860,12 @@ class _AndroidCreateReminderSheetState
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                       borderSide: BorderSide(
-                          color: AppTheme.border.withValues(alpha: 0.3)),
+                        color: AppTheme.border.withValues(alpha: 0.3),
+                      ),
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide:
-                          BorderSide(color: AppTheme.accent, width: 2),
+                      borderSide: BorderSide(color: AppTheme.accent, width: 2),
                     ),
                     errorBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
@@ -1831,12 +1901,12 @@ class _AndroidCreateReminderSheetState
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                       borderSide: BorderSide(
-                          color: AppTheme.border.withValues(alpha: 0.3)),
+                        color: AppTheme.border.withValues(alpha: 0.3),
+                      ),
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide:
-                          BorderSide(color: AppTheme.accent, width: 2),
+                      borderSide: BorderSide(color: AppTheme.accent, width: 2),
                     ),
                   ),
                 ),
@@ -1851,16 +1921,22 @@ class _AndroidCreateReminderSheetState
                     onTap: _pickDateTime,
                     child: Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 14),
+                        horizontal: 16,
+                        vertical: 14,
+                      ),
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
-                            color: AppTheme.border.withValues(alpha: 0.3)),
+                          color: AppTheme.border.withValues(alpha: 0.3),
+                        ),
                       ),
                       child: Row(
                         children: [
-                          Icon(Icons.event_outlined,
-                              size: 20, color: AppTheme.accent),
+                          Icon(
+                            Icons.event_outlined,
+                            size: 20,
+                            color: AppTheme.accent,
+                          ),
                           const SizedBox(width: 12),
                           Expanded(
                             child: Column(
@@ -1888,14 +1964,19 @@ class _AndroidCreateReminderSheetState
                                   Text(
                                     rel,
                                     style: TextStyle(
-                                        fontSize: 11, color: AppTheme.accent),
+                                      fontSize: 11,
+                                      color: AppTheme.accent,
+                                    ),
                                   ),
                                 ],
                               ],
                             ),
                           ),
-                          Icon(Icons.edit_calendar_outlined,
-                              size: 18, color: AppTheme.textTertiary),
+                          Icon(
+                            Icons.edit_calendar_outlined,
+                            size: 18,
+                            color: AppTheme.textTertiary,
+                          ),
                         ],
                       ),
                     ),
@@ -1914,20 +1995,26 @@ class _AndroidCreateReminderSheetState
                         : _submit,
                     style: FilledButton.styleFrom(
                       backgroundColor: AppTheme.accent,
-                      disabledBackgroundColor:
-                          AppTheme.accent.withValues(alpha: 0.4),
+                      disabledBackgroundColor: AppTheme.accent.withValues(
+                        alpha: 0.4,
+                      ),
                       shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14)),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
                     ),
                     icon: _loading
                         ? const SizedBox(
                             width: 18,
                             height: 18,
                             child: CircularProgressIndicator(
-                                strokeWidth: 2, color: Colors.white),
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
                           )
-                        : const Icon(Icons.add_alert_outlined,
-                            color: Colors.white),
+                        : const Icon(
+                            Icons.add_alert_outlined,
+                            color: Colors.white,
+                          ),
                     label: Text(
                       _loading ? 'Wird erstellt…' : 'Erinnerung erstellen',
                       style: const TextStyle(

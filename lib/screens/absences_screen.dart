@@ -1,10 +1,10 @@
 import 'dart:io';
-import 'dart:math' as math;
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import '../config/app_config.dart';
 import '../services/webuntis_service.dart';
 import '../theme/app_theme.dart';
+import '../utils/error_message.dart';
 import '../widgets/top_bar_actions.dart';
 import 'login_screen.dart';
 
@@ -30,24 +30,46 @@ class _AbsencesScreenState extends State<AbsencesScreen> {
   Future<void> _load({bool forceRefresh = false}) async {
     final cached = widget.service.cachedAbsences;
     if (cached != null && !forceRefresh) {
-      setState(() { _absences = cached; _loading = false; });
+      setState(() {
+        _absences = cached;
+        _loading = false;
+        _error = null;
+      });
       _refreshInBackground();
       return;
     }
-    setState(() { _loading = _absences.isEmpty; _error = null; });
+    setState(() {
+      _loading = _absences.isEmpty;
+      _error = null;
+    });
     try {
-      final absences = await widget.service.getAbsences(forceRefresh: forceRefresh);
-      if (mounted) setState(() { _absences = absences; _loading = false; });
+      final absences = await widget.service.getAbsences(
+        forceRefresh: forceRefresh,
+      );
+      if (mounted)
+        setState(() {
+          _absences = absences;
+          _loading = false;
+        });
     } on WebUntisException catch (e) {
       if (!mounted) return;
       if (e.isAuthError) {
-        Navigator.pushReplacement(context,
-            MaterialPageRoute(builder: (_) => const LoginScreen()));
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const LoginScreen()),
+        );
         return;
       }
-      setState(() { _error = e.message; _loading = false; });
+      setState(() {
+        _error = e.message;
+        _loading = false;
+      });
     } catch (e) {
-      if (mounted) setState(() { _error = '$e'; _loading = false; });
+      if (mounted)
+        setState(() {
+          _error = simplifyErrorMessage(e);
+          _loading = false;
+        });
     }
   }
 
@@ -78,8 +100,10 @@ class _AbsencesScreenState extends State<AbsencesScreen> {
     for (final a in _absences) {
       final dt = a.startDateTime;
       result
-          .putIfAbsent('${AppConfig.monthLabels[dt.month - 1]} ${dt.year}',
-              () => [])
+          .putIfAbsent(
+            '${AppConfig.monthLabels[dt.month - 1]} ${dt.year}',
+            () => [],
+          )
           .add(a);
     }
     return result;
@@ -92,7 +116,7 @@ class _AbsencesScreenState extends State<AbsencesScreen> {
       body: SafeArea(
         child: RefreshIndicator(
           onRefresh: () => _load(forceRefresh: true),
-          color: AppTheme.orange,
+          color: AppTheme.accent,
           child: CustomScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
             slivers: [
@@ -217,7 +241,10 @@ class _AbsencesScreenState extends State<AbsencesScreen> {
                           const SizedBox(height: 14),
                           Text(
                             _error!,
-                            style: TextStyle(color: AppTheme.textSecondary, fontSize: 14),
+                            style: TextStyle(
+                              color: AppTheme.textSecondary,
+                              fontSize: 14,
+                            ),
                             textAlign: TextAlign.center,
                           ),
                           const SizedBox(height: 18),
@@ -225,9 +252,11 @@ class _AbsencesScreenState extends State<AbsencesScreen> {
                             onTap: _load,
                             child: Container(
                               padding: const EdgeInsets.symmetric(
-                                  horizontal: 24, vertical: 12),
+                                horizontal: 24,
+                                vertical: 12,
+                              ),
                               decoration: BoxDecoration(
-                                color: AppTheme.orange,
+                                color: AppTheme.accent,
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: const Text(
@@ -292,16 +321,13 @@ class _AbsencesScreenState extends State<AbsencesScreen> {
                 SliverPadding(
                   padding: const EdgeInsets.fromLTRB(20, 4, 20, 40),
                   sliver: SliverList(
-                    delegate: SliverChildBuilderDelegate(
-                      (_, i) {
-                        final months = _grouped.keys.toList();
-                        return _MonthSection(
-                          month: months[i],
-                          entries: _grouped[months[i]]!,
-                        );
-                      },
-                      childCount: _grouped.length,
-                    ),
+                    delegate: SliverChildBuilderDelegate((_, i) {
+                      final months = _grouped.keys.toList();
+                      return _MonthSection(
+                        month: months[i],
+                        entries: _grouped[months[i]]!,
+                      );
+                    }, childCount: _grouped.length),
                   ),
                 ),
             ],
@@ -327,18 +353,18 @@ class _OverviewCard extends StatelessWidget {
     required this.absenceRate,
   });
 
-  Color _rateColor(double rate) => rate > 10
+  Color _rateColor(double rate) => rate > 20
       ? AppTheme.danger
-      : rate > 5
-          ? AppTheme.warning
-          : AppTheme.tint;
+      : rate > 10
+      ? AppTheme.warning
+      : AppTheme.tint;
 
   @override
   Widget build(BuildContext context) {
-    final excusedFraction =
-        totalHours > 0 ? excusedHours / totalHours : 0.0;
-    final unexcusedFraction =
-        totalHours > 0 ? unexcusedHours / totalHours : 0.0;
+    final excusedFraction = totalHours > 0 ? excusedHours / totalHours : 0.0;
+    final unexcusedFraction = totalHours > 0
+        ? unexcusedHours / totalHours
+        : 0.0;
     final rateFraction = (absenceRate / 100).clamp(0.0, 1.0);
     final rateColor = _rateColor(absenceRate);
 
@@ -355,12 +381,6 @@ class _OverviewCard extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
             child: Row(
               children: [
-                _RingChart(
-                  excusedFraction: excusedFraction,
-                  unexcusedFraction: unexcusedFraction,
-                  total: totalHours,
-                ),
-                const SizedBox(width: 22),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -385,7 +405,7 @@ class _OverviewCard extends StatelessWidget {
                           const SizedBox(width: 10),
                           Expanded(
                             child: _MiniStat(
-                              label: 'Unentsch.',
+                              label: 'Unentschuldigt',
                               value: '$unexcusedHours',
                               color: unexcusedHours > 0
                                   ? AppTheme.danger
@@ -403,10 +423,7 @@ class _OverviewCard extends StatelessWidget {
           ),
 
           // ── Divider ──────────────────────────────────────────────────
-          Divider(
-            height: 1,
-            color: AppTheme.separator.withValues(alpha: 0.25),
-          ),
+          Divider(height: 1, color: AppTheme.separator.withValues(alpha: 0.25)),
 
           // ── Bottom: Fehlquote bar (full school year = 100 %) ─────────
           Padding(
@@ -463,13 +480,21 @@ class _OverviewCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 8),
-                Row(
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 6,
+                  alignment: WrapAlignment.start,
+                  crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
-                    _BarLegend(color: AppTheme.tint, label: '< 5 % Normal'),
-                    const SizedBox(width: 14),
-                    _BarLegend(color: AppTheme.warning, label: '5–10 % Erhöht'),
-                    const SizedBox(width: 14),
-                    _BarLegend(color: AppTheme.danger, label: '> 10 % Kritisch'),
+                    _BarLegend(color: AppTheme.tint, label: '< 10 % Normal'),
+                    _BarLegend(
+                      color: AppTheme.warning,
+                      label: '10–20 % Erhöht',
+                    ),
+                    _BarLegend(
+                      color: AppTheme.danger,
+                      label: '> 20 % Kritisch',
+                    ),
                   ],
                 ),
               ],
@@ -479,124 +504,6 @@ class _OverviewCard extends StatelessWidget {
       ),
     );
   }
-}
-
-class _RingChart extends StatelessWidget {
-  final double excusedFraction;
-  final double unexcusedFraction;
-  final int total;
-
-  const _RingChart({
-    required this.excusedFraction,
-    required this.unexcusedFraction,
-    required this.total,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: 76,
-      height: 76,
-      child: CustomPaint(
-        painter: _RingPainter(
-          excusedFraction: excusedFraction,
-          unexcusedFraction: unexcusedFraction,
-          bgColor: AppTheme.card,
-          excusedColor: AppTheme.tint,
-          unexcusedColor: AppTheme.danger,
-        ),
-        child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                '$total',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w700,
-                  color: AppTheme.textPrimary,
-                  letterSpacing: -0.5,
-                ),
-              ),
-              Text(
-                'Std.',
-                style: TextStyle(
-                  fontSize: 10,
-                  color: AppTheme.textTertiary,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _RingPainter extends CustomPainter {
-  final double excusedFraction;
-  final double unexcusedFraction;
-  final Color bgColor;
-  final Color excusedColor;
-  final Color unexcusedColor;
-
-  const _RingPainter({
-    required this.excusedFraction,
-    required this.unexcusedFraction,
-    required this.bgColor,
-    required this.excusedColor,
-    required this.unexcusedColor,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, size.height / 2);
-    final radius = size.width / 2 - 5;
-    const strokeWidth = 7.0;
-    const startAngle = -math.pi / 2;
-
-    final bgPaint = Paint()
-      ..color = bgColor
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = strokeWidth
-      ..strokeCap = StrokeCap.round;
-
-    canvas.drawCircle(center, radius, bgPaint);
-
-    if (excusedFraction > 0) {
-      final p = Paint()
-        ..color = excusedColor
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = strokeWidth
-        ..strokeCap = StrokeCap.butt;
-      canvas.drawArc(
-        Rect.fromCircle(center: center, radius: radius),
-        startAngle,
-        excusedFraction * 2 * math.pi,
-        false,
-        p,
-      );
-    }
-    if (unexcusedFraction > 0) {
-      final p = Paint()
-        ..color = unexcusedColor
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = strokeWidth
-        ..strokeCap = StrokeCap.butt;
-      canvas.drawArc(
-        Rect.fromCircle(center: center, radius: radius),
-        startAngle + excusedFraction * 2 * math.pi,
-        unexcusedFraction * 2 * math.pi,
-        false,
-        p,
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(_RingPainter old) =>
-      old.excusedFraction != excusedFraction ||
-      old.unexcusedFraction != unexcusedFraction;
 }
 
 class _NumberRow extends StatelessWidget {
@@ -630,10 +537,7 @@ class _NumberRow extends StatelessWidget {
         const SizedBox(height: 2),
         Text(
           label,
-          style: TextStyle(
-            fontSize: 12,
-            color: AppTheme.textTertiary,
-          ),
+          style: TextStyle(fontSize: 12, color: AppTheme.textTertiary),
         ),
       ],
     );
@@ -680,10 +584,7 @@ class _MiniStat extends StatelessWidget {
               ),
               Text(
                 label,
-                style: TextStyle(
-                  fontSize: 10,
-                  color: AppTheme.textTertiary,
-                ),
+                style: TextStyle(fontSize: 10, color: AppTheme.textTertiary),
               ),
             ],
           ),
@@ -732,8 +633,6 @@ class _MonthSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final monthHours = entries.fold(0, (s, a) => s + a.hours);
-    final excusedCount = entries.where((e) => e.isExcused).length;
-    final unexcusedCount = entries.length - excusedCount;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
@@ -762,20 +661,6 @@ class _MonthSection extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 8),
-                // month summary chips
-                if (excusedCount > 0)
-                  _MonthChip(
-                    label: '$excusedCount ✓',
-                    color: AppTheme.tint,
-                  ),
-                if (unexcusedCount > 0) ...[
-                  const SizedBox(width: 4),
-                  _MonthChip(
-                    label: '$unexcusedCount ✗',
-                    color: AppTheme.danger,
-                  ),
-                ],
-                const SizedBox(width: 4),
                 _MonthChip(
                   label: '$monthHours Std.',
                   color: AppTheme.textTertiary,
@@ -785,11 +670,14 @@ class _MonthSection extends StatelessWidget {
           ),
 
           // Absence cards
-          ...entries.asMap().entries.map((e) => Padding(
-                padding: EdgeInsets.only(
-                    bottom: e.key < entries.length - 1 ? 8 : 0),
-                child: _AbsenceCard(entry: e.value),
-              )),
+          ...entries.asMap().entries.map(
+            (e) => Padding(
+              padding: EdgeInsets.only(
+                bottom: e.key < entries.length - 1 ? 8 : 0,
+              ),
+              child: _AbsenceCard(entry: e.value),
+            ),
+          ),
         ],
       ),
     );
@@ -836,113 +724,116 @@ class _AbsenceCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppTheme.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: AppTheme.border.withValues(alpha: 0.3),
-        ),
+        border: Border.all(color: AppTheme.border.withValues(alpha: 0.3)),
       ),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-                    // Row 1: date + status tag + hours
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            entry.dateFormatted,
-                            style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w700,
-                              color: AppTheme.textPrimary,
-                              letterSpacing: -0.3,
-                            ),
-                          ),
-                        ),
-                        // Status tag
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: accent.withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                isExcused
-                                    ? CupertinoIcons.checkmark_circle_fill
-                                    : CupertinoIcons.xmark_circle_fill,
-                                size: 10,
-                                color: accent,
-                              ),
-                              const SizedBox(width: 4),
-                              Text(
-                                isExcused ? 'Entschuldigt' : 'Unentschuldigt',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w600,
-                                  color: accent,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        // Hours badge
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: AppTheme.card,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
-                            '${entry.hours} Std.',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: AppTheme.textSecondary,
-                            ),
-                          ),
-                        ),
-                      ],
+            // Row 1: date + status tag + hours
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    entry.dateFormatted,
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: AppTheme.textPrimary,
+                      letterSpacing: -0.3,
                     ),
-
-                    // Row 2: time (if available)
-                    if (entry.timeFormatted.isNotEmpty) ...[
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          Icon(CupertinoIcons.clock,
-                              size: 12, color: AppTheme.textTertiary),
-                          const SizedBox(width: 5),
-                          Text(
-                            entry.timeFormatted,
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: AppTheme.textSecondary,
-                            ),
-                          ),
-                        ],
+                  ),
+                ),
+                // Status tag
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
+                  decoration: BoxDecoration(
+                    color: accent.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        isExcused
+                            ? CupertinoIcons.checkmark_circle_fill
+                            : CupertinoIcons.xmark_circle_fill,
+                        size: 10,
+                        color: accent,
                       ),
-                    ],
-
-                    // Row 3: details (reason, type, note)
-                    if (_hasDetails) ...[
-                      const SizedBox(height: 10),
-                      Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: AppTheme.card,
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Column(
-                          children: _buildDetails(),
+                      const SizedBox(width: 4),
+                      Text(
+                        isExcused ? 'Entschuldigt' : 'Unentschuldigt',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: accent,
                         ),
                       ),
                     ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                // Hours badge
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppTheme.card,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    '${entry.hours} Std.',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: AppTheme.textSecondary,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+
+            // Row 2: time (if available)
+            if (entry.timeFormatted.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Icon(
+                    CupertinoIcons.clock,
+                    size: 12,
+                    color: AppTheme.textTertiary,
+                  ),
+                  const SizedBox(width: 5),
+                  Text(
+                    entry.timeFormatted,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: AppTheme.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+
+            // Row 3: details (reason, type, note)
+            if (_hasDetails) ...[
+              const SizedBox(height: 10),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AppTheme.card,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Column(children: _buildDetails()),
+              ),
+            ],
           ],
         ),
       ),
@@ -964,8 +855,13 @@ class _AbsenceCard extends StatelessWidget {
     if (entry.note != null)
       items.add(_Detail(CupertinoIcons.pencil, 'Notiz', entry.note!));
     if (entry.excuseNote != null)
-      items.add(_Detail(
-          CupertinoIcons.checkmark_shield, 'Entschuldigung', entry.excuseNote!));
+      items.add(
+        _Detail(
+          CupertinoIcons.checkmark_shield,
+          'Entschuldigung',
+          entry.excuseNote!,
+        ),
+      );
 
     return items.asMap().entries.map((e) {
       final isLast = e.key == items.length - 1;
@@ -974,18 +870,19 @@ class _AbsenceCard extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(e.value.icon, size: 12, color: AppTheme.textTertiary),
-            const SizedBox(width: 7),
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Icon(e.value.icon, size: 14, color: AppTheme.textTertiary),
+            ),
+            const SizedBox(width: 6),
             SizedBox(
-              width: 84,
+              width: 78,
               child: Text(
                 e.value.label,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: AppTheme.textSecondary,
-                ),
+                style: TextStyle(fontSize: 12, color: AppTheme.textSecondary),
               ),
             ),
+            const SizedBox(width: 4),
             Expanded(
               child: Text(
                 e.value.value,

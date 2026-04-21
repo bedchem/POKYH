@@ -5,6 +5,7 @@ import 'package:flutter/cupertino.dart';
 import '../config/app_config.dart';
 import '../services/webuntis_service.dart';
 import '../theme/app_theme.dart';
+import '../utils/error_message.dart';
 import '../widgets/top_bar_actions.dart';
 import 'login_screen.dart';
 
@@ -70,7 +71,7 @@ class _GradesScreenState extends State<GradesScreen> {
     } catch (e) {
       if (mounted) {
         setState(() {
-          _error = '$e';
+          _error = simplifyErrorMessage(e);
           _loading = false;
         });
       }
@@ -197,29 +198,44 @@ class _GradesScreenState extends State<GradesScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(
-                    CupertinoIcons.exclamationmark_triangle_fill,
-                    color: AppTheme.danger,
-                    size: 28,
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    _error!,
-                    style: TextStyle(color: AppTheme.textSecondary),
+                  Container(
+                    width: 56,
+                    height: 56,
+                    decoration: BoxDecoration(
+                      color: AppTheme.danger.withValues(alpha: 0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Center(
+                      child: Icon(
+                        CupertinoIcons.exclamationmark_triangle_fill,
+                        color: AppTheme.danger,
+                        size: 24,
+                      ),
+                    ),
                   ),
                   const SizedBox(height: 14),
+                  Text(
+                    _error!,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: AppTheme.textSecondary),
+                  ),
+                  const SizedBox(height: 18),
                   CupertinoButton(
-                    color: AppTheme.accent,
-                    borderRadius: BorderRadius.circular(10),
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 8,
+                      horizontal: 16,
+                      vertical: 7,
                     ),
+                    color: AppTheme.accent,
+                    borderRadius: BorderRadius.circular(9),
                     minimumSize: Size.zero,
                     onPressed: _load,
                     child: const Text(
                       'Erneut versuchen',
-                      style: TextStyle(fontSize: 14),
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
                     ),
                   ),
                 ],

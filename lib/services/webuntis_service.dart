@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config/app_config.dart';
+import '../utils/error_message.dart';
 
 class WebUntisException implements Exception {
   final String message;
@@ -162,7 +163,7 @@ class WebUntisService {
 
       if (response.statusCode != 200) return false;
 
-      final data = jsonDecode(response.body);
+      final data = _parseJsonResponse(response.body);
       if (data['result'] == null) return false;
 
       final result = data['result'];
@@ -195,7 +196,7 @@ class WebUntisService {
       );
     } catch (e) {
       if (e is WebUntisException) rethrow;
-      throw WebUntisException('Netzwerkfehler: $e');
+      throw WebUntisException('Netzwerkfehler: ${simplifyErrorMessage(e)}');
     }
   }
 
@@ -269,6 +270,29 @@ class WebUntisService {
     } catch (_) {}
   }
 
+  Future<bool> validateSession() async {
+    final prefs = await SharedPreferences.getInstance();
+    final lastActiveMs = prefs.getInt(_kSessionLastActiveTimeKey);
+    if (lastActiveMs != null &&
+        DateTime.now().difference(
+              DateTime.fromMillisecondsSinceEpoch(lastActiveMs),
+            ) >=
+            _sessionExpirationAfterClose) {
+      await clearSession();
+      return false;
+    }
+
+    if (_sessionId == null) return false;
+    try {
+      await _rpc('getCurrentSchoolyear', {});
+      return true;
+    } on WebUntisException catch (e) {
+      return !e.isAuthError;
+    } catch (_) {
+      return true;
+    }
+  }
+
   List<TimeGridUnit> get timeGrid => _timeGrid ?? [];
 
   String? getLessonNumber(int startTime) {
@@ -313,6 +337,18 @@ class WebUntisService {
 
   // ── SESSION PERSISTENCE ───────────────────────────────────────────────────
 
+  static const String _kSessionLastActiveTimeKey =
+      'session_last_active_time_v1';
+  static const Duration _sessionExpirationAfterClose = Duration(minutes: 1);
+
+  Future<void> _touchLastActiveTime([SharedPreferences? prefs]) async {
+    final instance = prefs ?? await SharedPreferences.getInstance();
+    await instance.setInt(
+      _kSessionLastActiveTimeKey,
+      DateTime.now().millisecondsSinceEpoch,
+    );
+  }
+
   Future<void> saveSession() async {
     final prefs = await SharedPreferences.getInstance();
     if (_sessionId != null) await prefs.setString('sessionId', _sessionId!);
@@ -326,6 +362,7 @@ class WebUntisService {
       await prefs.setInt('schoolYearId', _schoolYearId!);
     }
     if (_username != null) await prefs.setString('username', _username!);
+    await _touchLastActiveTime(prefs);
   }
 
   Future<bool> restoreSession() async {
@@ -341,10 +378,21 @@ class WebUntisService {
 
       if (_sessionId == null || _studentId == null) return false;
 
+      final lastActiveMs = prefs.getInt(_kSessionLastActiveTimeKey);
+      if (lastActiveMs != null &&
+          DateTime.now().difference(
+                DateTime.fromMillisecondsSinceEpoch(lastActiveMs),
+              ) >=
+              _sessionExpirationAfterClose) {
+        await clearSession();
+        return false;
+      }
+
       // Pre-warm caches from disk immediately — no network needed.
       _loadGradesDiskCache(prefs);
       _loadTimetableDiskCache(prefs);
       await _loadReadMessageIds();
+      await _touchLastActiveTime(prefs);
 
       // Refresh bearer token in the background so the first timetable load
       // is not blocked. If the saved bearer is still valid it will be used
@@ -379,6 +427,7 @@ class WebUntisService {
     await prefs.remove('klasseName');
     await prefs.remove('schoolYearId');
     await prefs.remove('username');
+    await prefs.remove(_kSessionLastActiveTimeKey);
   }
 
   // ── TIMETABLE ─────────────────────────────────────────────────────────────
@@ -411,7 +460,7 @@ class WebUntisService {
         throw WebUntisException('Fehler beim Laden des Stundenplans');
       }
 
-      final data = jsonDecode(response.body);
+      final data = _parseJsonResponse(response.body);
       final resultData = data['data']?['result']?['data'];
       if (resultData == null) {
         _cacheTimetable(start, []);
@@ -446,7 +495,7 @@ class WebUntisService {
       throw WebUntisException('Verbindung abgelaufen');
     } catch (e) {
       if (e is WebUntisException) rethrow;
-      throw WebUntisException('Netzwerkfehler: $e');
+      throw WebUntisException('Netzwerkfehler: ${simplifyErrorMessage(e)}');
     }
   }
 
@@ -523,7 +572,9 @@ class WebUntisService {
       throw WebUntisException('Verbindung abgelaufen');
     } catch (e) {
       if (e is WebUntisException) rethrow;
-      throw WebUntisException('Fehler beim Laden der Noten: $e');
+      throw WebUntisException(
+        'Fehler beim Laden der Noten: ${simplifyErrorMessage(e)}',
+      );
     }
   }
 
@@ -546,7 +597,7 @@ class WebUntisService {
 
       if (response.statusCode != 200) return null;
 
-      final gradeData = jsonDecode(response.body);
+      final gradeData = _parseJsonResponse(response.body);
       final grades = gradeData['data']?['grades'] as List? ?? [];
 
       final gradeEntries = grades
@@ -589,8 +640,7 @@ class WebUntisService {
 
     final now = DateTime.now();
     final startYear = now.month >= 9 ? now.year : now.year - 1;
-    final startDate =
-        '${startYear}0901';
+    final startDate = '${startYear}0901';
     final endDate =
         '${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}';
 
@@ -615,7 +665,7 @@ class WebUntisService {
         throw WebUntisException('Fehler beim Laden der Abwesenheiten');
       }
 
-      final body = jsonDecode(response.body);
+      final body = _parseJsonResponse(response.body);
       final data = body['data'];
       final List raw =
           (data is Map ? (data['absences'] ?? data['absence'] ?? data) : body)
@@ -637,7 +687,9 @@ class WebUntisService {
       throw WebUntisException('Sitzung abgelaufen', isAuthError: true);
     } catch (e) {
       if (e is WebUntisException) rethrow;
-      throw WebUntisException('Fehler beim Laden der Abwesenheiten: $e');
+      throw WebUntisException(
+        'Fehler beim Laden der Abwesenheiten: ${simplifyErrorMessage(e)}',
+      );
     }
   }
 
@@ -675,7 +727,7 @@ class WebUntisService {
         return [];
       }
 
-      final data = jsonDecode(response.body);
+      final data = _parseJsonResponse(response.body);
       final list = data['data']?['homeworks'] as List? ?? [];
       final entries = list
           .map((h) => HomeworkEntry.fromJson(h as Map<String, dynamic>))
@@ -729,7 +781,7 @@ class WebUntisService {
         throw WebUntisException('Fehler beim Laden der Mitteilungen');
       }
 
-      final data = jsonDecode(response.body);
+      final data = _parseJsonResponse(response.body);
       final messages = _applyLocalReadState(_parseMessageList(data));
       _messagesCache = _CachedData(messages);
       return messages;
@@ -737,7 +789,9 @@ class WebUntisService {
       throw WebUntisException('Verbindung abgelaufen');
     } catch (e) {
       if (e is WebUntisException) rethrow;
-      throw WebUntisException('Fehler beim Laden der Mitteilungen: $e');
+      throw WebUntisException(
+        'Fehler beim Laden der Mitteilungen: ${simplifyErrorMessage(e)}',
+      );
     }
   }
 
@@ -765,12 +819,11 @@ class WebUntisService {
         throw WebUntisException('Fehler beim Laden der Nachricht');
       }
 
-      final data = jsonDecode(response.body);
+      final data = _parseJsonResponse(response.body);
       // Unwrap server envelope: {"data": {...}} → use inner map.
       final Map<String, dynamic> messageJson;
       if (data is Map<String, dynamic>) {
-        messageJson =
-            (data['data'] as Map<String, dynamic>?) ?? data;
+        messageJson = (data['data'] as Map<String, dynamic>?) ?? data;
       } else {
         messageJson = {};
       }
@@ -786,7 +839,9 @@ class WebUntisService {
       throw WebUntisException('Verbindung abgelaufen');
     } catch (e) {
       if (e is WebUntisException) rethrow;
-      throw WebUntisException('Fehler beim Laden der Nachricht: $e');
+      throw WebUntisException(
+        'Fehler beim Laden der Nachricht: ${simplifyErrorMessage(e)}',
+      );
     }
   }
 
@@ -820,13 +875,15 @@ class WebUntisService {
           continue;
         }
 
-        final data = jsonDecode(response.body);
+        final data = _parseJsonResponse(response.body);
         final list = _extractAttachmentList(data);
         if (list.isEmpty) continue;
 
         return list
             .whereType<Map>()
-            .map((a) => MessageAttachment.fromJson(Map<String, dynamic>.from(a)))
+            .map(
+              (a) => MessageAttachment.fromJson(Map<String, dynamic>.from(a)),
+            )
             .toList();
       }
 
@@ -890,14 +947,16 @@ class WebUntisService {
     required int attachmentId,
     required String fileName,
     String? directUrl,
+    String? storageId,
   }) async {
+    if (!_isValidBearerToken(_bearerToken)) {
+      await _fetchBearerToken();
+    }
     if (_bearerToken == null) {
       throw WebUntisException('Nicht angemeldet', isAuthError: true);
     }
 
-    final baseUri = Uri.parse(
-      _baseUrl.endsWith('/') ? _baseUrl : '$_baseUrl/',
-    );
+    final baseUri = Uri.parse(_baseUrl.endsWith('/') ? _baseUrl : '$_baseUrl/');
 
     String? normalizedDirectUrl;
     if (directUrl != null && directUrl.trim().isNotEmpty) {
@@ -907,14 +966,30 @@ class WebUntisService {
           : baseUri.resolve(trimmed).toString();
     }
 
-    final candidates = <String>[
-      if (attachmentId > 0)
-        '$_baseUrl/api/rest/view/v1/messages/$messageId/attachments/$attachmentId',
-      if (attachmentId > 0)
-        '$_baseUrl/api/rest/view/v1/messages/$messageId/attachments/$attachmentId/content',
-    ];
+    final candidates = <String>[];
     if (normalizedDirectUrl != null) {
-      candidates.insert(0, normalizedDirectUrl);
+      candidates.add(normalizedDirectUrl);
+    }
+
+    if (storageId != null && storageId.isNotEmpty) {
+      candidates.add(
+        '$_baseUrl/api/rest/view/v1/messages/$messageId/attachments/$storageId',
+      );
+      candidates.add(
+        '$_baseUrl/api/rest/view/v1/messages/$messageId/attachments/$storageId/content',
+      );
+      candidates.add(
+        '$_baseUrl/api/rest/view/v1/messages/$messageId/storage/$storageId',
+      );
+    }
+
+    if (attachmentId > 0) {
+      candidates.add(
+        '$_baseUrl/api/rest/view/v1/messages/$messageId/attachments/$attachmentId',
+      );
+      candidates.add(
+        '$_baseUrl/api/rest/view/v1/messages/$messageId/attachments/$attachmentId/content',
+      );
     }
 
     if (candidates.isEmpty) {
@@ -925,6 +1000,58 @@ class WebUntisService {
       'Authorization': 'Bearer $_bearerToken',
       'Cookie': _cookieHeader,
     };
+
+    // Encrypted S3 downloads may require a signed storage URL plus custom headers.
+    if (storageId != null && storageId.isNotEmpty) {
+      try {
+        final infoUrl =
+            '$_baseUrl/api/rest/view/v1/messages/$messageId/attachmentstorageurl';
+        final infoResponse = await _client
+            .get(Uri.parse(infoUrl), headers: headers)
+            .timeout(AppConfig.downloadTimeout);
+
+        if (infoResponse.statusCode == 200) {
+          final infoJson = jsonDecode(infoResponse.body);
+          final downloadUrl = infoJson['downloadUrl']?.toString();
+          final additionalHeaders = infoJson['additionalHeaders'] as List?;
+
+          if (downloadUrl != null && downloadUrl.isNotEmpty) {
+            final request = http.Request('GET', Uri.parse(downloadUrl));
+
+            if (additionalHeaders != null) {
+              for (final item in additionalHeaders) {
+                if (item is Map) {
+                  item.forEach((key, value) {
+                    if (key is String && value != null) {
+                      request.headers[key] = value.toString();
+                    }
+                  });
+                }
+              }
+            }
+
+            final streamResponse = await request.send().timeout(
+              AppConfig.downloadTimeout,
+            );
+            if (streamResponse.statusCode == 200) {
+              final bytes = await streamResponse.stream.toBytes();
+              if (bytes.isNotEmpty) {
+                final dir = await getTemporaryDirectory();
+                final safeName = fileName.replaceAll(
+                  RegExp(r'[/\\:*?"<>|]'),
+                  '_',
+                );
+                final file = File('${dir.path}/$safeName');
+                await file.writeAsBytes(bytes);
+                return file.path;
+              }
+            }
+          }
+        }
+      } catch (_) {
+        // Continue with fallback URL candidates.
+      }
+    }
 
     http.Response? lastResponse;
     for (final urlString in candidates) {
@@ -938,8 +1065,9 @@ class WebUntisService {
         }
 
         final contentType = response.headers['content-type'] ?? '';
-        if (response.statusCode == 200 && !contentType.contains('text/html')) {
-          // Success — save to temp dir and return path.
+        if (response.statusCode == 200 &&
+            !contentType.contains('text/html') &&
+            response.bodyBytes.isNotEmpty) {
           final dir = await getTemporaryDirectory();
           final safeName = fileName.replaceAll(RegExp(r'[/\\:*?"<>|]'), '_');
           final file = File('${dir.path}/$safeName');
@@ -947,7 +1075,6 @@ class WebUntisService {
           return file.path;
         }
 
-        // HTML redirect or non-200: remember for error message, try next.
         lastResponse = response;
       } on WebUntisException {
         rethrow;
@@ -958,7 +1085,6 @@ class WebUntisService {
       }
     }
 
-    // All candidates failed.
     if (lastResponse != null) {
       final ct = lastResponse.headers['content-type'] ?? '';
       if (ct.contains('text/html')) {
@@ -1124,13 +1250,19 @@ class WebUntisService {
 
   // ── TIMETABLE DISK CACHE ──────────────────────────────────────────────────
 
-  void _saveTimetableDiskCache(DateTime weekStart, List<TimetableEntry> entries) async {
+  void _saveTimetableDiskCache(
+    DateTime weekStart,
+    List<TimetableEntry> entries,
+  ) async {
     try {
       final key = _weekKey(weekStart);
       final prefs = await SharedPreferences.getInstance();
       final encoded = jsonEncode(entries.map((e) => e.toJson()).toList());
       await prefs.setString('$_kTimetableCachePrefix$key', encoded);
-      await prefs.setInt('$_kTimetableCacheTimePrefix$key', DateTime.now().millisecondsSinceEpoch);
+      await prefs.setInt(
+        '$_kTimetableCacheTimePrefix$key',
+        DateTime.now().millisecondsSinceEpoch,
+      );
     } catch (_) {}
   }
 
@@ -1166,10 +1298,13 @@ class WebUntisService {
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove(_kGradesCacheKey);
       await prefs.remove(_kGradesCacheTimeKey);
-      final timetableKeys = prefs.getKeys()
-          .where((k) =>
-              k.startsWith(_kTimetableCachePrefix) ||
-              k.startsWith(_kTimetableCacheTimePrefix))
+      final timetableKeys = prefs
+          .getKeys()
+          .where(
+            (k) =>
+                k.startsWith(_kTimetableCachePrefix) ||
+                k.startsWith(_kTimetableCacheTimePrefix),
+          )
           .toList();
       for (final k in timetableKeys) {
         await prefs.remove(k);
@@ -1178,6 +1313,14 @@ class WebUntisService {
   }
 
   // ── HELPERS ───────────────────────────────────────────────────────────────
+
+  dynamic _parseJsonResponse(String responseBody) {
+    final trimmed = responseBody.trimLeft();
+    if (trimmed.startsWith('<')) {
+      throw WebUntisException('Sitzung abgelaufen', isAuthError: true);
+    }
+    return jsonDecode(responseBody);
+  }
 
   Future<dynamic> _rpc(String method, Map<String, dynamic> params) async {
     if (_sessionId == null) {
@@ -1204,7 +1347,7 @@ class WebUntisService {
       throw WebUntisException('Server-Fehler: ${response.statusCode}');
     }
 
-    final data = jsonDecode(response.body);
+    final data = _parseJsonResponse(response.body);
     if (data['error'] != null) {
       final code = data['error']['code'];
       if (code == -8520 || code == -8509) {
@@ -1805,6 +1948,25 @@ class MessageDetail {
         _coerceList(j['data']) ??
         const [];
 
+    final normalAttachments = attachmentList
+        .whereType<Map>()
+        .map((a) => MessageAttachment.fromJson(Map<String, dynamic>.from(a)))
+        .toList();
+
+    final storageList = (j['storageAttachments'] as List? ?? [])
+        .whereType<Map>()
+        .toList();
+    final storageAttachments = storageList
+        .map(
+          (a) =>
+              MessageAttachment.fromStorageJson(Map<String, dynamic>.from(a)),
+        )
+        .toList();
+
+    final allAttachments = normalAttachments.isNotEmpty
+        ? normalAttachments
+        : storageAttachments;
+
     return MessageDetail(
       id: (j['id'] ?? 0) as int,
       subject: (j['subject'] ?? j['title'] ?? '').toString(),
@@ -1813,10 +1975,7 @@ class MessageDetail {
       senderId: senderId,
       sentDate: sentDate,
       isRead: (j['isRead'] ?? j['read'] ?? true) == true,
-      attachments: attachmentList
-          .whereType<Map>()
-          .map((a) => MessageAttachment.fromJson(Map<String, dynamic>.from(a)))
-          .toList(),
+      attachments: allAttachments,
     );
   }
 
@@ -1846,12 +2005,14 @@ class MessageDetail {
 
 class MessageAttachment {
   final int id;
+  final String storageId;
   final String name;
   final String? url;
   final int? size;
 
   const MessageAttachment({
     required this.id,
+    this.storageId = '',
     required this.name,
     this.url,
     this.size,
@@ -1868,9 +2029,26 @@ class MessageAttachment {
 
     return MessageAttachment(
       id: parsedId > 0 ? parsedId : _parseIdFromUrl(resolvedUrl),
-      name: (j['name'] ?? j['fileName'] ?? j['originalName'] ?? j['src'] ?? 'Anhang').toString(),
+      storageId: j['storageId']?.toString() ?? '',
+      name:
+          (j['name'] ??
+                  j['fileName'] ??
+                  j['originalName'] ??
+                  j['src'] ??
+                  'Anhang')
+              .toString(),
       url: resolvedUrl,
       size: _parseInt2(j['size'] ?? j['fileSize'] ?? j['length']),
+    );
+  }
+
+  factory MessageAttachment.fromStorageJson(Map<String, dynamic> j) {
+    return MessageAttachment(
+      id: 0,
+      storageId: j['id']?.toString() ?? '',
+      name: j['name']?.toString() ?? 'Anhang',
+      url: null,
+      size: null,
     );
   }
 
@@ -1937,17 +2115,18 @@ class HomeworkEntry {
 
 class AbsenceEntry {
   final int id;
-  final int startDate;   // YYYYMMDD
-  final int endDate;     // YYYYMMDD
-  final int startTime;   // HHMM
-  final int endTime;     // HHMM
+  final int startDate; // YYYYMMDD
+  final int endDate; // YYYYMMDD
+  final int startTime; // HHMM
+  final int endTime; // HHMM
   final bool isExcused;
-  final String? reasonName;   // e.g. "Krankheit", "Sonstige"
-  final String? absenceType;  // e.g. "Vorwegentschuldigung", "Nachentschuldigung"
+  final String? reasonName; // e.g. "Krankheit", "Sonstige"
+  final String?
+  absenceType; // e.g. "Vorwegentschuldigung", "Nachentschuldigung"
   final String? subjectName;
   final String? teacherName;
-  final String? note;         // student note / Bemerkung
-  final String? excuseNote;   // excuse text from teacher
+  final String? note; // student note / Bemerkung
+  final String? excuseNote; // excuse text from teacher
   final int hours;
 
   const AbsenceEntry({
@@ -2010,10 +2189,17 @@ class AbsenceEntry {
       subjectName: clean(j['subject'] ?? j['subjectName']),
       teacherName: clean(j['teacherName'] ?? j['teacher']),
       note: clean(
-        j['text'] ?? j['studentText'] ?? j['comment'] ?? j['note'] ?? j['bemerkung'],
+        j['text'] ??
+            j['studentText'] ??
+            j['comment'] ??
+            j['note'] ??
+            j['bemerkung'],
       ),
       excuseNote: clean(
-        excuse?['text'] ?? excuse?['comment'] ?? j['excuseText'] ?? j['excuseComment'],
+        excuse?['text'] ??
+            excuse?['comment'] ??
+            j['excuseText'] ??
+            j['excuseComment'],
       ),
       hours: parseHours(),
     );

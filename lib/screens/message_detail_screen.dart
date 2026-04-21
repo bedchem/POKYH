@@ -1,9 +1,11 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:open_filex/open_filex.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../services/webuntis_service.dart';
 import '../theme/app_theme.dart';
+import '../utils/error_message.dart';
 import '../widgets/back_swipe_pop_scope.dart';
 
 class MessageDetailScreen extends StatefulWidget {
@@ -78,7 +80,7 @@ class _MessageDetailScreenState extends State<MessageDetailScreen> {
     } catch (e) {
       if (mounted) {
         setState(() {
-          _error = '$e';
+          _error = simplifyErrorMessage(e);
           _loading = false;
         });
       }
@@ -92,7 +94,9 @@ class _MessageDetailScreenState extends State<MessageDetailScreen> {
       _attachmentsFetchFailed = false;
     });
     try {
-      final list = await widget.service.getMessageAttachments(widget.message.id);
+      final list = await widget.service.getMessageAttachments(
+        widget.message.id,
+      );
       if (!mounted) return;
       if (list.isNotEmpty) {
         setState(() {
@@ -182,9 +186,7 @@ class _MessageDetailScreenState extends State<MessageDetailScreen> {
 
   Widget _buildContent() {
     if (_loading) {
-      return const Center(
-        child: CupertinoActivityIndicator(radius: 14),
-      );
+      return const Center(child: CupertinoActivityIndicator(radius: 14));
     }
 
     if (_error != null) {
@@ -211,9 +213,7 @@ class _MessageDetailScreenState extends State<MessageDetailScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  detail.subject.isNotEmpty
-                      ? detail.subject
-                      : '(Kein Betreff)',
+                  detail.subject.isNotEmpty ? detail.subject : '(Kein Betreff)',
                   style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.w700,
@@ -277,7 +277,8 @@ class _MessageDetailScreenState extends State<MessageDetailScreen> {
     final showAttachmentSection =
         attachments.isNotEmpty ||
         _attachmentsLoading ||
-        (widget.message.hasAttachments && (_attachmentsFetchFailed || _attachments == null));
+        (widget.message.hasAttachments &&
+            (_attachmentsFetchFailed || _attachments == null));
 
     return Container(
       width: double.infinity,
@@ -292,16 +293,12 @@ class _MessageDetailScreenState extends State<MessageDetailScreen> {
           if (detail.body.isNotEmpty)
             Padding(
               padding: EdgeInsets.fromLTRB(
-                16, 16, 16, showAttachmentSection ? 12 : 16,
+                16,
+                16,
+                16,
+                showAttachmentSection ? 12 : 16,
               ),
-              child: SelectableText(
-                detail.body,
-                style: TextStyle(
-                  fontSize: 15,
-                  color: AppTheme.textPrimary,
-                  height: 1.5,
-                ),
-              ),
+              child: _BodyWithLinks(body: detail.body),
             ),
 
           // Attachment section
@@ -336,7 +333,10 @@ class _MessageDetailScreenState extends State<MessageDetailScreen> {
                         const SizedBox(width: 6),
                         Text(
                           'Anhänge werden geladen…',
-                          style: TextStyle(fontSize: 12, color: AppTheme.textTertiary),
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: AppTheme.textTertiary,
+                          ),
                         ),
                       ],
                     )
@@ -383,7 +383,9 @@ class _MessageDetailScreenState extends State<MessageDetailScreen> {
               ),
 
             // Retry button when metadata fetch failed
-            if (_attachmentsFetchFailed && attachments.isEmpty && !_attachmentsLoading)
+            if (_attachmentsFetchFailed &&
+                attachments.isEmpty &&
+                !_attachmentsLoading)
               Padding(
                 padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
                 child: Material(
@@ -448,7 +450,8 @@ class _MessageDetailScreenState extends State<MessageDetailScreen> {
                 ),
               ),
 
-            if (_attachmentsLoading || (attachments.isEmpty && !_attachmentsFetchFailed))
+            if (_attachmentsLoading ||
+                (attachments.isEmpty && !_attachmentsFetchFailed))
               const SizedBox(height: 8),
           ],
 
@@ -539,7 +542,8 @@ class _MessageDetailScreenState extends State<MessageDetailScreen> {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    _error ?? 'Nachricht konnte nicht vollständig geladen werden.',
+                    _error ??
+                        'Nachricht konnte nicht vollständig geladen werden.',
                     style: TextStyle(
                       fontSize: 13,
                       color: AppTheme.textSecondary,
@@ -635,22 +639,34 @@ class _AttachmentTileState extends State<_AttachmentTile> {
     if (n.endsWith('.pdf')) {
       return (icon: CupertinoIcons.doc_fill, color: const Color(0xFFE53935));
     }
-    if (n.endsWith('.jpg') || n.endsWith('.jpeg') ||
-        n.endsWith('.png')  || n.endsWith('.gif') ||
-        n.endsWith('.webp') || n.endsWith('.heic')) {
+    if (n.endsWith('.jpg') ||
+        n.endsWith('.jpeg') ||
+        n.endsWith('.png') ||
+        n.endsWith('.gif') ||
+        n.endsWith('.webp') ||
+        n.endsWith('.heic')) {
       return (icon: CupertinoIcons.photo_fill, color: const Color(0xFF1E88E5));
     }
     if (n.endsWith('.doc') || n.endsWith('.docx')) {
-      return (icon: CupertinoIcons.doc_text_fill, color: const Color(0xFF1565C0));
+      return (
+        icon: CupertinoIcons.doc_text_fill,
+        color: const Color(0xFF1565C0),
+      );
     }
     if (n.endsWith('.xls') || n.endsWith('.xlsx')) {
       return (icon: CupertinoIcons.table_fill, color: const Color(0xFF2E7D32));
     }
     if (n.endsWith('.ppt') || n.endsWith('.pptx')) {
-      return (icon: CupertinoIcons.play_rectangle_fill, color: const Color(0xFFE65100));
+      return (
+        icon: CupertinoIcons.play_rectangle_fill,
+        color: const Color(0xFFE65100),
+      );
     }
     if (n.endsWith('.zip') || n.endsWith('.rar') || n.endsWith('.7z')) {
-      return (icon: CupertinoIcons.archivebox_fill, color: const Color(0xFF6D4C41));
+      return (
+        icon: CupertinoIcons.archivebox_fill,
+        color: const Color(0xFF6D4C41),
+      );
     }
     if (n.endsWith('.mp4') || n.endsWith('.mov') || n.endsWith('.avi')) {
       return (icon: CupertinoIcons.film_fill, color: const Color(0xFF6A1B9A));
@@ -670,6 +686,7 @@ class _AttachmentTileState extends State<_AttachmentTile> {
         attachmentId: widget.attachment.id,
         fileName: widget.attachment.name,
         directUrl: widget.attachment.url,
+        storageId: widget.attachment.storageId,
       );
       final result = await OpenFilex.open(path);
       if (result.type != ResultType.done && mounted) {
@@ -678,7 +695,7 @@ class _AttachmentTileState extends State<_AttachmentTile> {
     } on WebUntisException catch (e) {
       if (mounted) _showError(e.message);
     } catch (e) {
-      if (mounted) _showError('Fehler: $e');
+      if (mounted) _showError('Fehler: ${simplifyErrorMessage(e)}');
     } finally {
       if (mounted) setState(() => _downloading = false);
     }
@@ -779,5 +796,81 @@ class _AttachmentTileState extends State<_AttachmentTile> {
     if (bytes < 1024) return '$bytes B';
     if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(0)} KB';
     return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+  }
+}
+
+class _BodyWithLinks extends StatelessWidget {
+  final String body;
+  const _BodyWithLinks({required this.body});
+
+  static final _urlRegex = RegExp(
+    r'https?://[^\s)\]>"]+',
+    caseSensitive: false,
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    final matches = _urlRegex.allMatches(body).toList();
+
+    if (matches.isEmpty) {
+      return SelectableText(
+        body,
+        style: TextStyle(
+          fontSize: 15,
+          color: AppTheme.textPrimary,
+          height: 1.5,
+        ),
+      );
+    }
+
+    final spans = <InlineSpan>[];
+    int cursor = 0;
+
+    for (final match in matches) {
+      if (match.start > cursor) {
+        spans.add(TextSpan(text: body.substring(cursor, match.start)));
+      }
+      final url = match.group(0)!;
+      spans.add(
+        WidgetSpan(
+          alignment: PlaceholderAlignment.baseline,
+          baseline: TextBaseline.alphabetic,
+          child: GestureDetector(
+            onTap: () async {
+              final uri = Uri.tryParse(url);
+              if (uri != null && await canLaunchUrl(uri)) {
+                await launchUrl(uri, mode: LaunchMode.externalApplication);
+              }
+            },
+            child: Text(
+              url,
+              style: TextStyle(
+                fontSize: 15,
+                color: AppTheme.accent,
+                decoration: TextDecoration.underline,
+                decorationColor: AppTheme.accent.withValues(alpha: 0.5),
+                height: 1.5,
+              ),
+            ),
+          ),
+        ),
+      );
+      cursor = match.end;
+    }
+
+    if (cursor < body.length) {
+      spans.add(TextSpan(text: body.substring(cursor)));
+    }
+
+    return SelectableText.rich(
+      TextSpan(
+        style: TextStyle(
+          fontSize: 15,
+          color: AppTheme.textPrimary,
+          height: 1.5,
+        ),
+        children: spans,
+      ),
+    );
   }
 }

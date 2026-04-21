@@ -7,6 +7,7 @@ import '../services/notification_service.dart';
 import '../services/webuntis_service.dart';
 import '../services/dish_service.dart';
 import '../theme/app_theme.dart';
+import '../utils/error_message.dart';
 import 'timetable_screen.dart' show TimetableScreen, TimetableScreenState;
 import 'mensa_screen.dart';
 import 'login_screen.dart';
@@ -41,7 +42,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     _mensaController = MensaScreenController();
     NotificationService().onNewMessages = _showNewMessageBanner;
     NotificationService().startPolling(widget.service);
-    // Trigger update check after the first frame so the UI is fully visible.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Future.delayed(const Duration(milliseconds: 900), _checkForUpdate);
       _fetchUnreadCount();
@@ -104,6 +104,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       // yet — clearing immediately caused Face ID to bug out (double prompt,
       // slow re-auth) because iOS hadn't finished dismissing the app overlay.
       _backgroundedAt = DateTime.now();
+      widget.service.saveSession().ignore();
       NotificationService().stopPolling();
     } else if (state == AppLifecycleState.resumed) {
       final backgroundedAt = _backgroundedAt;
@@ -140,7 +141,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     return index >= 0 ? index : null;
   }
 
-  int _tabForSwipeIndex(int index) => _swipeTabs[index.clamp(0, _swipeTabs.length - 1)];
+  int _tabForSwipeIndex(int index) =>
+      _swipeTabs[index.clamp(0, _swipeTabs.length - 1)];
 
   void _setTab(int tab, {bool animate = true}) {
     if (_tab == tab) return;
@@ -152,7 +154,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
     final syncSwipePage = () {
       if (!_swipePageController.hasClients) return;
-      final current = _swipePageController.page?.round() ?? _swipePageController.initialPage;
+      final current =
+          _swipePageController.page?.round() ??
+          _swipePageController.initialPage;
       if (current == targetSwipeIndex) return;
       if (animate) {
         _swipePageController.animateToPage(
@@ -351,8 +355,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           final screenWidth = MediaQuery.of(context).size.width;
           final delta = details.primaryDelta ?? 0;
           final current = _swipePageController.page ?? _tab.toDouble();
-          final newPage = (current - delta / screenWidth)
-              .clamp(0.0, (_swipeTabs.length - 1).toDouble());
+          final newPage = (current - delta / screenWidth).clamp(
+            0.0,
+            (_swipeTabs.length - 1).toDouble(),
+          );
           _swipePageController.jumpTo(newPage * screenWidth);
           final nearest = newPage.round().clamp(0, _swipeTabs.length - 1);
           if (nearest != _tab) {
@@ -366,9 +372,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           final currentPage = _swipePageController.page ?? _tab.toDouble();
           int targetPage;
           if (velocity < -400) {
-            targetPage = (currentPage.floor() + 1).clamp(0, _swipeTabs.length - 1);
+            targetPage = (currentPage.floor() + 1).clamp(
+              0,
+              _swipeTabs.length - 1,
+            );
           } else if (velocity > 400) {
-            targetPage = (currentPage.ceil() - 1).clamp(0, _swipeTabs.length - 1);
+            targetPage = (currentPage.ceil() - 1).clamp(
+              0,
+              _swipeTabs.length - 1,
+            );
           } else {
             targetPage = currentPage.round().clamp(0, _swipeTabs.length - 1);
           }
@@ -391,77 +403,79 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           );
         },
         child: Container(
-        padding: EdgeInsets.only(bottom: bottomInset + navLayout.bottomPadding),
-        decoration: BoxDecoration(
-          color: AppTheme.surface,
-          border: Border(
-            top: BorderSide(
-              color: AppTheme.border.withValues(alpha: 0.5),
-              width: 0.5,
+          padding: EdgeInsets.only(
+            bottom: bottomInset + navLayout.bottomPadding,
+          ),
+          decoration: BoxDecoration(
+            color: AppTheme.surface,
+            border: Border(
+              top: BorderSide(
+                color: AppTheme.border.withValues(alpha: 0.5),
+                width: 0.5,
+              ),
             ),
           ),
-        ),
-        child: SafeArea(
-          top: false,
-          bottom: false,
-          child: SizedBox(
-            height: navLayout.barHeight,
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Expanded(
-                  child: _TabItem(
-                    layout: navLayout,
-                    icon: CupertinoIcons.house_fill,
-                    label: 'Home',
-                    active: _tab == 0,
-                    onTap: () => _setTab(0),
+          child: SafeArea(
+            top: false,
+            bottom: false,
+            child: SizedBox(
+              height: navLayout.barHeight,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Expanded(
+                    child: _TabItem(
+                      layout: navLayout,
+                      icon: CupertinoIcons.house_fill,
+                      label: 'Home',
+                      active: _tab == 0,
+                      onTap: () => _setTab(0),
+                    ),
                   ),
-                ),
-                Expanded(
-                  child: _TabItem(
-                    layout: navLayout,
-                    icon: CupertinoIcons.calendar,
-                    label: 'Stundenplan',
-                    active: _tab == 1,
-                    onTap: () {
-                      if (_tab == 1) {
-                        final timetableState = _timetableKey.currentState;
-                        if (timetableState != null) {
-                          final now = DateTime.now();
-                          final isWeekend = now.weekday >= 6;
-                          timetableState.jumpToWeekAndDay(
-                            weekOffset: isWeekend ? 1 : 0,
-                            dayIndex: isWeekend ? 0 : now.weekday - 1,
-                          );
+                  Expanded(
+                    child: _TabItem(
+                      layout: navLayout,
+                      icon: CupertinoIcons.calendar,
+                      label: 'Stundenplan',
+                      active: _tab == 1,
+                      onTap: () {
+                        if (_tab == 1) {
+                          final timetableState = _timetableKey.currentState;
+                          if (timetableState != null) {
+                            final now = DateTime.now();
+                            final isWeekend = now.weekday >= 6;
+                            timetableState.jumpToWeekAndDay(
+                              weekOffset: isWeekend ? 1 : 0,
+                              dayIndex: isWeekend ? 0 : now.weekday - 1,
+                            );
+                          }
                         }
-                      }
-                      _setTab(1);
-                    },
+                        _setTab(1);
+                      },
+                    ),
                   ),
-                ),
-                Expanded(
-                  child: _TabItem(
-                    layout: navLayout,
-                    icon: CupertinoIcons.square_grid_2x2_fill,
-                    label: 'Schule',
-                    active: _tab == 2,
-                    onTap: () => _setTab(2),
+                  Expanded(
+                    child: _TabItem(
+                      layout: navLayout,
+                      icon: CupertinoIcons.square_grid_2x2_fill,
+                      label: 'Schule',
+                      active: _tab == 2,
+                      onTap: () => _setTab(2),
+                    ),
                   ),
-                ),
-                Expanded(
-                  child: _TabItem(
-                    layout: navLayout,
-                    icon: CupertinoIcons.flame_fill,
-                    label: 'Mensa',
-                    active: _tab == 3,
-                    onTap: _showMensaTab,
+                  Expanded(
+                    child: _TabItem(
+                      layout: navLayout,
+                      icon: CupertinoIcons.flame_fill,
+                      label: 'Mensa',
+                      active: _tab == 3,
+                      onTap: _showMensaTab,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
-        ),
         ),
       ),
     );
@@ -885,11 +899,7 @@ class _DashboardTabState extends State<_DashboardTab>
     });
 
     _fadeController.reset();
-    await Future.wait([
-      _loadTimetable(),
-      _loadGrades(),
-      _loadMensa(),
-    ]);
+    await Future.wait([_loadTimetable(), _loadGrades(), _loadMensa()]);
     if (mounted) _fadeController.forward();
   }
 
@@ -968,7 +978,7 @@ class _DashboardTabState extends State<_DashboardTab>
     } catch (e) {
       if (mounted) {
         setState(() {
-          _errorTimetable = '$e';
+          _errorTimetable = simplifyErrorMessage(e);
           _loadingTimetable = false;
         });
       }
@@ -991,9 +1001,8 @@ class _DashboardTabState extends State<_DashboardTab>
   Future<void> _loadMensa() async {
     try {
       final dishService = DishService();
-      final dishes = await dishService.fetchFromServer(
-            untisService: widget.service,
-          ) ??
+      final dishes =
+          await dishService.fetchFromServer(untisService: widget.service) ??
           await dishService.loadFromCache(untisService: widget.service);
 
       if (!mounted) return;
@@ -1658,9 +1667,7 @@ class _WeekOverviewCard extends StatelessWidget {
                       width: 38,
                       height: 38,
                       decoration: BoxDecoration(
-                        color: isToday
-                            ? AppTheme.accent
-                            : AppTheme.card,
+                        color: isToday ? AppTheme.accent : AppTheme.card,
                         borderRadius: BorderRadius.circular(20),
                         border: markers.isNotEmpty && !isToday
                             ? Border.all(
@@ -1671,7 +1678,9 @@ class _WeekOverviewCard extends StatelessWidget {
                         boxShadow: isToday
                             ? [
                                 BoxShadow(
-                                  color: AppTheme.accent.withValues(alpha: 0.12),
+                                  color: AppTheme.accent.withValues(
+                                    alpha: 0.12,
+                                  ),
                                   blurRadius: 10,
                                   offset: const Offset(0, 3),
                                 ),
@@ -1884,7 +1893,9 @@ class _DayIconFan extends StatelessWidget {
                       width: chipSize,
                       height: chipSize,
                       decoration: BoxDecoration(
-                        color: iconStyle.$2.withValues(alpha: isToday ? 0.95 : 0.90),
+                        color: iconStyle.$2.withValues(
+                          alpha: isToday ? 0.95 : 0.90,
+                        ),
                         shape: BoxShape.circle,
                         border: Border.all(
                           color: Colors.white.withValues(alpha: 0.75),
@@ -2346,7 +2357,6 @@ class _GradeRow extends StatelessWidget {
   }
 }
 
-
 // ═══════════════════════════════════════════════════════════════════════════════
 //  ERROR CARD
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -2386,7 +2396,11 @@ class _ErrorCard extends StatelessWidget {
             onPressed: onRetry,
             child: const Text(
               'Erneut versuchen',
-              style: TextStyle(fontSize: 13),
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: Colors.white,
+              ),
             ),
           ),
         ],

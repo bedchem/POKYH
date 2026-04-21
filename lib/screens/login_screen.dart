@@ -8,6 +8,7 @@ import 'package:local_auth/local_auth.dart';
 
 import '../services/webuntis_service.dart';
 import '../theme/app_theme.dart';
+import '../utils/error_message.dart';
 import '../services/secure_credential_service.dart';
 import '../services/firebase_auth_service.dart';
 import '../services/notification_service.dart';
@@ -129,7 +130,8 @@ class _LoginScreenState extends State<LoginScreen>
         // aus, die einen Face-ID-Dialog triggert (erster von zwei).
         // Stattdessen: canCheckBiometrics reicht – auf modernen iPhones ist
         // Face ID die verfügbare Biometrie.
-        if (mounted) setState(() => _availableBiometrics = [BiometricType.face]);
+        if (mounted)
+          setState(() => _availableBiometrics = [BiometricType.face]);
       } else {
         final biometrics = await _localAuth.getAvailableBiometrics();
         if (mounted) setState(() => _availableBiometrics = biometrics);
@@ -368,7 +370,7 @@ class _LoginScreenState extends State<LoginScreen>
         _setError('Falscher Benutzername oder Passwort.');
       }
     } catch (e) {
-      if (mounted) _setError(e.toString().replaceAll('Exception:', '').trim());
+      if (mounted) _setError(simplifyErrorMessage(e));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -388,7 +390,9 @@ class _LoginScreenState extends State<LoginScreen>
           if (klasseId != null && klasseName != null && klasseName.isNotEmpty) {
             ReminderService()
                 .autoJoinOrCreateWebuntisClass(klasseName, klasseId)
-                .catchError((e) => debugPrint('[Login] Auto-Klasse Fehler: $e'));
+                .catchError(
+                  (e) => debugPrint('[Login] Auto-Klasse Fehler: $e'),
+                );
           }
         })
         .catchError((e) => debugPrint('[Login] Firebase auth failed: $e'));

@@ -30,8 +30,9 @@ class MensaDishExtender {
       dishes: dishes,
       isHolidayWeek: (monday) async {
         try {
-          final entries =
-              await untisService.getWeekTimetable(weekStart: monday);
+          final entries = await untisService.getWeekTimetable(
+            weekStart: monday,
+          );
           return entries.isEmpty;
         } catch (e) {
           debugPrint('[MensaDishExtender] Ferien-Check Fehler für $monday: $e');
@@ -61,8 +62,9 @@ class MensaDishExtender {
     }
 
     final sortedMondays = byWeek.keys.toList()..sort();
-    final templateCycle =
-        sortedMondays.map((m) => byWeek[m]!).toList(growable: false);
+    final templateCycle = sortedMondays
+        .map((m) => byWeek[m]!)
+        .toList(growable: false);
     final cycleLength = templateCycle.length;
     if (cycleLength == 0) return dishes;
 
@@ -89,12 +91,12 @@ class MensaDishExtender {
       final template = templateCycle[cycleIndex % cycleLength];
       for (final t in template) {
         final offset = (t.date.weekday - 1).clamp(0, 6);
-        final newDate = DateTime(monday.year, monday.month, monday.day)
-            .add(Duration(days: offset));
-        extended.add(t.copyWith(
-          id: '${t.id}_${_dateKey(newDate)}',
-          date: newDate,
-        ));
+        final newDate = DateTime(
+          monday.year,
+          monday.month,
+          monday.day,
+        ).add(Duration(days: offset));
+        extended.add(t.copyWith(date: newDate));
       }
       cycleIndex++;
     }

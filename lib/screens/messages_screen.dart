@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../services/webuntis_service.dart';
 import '../theme/app_theme.dart';
+import '../utils/error_message.dart';
 import 'message_detail_screen.dart';
 
 class MessagesScreen extends StatefulWidget {
@@ -45,7 +46,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
     } catch (e) {
       if (mounted) {
         setState(() {
-          _error = '$e';
+          _error = simplifyErrorMessage(e);
           _loading = false;
         });
       }
@@ -56,10 +57,8 @@ class _MessagesScreenState extends State<MessagesScreen> {
     await Navigator.push(
       context,
       CupertinoPageRoute(
-        builder: (_) => MessageDetailScreen(
-          service: widget.service,
-          message: message,
-        ),
+        builder: (_) =>
+            MessageDetailScreen(service: widget.service, message: message),
       ),
     );
     // Refresh to update read status
@@ -79,53 +78,53 @@ class _MessagesScreenState extends State<MessagesScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-            // Header
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
-              child: Row(
-                children: [
-                  GestureDetector(
-                    onTap: () => Navigator.pop(context),
-                    child: Container(
-                      width: 36,
-                      height: 36,
-                      decoration: BoxDecoration(
-                        color: AppTheme.surface,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Icon(
-                        CupertinoIcons.back,
-                        color: AppTheme.textPrimary,
-                        size: 18,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      'Mitteilungen',
-                      style: TextStyle(
-                        fontSize: 30,
-                        fontWeight: FontWeight.w700,
-                        color: AppTheme.textPrimary,
-                        letterSpacing: -0.5,
+              // Header
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+                child: Row(
+                  children: [
+                    GestureDetector(
+                      onTap: () => Navigator.pop(context),
+                      child: Container(
+                        width: 36,
+                        height: 36,
+                        decoration: BoxDecoration(
+                          color: AppTheme.surface,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Icon(
+                          CupertinoIcons.back,
+                          color: AppTheme.textPrimary,
+                          size: 18,
+                        ),
                       ),
                     ),
-                  ),
-                  if (!_loading)
-                    _UnreadBadgeChip(
-                      count: _messages.where((m) => !m.isRead).length,
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'Mitteilungen',
+                        style: TextStyle(
+                          fontSize: 30,
+                          fontWeight: FontWeight.w700,
+                          color: AppTheme.textPrimary,
+                          letterSpacing: -0.5,
+                        ),
+                      ),
                     ),
-                ],
+                    if (!_loading)
+                      _UnreadBadgeChip(
+                        count: _messages.where((m) => !m.isRead).length,
+                      ),
+                  ],
+                ),
               ),
-            ),
 
-            const SizedBox(height: 12),
+              const SizedBox(height: 12),
 
-            // Content
-            Expanded(child: _buildContent()),
-          ],
-        ),
+              // Content
+              Expanded(child: _buildContent()),
+            ],
+          ),
         ),
       ),
     );
@@ -133,16 +132,11 @@ class _MessagesScreenState extends State<MessagesScreen> {
 
   Widget _buildContent() {
     if (_loading && _messages.isEmpty) {
-      return const Center(
-        child: CupertinoActivityIndicator(radius: 14),
-      );
+      return const Center(child: CupertinoActivityIndicator(radius: 14));
     }
 
     if (_error != null && _messages.isEmpty) {
-      return _ErrorView(
-        message: _error!,
-        onRetry: () => _load(force: true),
-      );
+      return _ErrorView(message: _error!, onRetry: () => _load(force: true));
     }
 
     if (_messages.isEmpty) {
@@ -160,10 +154,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
         separatorBuilder: (_, _) => const SizedBox(height: 8),
         itemBuilder: (context, index) {
           final msg = _messages[index];
-          return _MessageTile(
-            message: msg,
-            onTap: () => _openMessage(msg),
-          );
+          return _MessageTile(message: msg, onTap: () => _openMessage(msg));
         },
       ),
     );
@@ -408,11 +399,7 @@ class _EmptyView extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            CupertinoIcons.mail,
-            size: 48,
-            color: AppTheme.textTertiary,
-          ),
+          Icon(CupertinoIcons.mail, size: 48, color: AppTheme.textTertiary),
           const SizedBox(height: 12),
           Text(
             'Keine Mitteilungen',
@@ -425,10 +412,7 @@ class _EmptyView extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             'Neue Nachrichten erscheinen hier',
-            style: TextStyle(
-              fontSize: 13,
-              color: AppTheme.textTertiary,
-            ),
+            style: TextStyle(fontSize: 13, color: AppTheme.textTertiary),
           ),
         ],
       ),
@@ -452,27 +436,41 @@ class _ErrorView extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              CupertinoIcons.exclamationmark_triangle_fill,
-              size: 40,
-              color: AppTheme.warning,
+            Container(
+              width: 56,
+              height: 56,
+              decoration: BoxDecoration(
+                color: AppTheme.danger.withValues(alpha: 0.1),
+                shape: BoxShape.circle,
+              ),
+              child: const Center(
+                child: Icon(
+                  CupertinoIcons.exclamationmark_triangle_fill,
+                  color: AppTheme.danger,
+                  size: 24,
+                ),
+              ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 14),
             Text(
               message,
               textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 14,
-                color: AppTheme.textSecondary,
-              ),
+              style: TextStyle(color: AppTheme.textSecondary, fontSize: 14),
             ),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: 160,
-              height: 44,
-              child: ElevatedButton(
-                onPressed: onRetry,
-                child: const Text('Erneut versuchen'),
+            const SizedBox(height: 18),
+            CupertinoButton(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
+              color: AppTheme.accent,
+              borderRadius: BorderRadius.circular(9),
+              minimumSize: Size.zero,
+              onPressed: onRetry,
+              child: const Text(
+                'Erneut versuchen',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                ),
               ),
             ),
           ],

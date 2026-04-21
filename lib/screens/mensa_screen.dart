@@ -129,7 +129,8 @@ class _MensaScreenState extends State<MensaScreen> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => _DishDetailSheet(dish: dish, username: widget.service?.username),
+      builder: (_) =>
+          _DishDetailSheet(dish: dish, username: widget.service?.username),
     );
   }
 
@@ -211,13 +212,15 @@ class _MensaScreenState extends State<MensaScreen> {
                         width: 56,
                         height: 56,
                         decoration: BoxDecoration(
-                          color: AppTheme.textTertiary.withValues(alpha: 0.1),
+                          color: AppTheme.danger.withValues(alpha: 0.1),
                           shape: BoxShape.circle,
                         ),
-                        child: Icon(
-                          CupertinoIcons.wifi_slash,
-                          color: AppTheme.textTertiary,
-                          size: 26,
+                        child: const Center(
+                          child: Icon(
+                            CupertinoIcons.exclamationmark_triangle_fill,
+                            color: AppTheme.danger,
+                            size: 24,
+                          ),
                         ),
                       ),
                       const SizedBox(height: 16),
@@ -225,22 +228,26 @@ class _MensaScreenState extends State<MensaScreen> {
                         _error!,
                         style: TextStyle(
                           color: AppTheme.textSecondary,
-                          fontSize: 15,
+                          fontSize: 14,
                         ),
                       ),
                       const SizedBox(height: 14),
                       CupertinoButton(
-                        color: AppTheme.accent,
-                        borderRadius: BorderRadius.circular(10),
                         padding: const EdgeInsets.symmetric(
-                          horizontal: 20,
-                          vertical: 8,
+                          horizontal: 16,
+                          vertical: 7,
                         ),
+                        color: AppTheme.accent,
+                        borderRadius: BorderRadius.circular(9),
                         minimumSize: Size.zero,
                         onPressed: _load,
                         child: const Text(
                           'Erneut versuchen',
-                          style: TextStyle(fontSize: 14),
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                          ),
                         ),
                       ),
                     ],
@@ -653,11 +660,14 @@ class _DishDetailSheetState extends State<_DishDetailSheet> {
 
   Future<void> _submitRating(double stars) async {
     if (_submitting) return;
-    setState(() { _submitting = true; _editMode = false; _hoverRating = null; });
+    setState(() {
+      _submitting = true;
+      _editMode = false;
+      _hoverRating = null;
+    });
     try {
-      final username = widget.username ??
-          FirebaseAuthService.instance.username ??
-          'anonym';
+      final username =
+          widget.username ?? FirebaseAuthService.instance.username ?? 'anonym';
       final r = await RatingService.instance.submitRating(
         widget.dish.id,
         stars,
@@ -693,7 +703,8 @@ class _DishDetailSheetState extends State<_DishDetailSheet> {
     }
 
     final isLoggedIn = FirebaseAuthService.instance.userId != null;
-    final showSelector = isLoggedIn && (_userRating == null || _editMode) && !_submitting;
+    final showSelector =
+        isLoggedIn && (_userRating == null || _editMode) && !_submitting;
     final displayHover = _hoverRating ?? 0.0;
 
     return Container(
@@ -791,7 +802,9 @@ class _DishDetailSheetState extends State<_DishDetailSheet> {
                       child: _StarIcon(
                         fillFraction: fraction,
                         color: AppTheme.warning,
-                        emptyColor: AppTheme.textTertiary.withValues(alpha: 0.35),
+                        emptyColor: AppTheme.textTertiary.withValues(
+                          alpha: 0.35,
+                        ),
                         size: _starSize,
                       ),
                     );
@@ -826,7 +839,10 @@ class _DishDetailSheetState extends State<_DishDetailSheet> {
                 children: [
                   Text(
                     'Deine Bewertung: ${_userRating! == _userRating!.roundToDouble() ? _userRating!.toInt() : _userRating!.toStringAsFixed(1)} / 5',
-                    style: TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: AppTheme.textSecondary,
+                    ),
                   ),
                   const SizedBox(width: 6),
                   Text(
@@ -1243,7 +1259,9 @@ class _StarPainter extends CustomPainter {
     // Fill up to fillFraction of the width
     if (fillFraction > 0) {
       canvas.save();
-      canvas.clipRect(Rect.fromLTWH(0, 0, size.width * fillFraction, size.height));
+      canvas.clipRect(
+        Rect.fromLTWH(0, 0, size.width * fillFraction, size.height),
+      );
       canvas.drawPath(
         path,
         Paint()

@@ -13,6 +13,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../config/app_config.dart';
 import '../theme/app_theme.dart';
+import '../utils/error_message.dart';
 
 const _kSnoozedUntilKey = 'update_snoozed_until_ms';
 
@@ -146,9 +147,9 @@ class UpdateService {
         if (tagName != null && tagName.isNotEmpty) {
           final remoteVersion = _normalizeVersion(tagName);
           final rawAssets = data['assets'] as List<dynamic>? ?? const [];
-          final assets = rawAssets
-              .whereType<Map<String, dynamic>>()
-              .toList(growable: false);
+          final assets = rawAssets.whereType<Map<String, dynamic>>().toList(
+            growable: false,
+          );
           return _LatestInfo(
             version: remoteVersion,
             assets: assets,
@@ -201,7 +202,9 @@ class UpdateService {
       _isNewer(remote, local);
 
   @visibleForTesting
-  static Future<Map<String, Object?>?> debugFetchLatestInfo(http.Client client) async {
+  static Future<Map<String, Object?>?> debugFetchLatestInfo(
+    http.Client client,
+  ) async {
     final info = await _fetchLatestInfo(client: client);
     if (info == null) return null;
     return {
@@ -229,8 +232,9 @@ class UpdateService {
   static String _normalizeVersion(String value) =>
       value.trim().replaceFirst(RegExp(r'^[vV]'), '');
 
-  static List<int> _extractVersionNumbers(String value) =>
-      RegExp(r'\d+').allMatches(value).map((m) => int.parse(m.group(0)!)).toList();
+  static List<int> _extractVersionNumbers(String value) => RegExp(
+    r'\d+',
+  ).allMatches(value).map((m) => int.parse(m.group(0)!)).toList();
 
   static _DownloadAsset? _pickNewestAssetByExtension(
     List<Map<String, dynamic>> assets,
@@ -248,7 +252,11 @@ class UpdateService {
           ? DateTime.fromMillisecondsSinceEpoch(0)
           : (DateTime.tryParse(updatedAtRaw) ??
                 DateTime.fromMillisecondsSinceEpoch(0));
-      final candidate = _DownloadAsset(name: name, url: url, updatedAt: updatedAt);
+      final candidate = _DownloadAsset(
+        name: name,
+        url: url,
+        updatedAt: updatedAt,
+      );
 
       if (best == null || candidate.updatedAt.isAfter(best.updatedAt)) {
         best = candidate;
@@ -421,7 +429,7 @@ class _UpdateDialogState extends State<_UpdateDialog> {
       if (mounted) {
         setState(() {
           _phase = _Phase.error;
-          _errorMsg = e.toString();
+          _errorMsg = simplifyErrorMessage(e);
         });
       }
     } finally {

@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../config/app_config.dart';
+import '../utils/error_message.dart';
 import '../models/dish.dart';
 import 'mensa_dish_extender.dart';
 import 'webuntis_service.dart';
@@ -40,7 +41,9 @@ class DishService {
       if (_memoryCache != null && _memoryCache!.isNotEmpty) {
         final dishes = await compute(_parseDishesInBackground, _memoryCache!);
         if (dishes.isNotEmpty) {
-          debugPrint('[DishService] Cache (RAM) geladen: ${dishes.length} Gerichte');
+          debugPrint(
+            '[DishService] Cache (RAM) geladen: ${dishes.length} Gerichte',
+          );
           return _maybeExtend(dishes, untisService);
         }
       }
@@ -71,32 +74,40 @@ class DishService {
     final url = AppConfig.mensaApiUrl;
     debugPrint('[DishService] Fetching: $url');
     try {
-      final response = await http.get(
-        Uri.parse(url),
-        headers: {
-          'Accept': 'application/json',
-          'User-Agent': 'ClassByte/1.0',
-        },
-      ).timeout(_serverTimeout);
+      final response = await http
+          .get(
+            Uri.parse(url),
+            headers: {
+              'Accept': 'application/json',
+              'User-Agent': 'ClassByte/1.0',
+            },
+          )
+          .timeout(_serverTimeout);
 
-      debugPrint('[DishService] Response: ${response.statusCode}, body length: ${response.body.length}');
+      debugPrint(
+        '[DishService] Response: ${response.statusCode}, body length: ${response.body.length}',
+      );
 
       if (response.statusCode == 200 && response.body.isNotEmpty) {
         final dishes = await compute(_parseDishesInBackground, response.body);
         if (dishes.isNotEmpty) {
           _memoryCache = response.body;
-          debugPrint('[DishService] Parsed ${dishes.length} Gerichte vom Server');
+          debugPrint(
+            '[DishService] Parsed ${dishes.length} Gerichte vom Server',
+          );
           // Nicht blockierend schreiben: UI bekommt Daten sofort.
           unawaited(_saveToCache(response.body));
           return _maybeExtend(dishes, untisService);
         } else {
-          debugPrint('[DishService] JSON konnte nicht in Gerichte geparst werden');
+          debugPrint(
+            '[DishService] JSON konnte nicht in Gerichte geparst werden',
+          );
         }
       }
     } on TimeoutException {
       debugPrint('[DishService] Timeout nach ${_serverTimeout.inSeconds}s');
     } on SocketException catch (e) {
-      debugPrint('[DishService] Netzwerkfehler: $e');
+      debugPrint('[DishService] Netzwerkfehler: ${simplifyErrorMessage(e)}');
     } on HandshakeException catch (e) {
       debugPrint('[DishService] SSL-Fehler: $e');
     } catch (e) {

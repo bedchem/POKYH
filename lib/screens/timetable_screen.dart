@@ -3,6 +3,7 @@ import 'package:flutter/cupertino.dart';
 import '../config/app_config.dart';
 import '../services/webuntis_service.dart';
 import '../theme/app_theme.dart';
+import '../utils/error_message.dart';
 import 'login_screen.dart';
 
 // ── Data helpers ──────────────────────────────────────────────────────────────
@@ -208,7 +209,10 @@ class TimetableScreenState extends State<TimetableScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _cache[offset] = _WeekData(state: _LoadState.error, error: '$e');
+        _cache[offset] = _WeekData(
+          state: _LoadState.error,
+          error: simplifyErrorMessage(e),
+        );
       });
     }
   }
@@ -665,7 +669,11 @@ class _WeekPage extends StatelessWidget {
                 onPressed: () => state._retryOffset(offset),
                 child: const Text(
                   'Erneut versuchen',
-                  style: TextStyle(fontSize: 14),
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                  ),
                 ),
               ),
             ],
@@ -1496,8 +1504,7 @@ class _MergedCell extends StatelessWidget {
       highlightColor = (entry.isAdditional && !entry.isSubstitution)
           ? AppTheme.accent
           : AppTheme.orange;
-    } else if (primary.kind == _SlotKind.event ||
-        entry.lessonText.isNotEmpty) {
+    } else if (primary.kind == _SlotKind.event || entry.lessonText.isNotEmpty) {
       highlightColor = AppTheme.tint;
     } else if (hasHomework) {
       highlightColor = AppTheme.accentSoft;

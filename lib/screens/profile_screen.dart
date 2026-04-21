@@ -177,10 +177,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _copyStableUid() {
-    final uid = FirebaseAuthService.instance.stableUid ?? FirebaseAuthService.instance.userId ?? '';
+    final uid =
+        FirebaseAuthService.instance.stableUid ??
+        FirebaseAuthService.instance.userId ??
+        '';
     if (uid.isEmpty) return;
     Clipboard.setData(ClipboardData(text: uid));
-    _showToast('UID kopiert: ${uid.length > 12 ? '${uid.substring(0, 12)}…' : uid}');
+    _showToast(
+      'UID kopiert: ${uid.length > 12 ? '${uid.substring(0, 12)}…' : uid}',
+    );
   }
 
   // ──────────────────────────────────────────────────────────────────────────
@@ -243,10 +248,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
         builder: (ctx) => CupertinoAlertDialog(
           title: Text(AppConfig.appName),
           content: Text(
-                'Version $_appVersion\n\n'
-                'Die All-in-One Schul-App für die ${AppConfig.schoolName}.\n'
-                'Made with <3 by Plattnericus & Ryhox\n\n'
-                '© ${AppConfig.copyrightYear} – MIT Lizenz',
+            'Version $_appVersion\n\n'
+            'Die All-in-One Schul-App für die ${AppConfig.schoolName}.\n'
+            'Made with <3 by Plattnericus & Ryhox\n\n'
+            '© ${AppConfig.copyrightYear} – MIT Lizenz',
           ),
           actions: [
             CupertinoDialogAction(
@@ -673,30 +678,34 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 ),
                               ),
                             ],
-                            Builder(builder: (context) {
-                              final stableUid = FirebaseAuthService.instance.stableUid
-                                  ?? FirebaseAuthService.instance.userId;
-                              if (stableUid == null) return const SizedBox.shrink();
-                              final displayUid = stableUid.length > 16
-                                  ? '${stableUid.substring(0, 8)}…${stableUid.substring(stableUid.length - 4)}'
-                                  : stableUid;
-                              return Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const SizedBox(height: 2),
-                                  GestureDetector(
-                                    onTap: _copyStableUid,
-                                    child: _MetaRow(
-                                      icon: _isIOS
-                                          ? CupertinoIcons.person_badge_minus
-                                          : Icons.fingerprint,
-                                      text: 'UID: $displayUid',
-                                      hint: 'Tippen zum Kopieren',
+                            Builder(
+                              builder: (context) {
+                                final stableUid =
+                                    FirebaseAuthService.instance.stableUid ??
+                                    FirebaseAuthService.instance.userId;
+                                if (stableUid == null)
+                                  return const SizedBox.shrink();
+                                final displayUid = stableUid.length > 16
+                                    ? '${stableUid.substring(0, 8)}…${stableUid.substring(stableUid.length - 4)}'
+                                    : stableUid;
+                                return Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const SizedBox(height: 2),
+                                    GestureDetector(
+                                      onTap: _copyStableUid,
+                                      child: _MetaRow(
+                                        icon: _isIOS
+                                            ? CupertinoIcons.person_badge_minus
+                                            : Icons.fingerprint,
+                                        text: 'UID: $displayUid',
+                                        hint: 'Tippen zum Kopieren',
+                                      ),
                                     ),
-                                  ),
-                                ],
-                              );
-                            }),
+                                  ],
+                                );
+                              },
+                            ),
                             const SizedBox(height: 6),
                             Container(
                               padding: const EdgeInsets.symmetric(
@@ -787,7 +796,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ? CupertinoIcons.trash
                           : Icons.delete_outline,
                       title: 'Cache leeren',
-                      subtitle: 'Gespeicherte Mensa‑Daten entfernen',
+                      subtitle: 'Gespeicherte Daten entfernen',
                       loading: _clearingCache,
                       onTap: _clearingCache ? null : _clearCache,
                     ),
