@@ -567,18 +567,12 @@ class TimetableScreenState extends State<TimetableScreen> {
           const SizedBox(height: 10),
           Row(
             children: [
-              _WeekNavButton(
-                icon: CupertinoIcons.chevron_left,
-                onTap: () => _pageController.previousPage(
-                  duration: const Duration(milliseconds: 350),
-                  curve: Curves.easeInOutCubic,
-                ),
-              ),
-              const SizedBox(width: 10),
               Expanded(
                 child: Text(
                   '${weekStart.day}. ${_months[weekStart.month - 1]} – '
                   '${weekEnd.day}. ${_months[weekEnd.month - 1]} ${weekEnd.year}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w500,
@@ -586,20 +580,13 @@ class TimetableScreenState extends State<TimetableScreen> {
                   ),
                 ),
               ),
+              const SizedBox(width: 16),
               Text(
                 'KW ${_weekNumber(weekStart)}',
                 style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
                   color: AppTheme.textTertiary,
-                ),
-              ),
-              const SizedBox(width: 10),
-              _WeekNavButton(
-                icon: CupertinoIcons.chevron_right,
-                onTap: () => _pageController.nextPage(
-                  duration: const Duration(milliseconds: 350),
-                  curve: Curves.easeInOutCubic,
                 ),
               ),
             ],
@@ -2518,23 +2505,4 @@ class _TimeLabel extends StatelessWidget {
       ),
     );
   }
-}
-
-class _WeekNavButton extends StatelessWidget {
-  final IconData icon;
-  final VoidCallback onTap;
-  const _WeekNavButton({required this.icon, required this.onTap});
-  @override
-  Widget build(BuildContext context) => GestureDetector(
-    onTap: onTap,
-    child: Container(
-      width: 34,
-      height: 34,
-      decoration: BoxDecoration(
-        color: AppTheme.surface,
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Icon(icon, size: 15, color: AppTheme.textSecondary),
-    ),
-  );
 }
