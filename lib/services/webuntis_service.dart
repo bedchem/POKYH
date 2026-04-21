@@ -606,7 +606,7 @@ class WebUntisService {
           .where((g) => g.markValue > 0)
           .toList();
 
-      gradeEntries.sort((a, b) => a.date.compareTo(b.date));
+      gradeEntries.sort((a, b) => b.lastUpdate.compareTo(a.lastUpdate));
 
       return SubjectGrades(
         lessonId: lessonId,
@@ -1155,20 +1155,8 @@ class WebUntisService {
 
     final cached = _messagesCache?.data;
     if (cached == null) return;
-    final updated = cached.map((m) {
-      if (m.id == messageId && !m.isRead) {
-        return MessagePreview(
-          id: m.id,
-          subject: m.subject,
-          contentPreview: m.contentPreview,
-          senderName: m.senderName,
-          senderId: m.senderId,
-          sentDate: m.sentDate,
-          isRead: true,
-          hasAttachments: m.hasAttachments,
-          recipientGroup: m.recipientGroup,
-        );
-      }
+    final updated = cached.map<MessagePreview>((m) {
+      if (m.id == messageId && !m.isRead) return m.copyWith(isRead: true);
       return m;
     }).toList();
     _messagesCache = _CachedData(updated);
@@ -1239,7 +1227,7 @@ class WebUntisService {
     return messageList
         .map((m) => MessagePreview.fromJson(m as Map<String, dynamic>))
         .toList()
-      ..sort((a, b) => b.sentDate.compareTo(a.sentDate));
+      ..sort((a, b) => b.lastUpdate.compareTo(a.lastUpdate));
   }
 
   // ── GRADES DISK CACHE ─────────────────────────────────────────────────────
@@ -1692,6 +1680,7 @@ class GradeEntry {
   final int id;
   final String text;
   final int date;
+  final int lastUpdate;
   final String markName;
   final int markValue;
   final double markDisplayValue;
@@ -1701,6 +1690,7 @@ class GradeEntry {
     required this.id,
     required this.text,
     required this.date,
+    required this.lastUpdate,
     required this.markName,
     required this.markValue,
     required this.markDisplayValue,
@@ -1715,6 +1705,7 @@ class GradeEntry {
       id: j['id'] ?? 0,
       text: j['text']?.toString() ?? '',
       date: j['date'] ?? 0,
+      lastUpdate: (j['lastUpdate'] as num?)?.toInt() ?? 0,
       markName: mark['name']?.toString() ?? '',
       markValue: mark['markValue'] ?? 0,
       markDisplayValue: (mark['markDisplayValue'] as num?)?.toDouble() ?? 0.0,
@@ -1729,6 +1720,7 @@ class GradeEntry {
     id: j['id'] ?? 0,
     text: j['text'] ?? '',
     date: j['date'] ?? 0,
+    lastUpdate: (j['lastUpdate'] as num?)?.toInt() ?? 0,
     markName: j['markName'] ?? '',
     markValue: j['markValue'] ?? 0,
     markDisplayValue: (j['markDisplayValue'] as num?)?.toDouble() ?? 0.0,
@@ -1739,6 +1731,7 @@ class GradeEntry {
     'id': id,
     'text': text,
     'date': date,
+    'lastUpdate': lastUpdate,
     'markName': markName,
     'markValue': markValue,
     'markDisplayValue': markDisplayValue,
@@ -1785,6 +1778,7 @@ class MessagePreview {
   final String senderName;
   final int senderId;
   final DateTime sentDate;
+  final int lastUpdate;
   final bool isRead;
   final bool hasAttachments;
   final String recipientGroup;
@@ -1796,6 +1790,7 @@ class MessagePreview {
     required this.senderName,
     required this.senderId,
     required this.sentDate,
+    required this.lastUpdate,
     required this.isRead,
     required this.hasAttachments,
     required this.recipientGroup,
@@ -1808,6 +1803,7 @@ class MessagePreview {
     String? senderName,
     int? senderId,
     DateTime? sentDate,
+    int? lastUpdate,
     bool? isRead,
     bool? hasAttachments,
     String? recipientGroup,
@@ -1819,6 +1815,7 @@ class MessagePreview {
       senderName: senderName ?? this.senderName,
       senderId: senderId ?? this.senderId,
       sentDate: sentDate ?? this.sentDate,
+      lastUpdate: lastUpdate ?? this.lastUpdate,
       isRead: isRead ?? this.isRead,
       hasAttachments: hasAttachments ?? this.hasAttachments,
       recipientGroup: recipientGroup ?? this.recipientGroup,
@@ -1852,6 +1849,8 @@ class MessagePreview {
       sentDate = DateTime.now();
     }
 
+    final lastUpdate = (j['lastUpdate'] as num?)?.toInt() ?? 0;
+
     return MessagePreview(
       id: (j['id'] ?? 0) as int,
       subject: (j['subject'] ?? j['title'] ?? '').toString(),
@@ -1861,6 +1860,7 @@ class MessagePreview {
       senderName: senderName,
       senderId: senderId,
       sentDate: sentDate,
+      lastUpdate: lastUpdate,
       isRead: (j['isRead'] ?? j['read'] ?? j['readDate'] != null) == true,
       hasAttachments:
           (j['hasAttachments'] ??

@@ -772,11 +772,13 @@ class _RecentGrade {
   final String subject;
   final double value;
   final int date;
+  final int lastUpdate;
   final String type;
   const _RecentGrade({
     required this.subject,
     required this.value,
     required this.date,
+    required this.lastUpdate,
     required this.type,
   });
 }
@@ -937,6 +939,7 @@ class _DashboardTabState extends State<_DashboardTab>
             subject: subject.subjectName,
             value: grade.markDisplayValue,
             date: grade.date,
+            lastUpdate: grade.lastUpdate,
             type: grade.examType,
           ),
         );
@@ -944,7 +947,7 @@ class _DashboardTabState extends State<_DashboardTab>
         count++;
       }
     }
-    allGrades.sort((a, b) => b.date.compareTo(a.date));
+    allGrades.sort((a, b) => b.lastUpdate.compareTo(a.lastUpdate));
     _recentGrades = allGrades.take(3).toList();
     _weekAverage = count > 0 ? sum / count : null;
     _loadingGrades = false;
