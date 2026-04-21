@@ -24,6 +24,7 @@ class NotificationService {
   Timer? _pollTimer;
   WebUntisService? _service;
   Set<int> _knownMessageIds = {};
+  bool _skipNextPollNotification = false;
 
   /// Called once on app startup.
   Future<void> initialize() async {
@@ -214,6 +215,8 @@ class NotificationService {
       debugPrint('FCM foreground message: ${message.notification?.title}');
       final notif = message.notification;
       if (notif != null) {
+        // FCM already shows the notification — suppress the polling duplicate.
+        _skipNextPollNotification = true;
         await _showLocalNotification(
           notif.title ?? 'POKYH',
           notif.body ?? '',
@@ -266,9 +269,11 @@ class NotificationService {
     try {
       final messages = await service.getMessages(forceRefresh: true);
       final currentIds = messages.map((m) => m.id).toSet();
+      debugPrint('[Notifications] Poll: ${currentIds.length} messages, known: ${_knownMessageIds.length}');
 
       final newIds = currentIds.difference(_knownMessageIds);
       if (newIds.isNotEmpty && _knownMessageIds.isNotEmpty) {
+        debugPrint('[Notifications] New message IDs: $newIds');
         final newMessages =
             messages.where((m) => newIds.contains(m.id)).toList();
         final unreadNew = newMessages.where((m) => !m.isRead).toList();
@@ -276,11 +281,18 @@ class NotificationService {
         if (unreadNew.isNotEmpty) {
           final count = unreadNew.length;
           final subject = unreadNew.first.subject;
-          await _showLocalNotification(
-            count == 1 ? 'Neue Mitteilung' : '$count neue Mitteilungen',
-            subject,
-          );
-          onNewMessages?.call(count, unreadNew.first.subject);
+          final suppress = _skipNextPollNotification;
+          _skipNextPollNotification = false;
+          if (!suppress) {
+            debugPrint('[Notifications] Showing poll notification: $count neue');
+            await _showLocalNotification(
+              count == 1 ? 'Neue Mitteilung' : '$count neue Mitteilungen',
+              subject,
+            );
+          } else {
+            debugPrint('[Notifications] Suppressed duplicate poll notification');
+          }
+          onNewMessages?.call(count, subject);
         }
       }
 

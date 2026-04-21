@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -1001,19 +1002,28 @@ class WebUntisService {
       'Cookie': _cookieHeader,
     };
 
-    // Encrypted S3 downloads may require a signed storage URL plus custom headers.
+    // Encrypted S3 downloads: fetch a short-lived pre-signed URL + SSE-C headers.
+    // The attachmentstorageurl endpoint is keyed on the attachment's storageId
+    // (a UUID), not the integer message ID.
     if (storageId != null && storageId.isNotEmpty) {
       try {
         final infoUrl =
-            '$_baseUrl/api/rest/view/v1/messages/$messageId/attachmentstorageurl';
+            '$_baseUrl/api/rest/view/v1/messages/$storageId/attachmentstorageurl';
+        debugPrint('[Download] Fetching storage URL: $infoUrl');
         final infoResponse = await _client
             .get(Uri.parse(infoUrl), headers: headers)
             .timeout(AppConfig.downloadTimeout);
+
+        debugPrint('[Download] Storage URL response: ${infoResponse.statusCode}');
+        debugPrint('[Download] Storage URL body: ${infoResponse.body}');
 
         if (infoResponse.statusCode == 200) {
           final infoJson = jsonDecode(infoResponse.body);
           final downloadUrl = infoJson['downloadUrl']?.toString();
           final additionalHeaders = infoJson['additionalHeaders'] as List?;
+
+          debugPrint('[Download] downloadUrl: $downloadUrl');
+          debugPrint('[Download] additionalHeaders: $additionalHeaders');
 
           if (downloadUrl != null && downloadUrl.isNotEmpty) {
             final request = http.Request('GET', Uri.parse(downloadUrl));
@@ -1021,20 +1031,28 @@ class WebUntisService {
             if (additionalHeaders != null) {
               for (final item in additionalHeaders) {
                 if (item is Map) {
-                  item.forEach((key, value) {
-                    if (key is String && value != null) {
-                      request.headers[key] = value.toString();
-                    }
-                  });
+                  final headerKey = item['key']?.toString();
+                  final headerValue = item['value']?.toString();
+                  // Skip 'host' — the HTTP client sets it automatically from the URL.
+                  if (headerKey != null &&
+                      headerKey.isNotEmpty &&
+                      headerValue != null &&
+                      headerKey.toLowerCase() != 'host') {
+                    debugPrint('[Download] Setting header: $headerKey');
+                    request.headers[headerKey] = headerValue;
+                  }
                 }
               }
             }
 
-            final streamResponse = await request.send().timeout(
+            debugPrint('[Download] Sending S3 request to: $downloadUrl');
+            final streamResponse = await _client.send(request).timeout(
               AppConfig.downloadTimeout,
             );
+            debugPrint('[Download] S3 response status: ${streamResponse.statusCode}');
             if (streamResponse.statusCode == 200) {
               final bytes = await streamResponse.stream.toBytes();
+              debugPrint('[Download] S3 bytes received: ${bytes.length}');
               if (bytes.isNotEmpty) {
                 final dir = await getTemporaryDirectory();
                 final safeName = fileName.replaceAll(
@@ -1043,13 +1061,19 @@ class WebUntisService {
                 );
                 final file = File('${dir.path}/$safeName');
                 await file.writeAsBytes(bytes);
+                debugPrint('[Download] File saved: ${file.path}');
                 return file.path;
               }
+            } else {
+              final body = await streamResponse.stream.bytesToString();
+              debugPrint('[Download] S3 error body: $body');
             }
           }
+        } else {
+          debugPrint('[Download] Storage URL error body: ${infoResponse.body}');
         }
-      } catch (_) {
-        // Continue with fallback URL candidates.
+      } catch (e) {
+        debugPrint('[Download] S3 path failed: $e — trying fallback URLs');
       }
     }
 
@@ -1101,10 +1125,13 @@ class WebUntisService {
   }
 
   Future<void> markMessageAsRead(int messageId) async {
-    if (_bearerToken == null) return;
+    // Always persist locally first — server call is best-effort.
+    await _markReadInCache(messageId);
+    debugPrint('[ReadState] markMessageAsRead $messageId — local state saved');
 
+    if (_bearerToken == null) return;
     try {
-      await _client
+      final resp = await _client
           .post(
             Uri.parse(
               '$_baseUrl/api/rest/view/v1/messages/$messageId/markasread',
@@ -1115,9 +1142,10 @@ class WebUntisService {
             },
           )
           .timeout(_timeout);
-
-      await _markReadInCache(messageId);
-    } catch (_) {}
+      debugPrint('[ReadState] markasread server response: ${resp.statusCode}');
+    } catch (e) {
+      debugPrint('[ReadState] markasread server call failed: $e');
+    }
   }
 
   Future<void> _markReadInCache(int messageId) async {
@@ -1164,6 +1192,7 @@ class WebUntisService {
       final saved = prefs.getStringList(_readIdsKey);
       if (saved == null) {
         _readMessageIds = {};
+        debugPrint('[ReadState] No saved read IDs (key: $_readIdsKey)');
         return;
       }
 
@@ -1172,8 +1201,10 @@ class WebUntisService {
           .whereType<int>()
           .where((id) => id > 0)
           .toSet();
-    } catch (_) {
+      debugPrint('[ReadState] Loaded ${_readMessageIds.length} read IDs from disk');
+    } catch (e) {
       _readMessageIds = {};
+      debugPrint('[ReadState] Load failed: $e');
     }
   }
 
@@ -1184,7 +1215,10 @@ class WebUntisService {
         _readIdsKey,
         (_readMessageIds.map((id) => id.toString()).toList()..sort()),
       );
-    } catch (_) {}
+      debugPrint('[ReadState] Saved ${_readMessageIds.length} read IDs to disk');
+    } catch (e) {
+      debugPrint('[ReadState] Save failed: $e');
+    }
   }
 
   List<MessagePreview> _parseMessageList(dynamic data) {
