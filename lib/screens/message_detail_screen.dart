@@ -124,7 +124,7 @@ class _MessageDetailScreenState extends State<MessageDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final page = Scaffold(
-      backgroundColor: AppTheme.bg,
+      backgroundColor: context.appBg,
       body: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -140,12 +140,12 @@ class _MessageDetailScreenState extends State<MessageDetailScreen> {
                       width: 36,
                       height: 36,
                       decoration: BoxDecoration(
-                        color: AppTheme.surface,
+                        color: context.appSurface,
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: Icon(
                         CupertinoIcons.back,
-                        color: AppTheme.textPrimary,
+                        color: context.appTextPrimary,
                         size: 18,
                       ),
                     ),
@@ -157,7 +157,7 @@ class _MessageDetailScreenState extends State<MessageDetailScreen> {
                       style: TextStyle(
                         fontSize: 17,
                         fontWeight: FontWeight.w600,
-                        color: AppTheme.textPrimary,
+                        color: context.appTextPrimary,
                         letterSpacing: -0.4,
                       ),
                     ),
@@ -206,7 +206,7 @@ class _MessageDetailScreenState extends State<MessageDetailScreen> {
             width: double.infinity,
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: AppTheme.surface,
+              color: context.appSurface,
               borderRadius: BorderRadius.circular(14),
             ),
             child: Column(
@@ -217,7 +217,7 @@ class _MessageDetailScreenState extends State<MessageDetailScreen> {
                   style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.w700,
-                    color: AppTheme.textPrimary,
+                    color: context.appTextPrimary,
                     letterSpacing: -0.3,
                   ),
                 ),
@@ -239,7 +239,7 @@ class _MessageDetailScreenState extends State<MessageDetailScreen> {
                             style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
-                              color: AppTheme.textPrimary,
+                              color: context.appTextPrimary,
                             ),
                           ),
                           const SizedBox(height: 2),
@@ -247,7 +247,7 @@ class _MessageDetailScreenState extends State<MessageDetailScreen> {
                             detail.sentDateFormatted,
                             style: TextStyle(
                               fontSize: 12,
-                              color: AppTheme.textSecondary,
+                              color: context.appTextSecondary,
                             ),
                           ),
                         ],
@@ -283,7 +283,7 @@ class _MessageDetailScreenState extends State<MessageDetailScreen> {
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
-        color: AppTheme.surface,
+        color: context.appSurface,
         borderRadius: BorderRadius.circular(14),
       ),
       child: Column(
@@ -307,7 +307,7 @@ class _MessageDetailScreenState extends State<MessageDetailScreen> {
               Divider(
                 height: 1,
                 thickness: 0.5,
-                color: AppTheme.border.withValues(alpha: 0.5),
+                color: context.appBorder.withValues(alpha: 0.5),
               ),
 
             // Header row
@@ -318,7 +318,7 @@ class _MessageDetailScreenState extends State<MessageDetailScreen> {
                   Icon(
                     CupertinoIcons.paperclip,
                     size: 13,
-                    color: AppTheme.textTertiary,
+                    color: context.appTextTertiary,
                   ),
                   const SizedBox(width: 5),
                   if (_attachmentsLoading)
@@ -335,7 +335,7 @@ class _MessageDetailScreenState extends State<MessageDetailScreen> {
                           'Anhänge werden geladen…',
                           style: TextStyle(
                             fontSize: 12,
-                            color: AppTheme.textTertiary,
+                            color: context.appTextTertiary,
                           ),
                         ),
                       ],
@@ -347,7 +347,7 @@ class _MessageDetailScreenState extends State<MessageDetailScreen> {
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
-                        color: AppTheme.textTertiary,
+                        color: context.appTextTertiary,
                         letterSpacing: 0.2,
                       ),
                     )
@@ -357,7 +357,7 @@ class _MessageDetailScreenState extends State<MessageDetailScreen> {
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
-                        color: AppTheme.textTertiary,
+                        color: context.appTextTertiary,
                         letterSpacing: 0.2,
                       ),
                     ),
@@ -389,7 +389,7 @@ class _MessageDetailScreenState extends State<MessageDetailScreen> {
               Padding(
                 padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
                 child: Material(
-                  color: AppTheme.bg,
+                  color: context.appBg,
                   borderRadius: BorderRadius.circular(12),
                   child: InkWell(
                     onTap: _fetchAttachmentsFallback,
@@ -432,7 +432,7 @@ class _MessageDetailScreenState extends State<MessageDetailScreen> {
                                   'Tippen zum erneuten Laden',
                                   style: TextStyle(
                                     fontSize: 12,
-                                    color: AppTheme.textTertiary,
+                                    color: context.appTextTertiary,
                                   ),
                                 ),
                               ],
@@ -473,7 +473,7 @@ class _MessageDetailScreenState extends State<MessageDetailScreen> {
             width: double.infinity,
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: AppTheme.surface,
+              color: context.appSurface,
               borderRadius: BorderRadius.circular(14),
             ),
             child: Column(
@@ -484,7 +484,7 @@ class _MessageDetailScreenState extends State<MessageDetailScreen> {
                   style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.w700,
-                    color: AppTheme.textPrimary,
+                    color: context.appTextPrimary,
                     letterSpacing: -0.3,
                   ),
                 ),
@@ -504,7 +504,7 @@ class _MessageDetailScreenState extends State<MessageDetailScreen> {
                             style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
-                              color: AppTheme.textPrimary,
+                              color: context.appTextPrimary,
                             ),
                           ),
                           const SizedBox(height: 2),
@@ -512,7 +512,7 @@ class _MessageDetailScreenState extends State<MessageDetailScreen> {
                             msg.sentDateFormatted,
                             style: TextStyle(
                               fontSize: 12,
-                              color: AppTheme.textSecondary,
+                              color: context.appTextSecondary,
                             ),
                           ),
                         ],
@@ -546,7 +546,7 @@ class _MessageDetailScreenState extends State<MessageDetailScreen> {
                         'Nachricht konnte nicht vollständig geladen werden.',
                     style: TextStyle(
                       fontSize: 13,
-                      color: AppTheme.textSecondary,
+                      color: context.appTextSecondary,
                     ),
                   ),
                 ),
@@ -559,14 +559,14 @@ class _MessageDetailScreenState extends State<MessageDetailScreen> {
               width: double.infinity,
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: AppTheme.surface,
+                color: context.appSurface,
                 borderRadius: BorderRadius.circular(14),
               ),
               child: Text(
                 msg.contentPreview,
                 style: TextStyle(
                   fontSize: 15,
-                  color: AppTheme.textPrimary,
+                  color: context.appTextPrimary,
                   height: 1.5,
                 ),
               ),
@@ -719,7 +719,7 @@ class _AttachmentTileState extends State<_AttachmentTile> {
     return Padding(
       padding: const EdgeInsets.only(bottom: 6),
       child: Material(
-        color: AppTheme.bg,
+        color: context.appBg,
         borderRadius: BorderRadius.circular(12),
         child: InkWell(
           onTap: _downloading ? null : _open,
@@ -752,7 +752,7 @@ class _AttachmentTileState extends State<_AttachmentTile> {
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w500,
-                          color: AppTheme.textPrimary,
+                          color: context.appTextPrimary,
                         ),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
@@ -763,7 +763,7 @@ class _AttachmentTileState extends State<_AttachmentTile> {
                           _formatSize(widget.attachment.size!),
                           style: TextStyle(
                             fontSize: 12,
-                            color: AppTheme.textTertiary,
+                            color: context.appTextTertiary,
                           ),
                         ),
                       ],
@@ -817,7 +817,7 @@ class _BodyWithLinks extends StatelessWidget {
         body,
         style: TextStyle(
           fontSize: 15,
-          color: AppTheme.textPrimary,
+          color: context.appTextPrimary,
           height: 1.5,
         ),
       );
@@ -866,7 +866,7 @@ class _BodyWithLinks extends StatelessWidget {
       TextSpan(
         style: TextStyle(
           fontSize: 15,
-          color: AppTheme.textPrimary,
+          color: context.appTextPrimary,
           height: 1.5,
         ),
         children: spans,

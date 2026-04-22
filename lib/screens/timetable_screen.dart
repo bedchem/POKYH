@@ -573,7 +573,7 @@ class TimetableScreenState extends State<TimetableScreen> {
                 style: TextStyle(
                   fontSize: 34,
                   fontWeight: FontWeight.w700,
-                  color: AppTheme.textPrimary,
+                  color: context.appTextPrimary,
                   letterSpacing: -0.5,
                 ),
               ),
@@ -591,7 +591,7 @@ class TimetableScreenState extends State<TimetableScreen> {
                   style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w500,
-                    color: AppTheme.textSecondary,
+                    color: context.appTextSecondary,
                   ),
                 ),
               ),
@@ -601,7 +601,7 @@ class TimetableScreenState extends State<TimetableScreen> {
                 style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
-                  color: AppTheme.textTertiary,
+                  color: context.appTextTertiary,
                 ),
               ),
             ],
@@ -634,7 +634,7 @@ class _WeekPage extends StatelessWidget {
             SizedBox(height: 14),
             Text(
               'Stundenplan wird geladen…',
-              style: TextStyle(color: AppTheme.textSecondary, fontSize: 14),
+              style: TextStyle(color: context.appTextSecondary, fontSize: 14),
             ),
           ],
         ),
@@ -656,7 +656,7 @@ class _WeekPage extends StatelessWidget {
               const SizedBox(height: 10),
               Text(
                 data?.error ?? 'Unbekannter Fehler',
-                style: TextStyle(color: AppTheme.textSecondary),
+                style: TextStyle(color: context.appTextSecondary),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 14),
@@ -685,13 +685,13 @@ class _WeekPage extends StatelessWidget {
     }
 
     if (state._isHolidayWeek(offset)) {
-      return _buildHolidayWeek();
+      return _buildHolidayWeek(context);
     }
 
-    return _buildWeekGrid();
+    return _buildWeekGrid(context);
   }
 
-  Widget _buildHolidayWeek() {
+  Widget _buildHolidayWeek(BuildContext context) {
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -718,26 +718,26 @@ class _WeekPage extends StatelessWidget {
             style: TextStyle(
               fontSize: 30,
               fontWeight: FontWeight.w700,
-              color: AppTheme.textPrimary,
+              color: context.appTextPrimary,
               letterSpacing: -0.5,
             ),
           ),
           const SizedBox(height: 6),
           Text(
             'In dieser Woche ist kein Unterricht.',
-            style: TextStyle(fontSize: 15, color: AppTheme.textSecondary),
+            style: TextStyle(fontSize: 15, color: context.appTextSecondary),
           ),
           const SizedBox(height: 4),
           Text(
             'KW ${state._weekNumber(state._mondayForOffset(offset))} · Genieße die Zeit! ☀️',
-            style: TextStyle(fontSize: 13, color: AppTheme.textTertiary),
+            style: TextStyle(fontSize: 13, color: context.appTextTertiary),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildWeekGrid() {
+  Widget _buildWeekGrid(BuildContext context) {
     final entries = state._cache[offset]?.entries ?? [];
 
     final allTimes = <int>{};
@@ -838,7 +838,7 @@ class _WeekPage extends StatelessWidget {
                                   ? AppTheme.accent.withValues(alpha: 0.8)
                                   : isHoliday
                                   ? AppTheme.orange.withValues(alpha: 0.8)
-                                  : AppTheme.textTertiary,
+                                  : context.appTextTertiary,
                             ),
                           ),
                           const SizedBox(height: 2),
@@ -865,7 +865,7 @@ class _WeekPage extends StatelessWidget {
                                       ? AppTheme.accent
                                       : isHoliday
                                       ? AppTheme.orange
-                                      : AppTheme.textPrimary,
+                                      : context.appTextPrimary,
                                 ),
                               ),
                             ),
@@ -880,11 +880,11 @@ class _WeekPage extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 4),
-        Container(height: 0.5, color: AppTheme.border.withValues(alpha: 0.3)),
+        Container(height: 0.5, color: context.appBorder.withValues(alpha: 0.3)),
         Expanded(
           child: RefreshIndicator(
             color: AppTheme.accent,
-            backgroundColor: AppTheme.surface,
+            backgroundColor: context.appSurface,
             onRefresh: () async {
               state._retryOffset(offset);
               while (state._cache[offset]?.state == _LoadState.loading) {
@@ -1473,9 +1473,9 @@ class _MergedCell extends StatelessWidget {
     // Slightly lighter than before in both themes.
     final cellBg = Color.alphaBlend(
       Colors.white.withValues(
-        alpha: AppTheme.currentBrightness == Brightness.dark ? 0.10 : 0.22,
+        alpha: Theme.of(context).brightness == Brightness.dark ? 0.10 : 0.22,
       ),
-      AppTheme.card,
+      context.appCard,
     );
 
     final bool isSpecial =
@@ -1506,7 +1506,7 @@ class _MergedCell extends StatelessWidget {
 
     final borderColor = isSpecial
         ? (highlightColor ?? AppTheme.accent).withValues(alpha: 0.78)
-        : AppTheme.border.withValues(alpha: 0.25);
+        : context.appBorder.withValues(alpha: 0.25);
     final borderWidth = isSpecial ? 1.6 : 1.1;
 
     // Jede Cell ist tappable, sofern ein Eintrag existiert
@@ -1623,13 +1623,13 @@ class _SlotContent extends StatelessWidget {
     final bool isExam = entry.isExam;
     final Color examTextPrimary = isExam
         ? AppTheme.warning
-        : AppTheme.textPrimary;
+        : context.appTextPrimary;
     final Color examTextSecondary = isExam
         ? AppTheme.warning.withValues(alpha: 0.8)
-        : AppTheme.textSecondary;
+        : context.appTextSecondary;
     final Color examTextTertiary = isExam
         ? AppTheme.warning.withValues(alpha: 0.68)
-        : AppTheme.textTertiary;
+        : context.appTextTertiary;
 
     // Single entry that carries both the original and the new subject
     // inside the same period (Zusatzstunde / Vertretung without a
@@ -1729,7 +1729,7 @@ class _SlotContent extends StatelessWidget {
                                 ? AppTheme.danger
                                 : isReplaced
                                 ? AppTheme.danger.withValues(alpha: 0.65)
-                                : AppTheme.textPrimary),
+                                : context.appTextPrimary),
                       decoration: hideInlineOriginalSubject
                           ? TextDecoration.lineThrough
                           : isReplaced
@@ -1762,7 +1762,7 @@ class _SlotContent extends StatelessWidget {
                                   ? AppTheme.danger.withValues(alpha: 0.82)
                                   : isReplaced
                                   ? AppTheme.danger.withValues(alpha: 0.78)
-                                  : AppTheme.textSecondary),
+                                  : context.appTextSecondary),
                         decoration: isPureSubstitution
                             ? null
                             : isPureAdditional
@@ -1798,7 +1798,7 @@ class _SlotContent extends StatelessWidget {
                                   ? AppTheme.danger.withValues(alpha: 0.82)
                                   : isReplaced
                                   ? AppTheme.danger.withValues(alpha: 0.78)
-                                  : AppTheme.textSecondary),
+                                  : context.appTextSecondary),
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -1844,7 +1844,7 @@ class _SlotContent extends StatelessWidget {
                     Icon(
                       CupertinoIcons.house_fill,
                       size: 11,
-                      color: AppTheme.textTertiary,
+                      color: context.appTextTertiary,
                     ),
                     if (statusIcon != null) const SizedBox(width: 3),
                   ],
@@ -1918,7 +1918,7 @@ class _DetailSheet extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        color: AppTheme.surface,
+        color: context.appSurface,
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 36),
@@ -1931,7 +1931,7 @@ class _DetailSheet extends StatelessWidget {
               width: 36,
               height: 4,
               decoration: BoxDecoration(
-                color: AppTheme.border,
+                color: context.appBorder,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -1973,7 +1973,7 @@ class _DetailSheet extends StatelessWidget {
                         fontWeight: FontWeight.w700,
                         color: hasInlineOriginal
                             ? AppTheme.danger.withValues(alpha: 0.65)
-                            : AppTheme.textPrimary,
+                            : context.appTextPrimary,
                         decoration: hasInlineOriginal
                             ? TextDecoration.lineThrough
                             : null,
@@ -1990,7 +1990,7 @@ class _DetailSheet extends StatelessWidget {
                           fontSize: 13,
                           color: hasInlineOriginal
                               ? AppTheme.danger.withValues(alpha: 0.5)
-                              : AppTheme.textSecondary,
+                              : context.appTextSecondary,
                           decoration: hasInlineOriginal
                               ? TextDecoration.lineThrough
                               : null,
@@ -2043,7 +2043,7 @@ class _DetailSheet extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 20),
-          Container(height: 0.5, color: AppTheme.border.withValues(alpha: 0.4)),
+          Container(height: 0.5, color: context.appBorder.withValues(alpha: 0.4)),
           const SizedBox(height: 16),
           _InfoRow(
             icon: CupertinoIcons.clock,
@@ -2077,7 +2077,7 @@ class _DetailSheet extends StatelessWidget {
             const SizedBox(height: 16),
             Container(
               height: 0.5,
-              color: AppTheme.border.withValues(alpha: 0.4),
+              color: context.appBorder.withValues(alpha: 0.4),
             ),
             const SizedBox(height: 16),
             Row(
@@ -2093,7 +2093,7 @@ class _DetailSheet extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
-                    color: AppTheme.textSecondary,
+                    color: context.appTextSecondary,
                   ),
                 ),
               ],
@@ -2103,14 +2103,14 @@ class _DetailSheet extends StatelessWidget {
               width: double.infinity,
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: AppTheme.card,
+                color: context.appCard,
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Text(
                 entry.lessonText,
                 style: TextStyle(
                   fontSize: 14,
-                  color: AppTheme.textPrimary,
+                  color: context.appTextPrimary,
                   height: 1.4,
                 ),
               ),
@@ -2120,7 +2120,7 @@ class _DetailSheet extends StatelessWidget {
             const SizedBox(height: 16),
             Container(
               height: 0.5,
-              color: AppTheme.border.withValues(alpha: 0.4),
+              color: context.appBorder.withValues(alpha: 0.4),
             ),
             const SizedBox(height: 16),
             Row(
@@ -2136,7 +2136,7 @@ class _DetailSheet extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
-                    color: AppTheme.textSecondary,
+                    color: context.appTextSecondary,
                   ),
                 ),
               ],
@@ -2148,7 +2148,7 @@ class _DetailSheet extends StatelessWidget {
                 padding: const EdgeInsets.all(12),
                 margin: const EdgeInsets.only(bottom: 6),
                 decoration: BoxDecoration(
-                  color: AppTheme.card,
+                  color: context.appCard,
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(
                     color: AppTheme.accent.withValues(alpha: 0.2),
@@ -2161,7 +2161,7 @@ class _DetailSheet extends StatelessWidget {
                       hw.text,
                       style: TextStyle(
                         fontSize: 14,
-                        color: AppTheme.textPrimary,
+                        color: context.appTextPrimary,
                         height: 1.4,
                       ),
                     ),
@@ -2172,14 +2172,14 @@ class _DetailSheet extends StatelessWidget {
                           Icon(
                             CupertinoIcons.calendar,
                             size: 11,
-                            color: AppTheme.textTertiary,
+                            color: context.appTextTertiary,
                           ),
                           const SizedBox(width: 4),
                           Text(
                             'Fällig: ${hw.dueDateFormatted}',
                             style: TextStyle(
                               fontSize: 11,
-                              color: AppTheme.textTertiary,
+                              color: context.appTextTertiary,
                             ),
                           ),
                         ],
@@ -2194,7 +2194,7 @@ class _DetailSheet extends StatelessWidget {
             const SizedBox(height: 16),
             Container(
               height: 0.5,
-              color: AppTheme.border.withValues(alpha: 0.4),
+              color: context.appBorder.withValues(alpha: 0.4),
             ),
             const SizedBox(height: 16),
             Row(
@@ -2214,7 +2214,7 @@ class _DetailSheet extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
-                    color: AppTheme.textSecondary,
+                    color: context.appTextSecondary,
                   ),
                 ),
               ],
@@ -2223,7 +2223,7 @@ class _DetailSheet extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: AppTheme.card,
+                color: context.appCard,
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
                   color: AppTheme.colorForSubject(
@@ -2253,7 +2253,7 @@ class _DetailSheet extends StatelessWidget {
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w700,
-                            color: AppTheme.textPrimary,
+                            color: context.appTextPrimary,
                           ),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
@@ -2285,7 +2285,7 @@ class _DetailSheet extends StatelessWidget {
                       replacement!.lessonText,
                       style: TextStyle(
                         fontSize: 13,
-                        color: AppTheme.textSecondary,
+                        color: context.appTextSecondary,
                       ),
                     ),
                   ],
@@ -2298,7 +2298,7 @@ class _DetailSheet extends StatelessWidget {
             const SizedBox(height: 16),
             Container(
               height: 0.5,
-              color: AppTheme.border.withValues(alpha: 0.4),
+              color: context.appBorder.withValues(alpha: 0.4),
             ),
             const SizedBox(height: 16),
             Row(
@@ -2320,7 +2320,7 @@ class _DetailSheet extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
-                    color: AppTheme.textSecondary,
+                    color: context.appTextSecondary,
                   ),
                 ),
               ],
@@ -2329,7 +2329,7 @@ class _DetailSheet extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: AppTheme.card,
+                color: context.appCard,
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
                   color: AppTheme.colorForSubject(
@@ -2357,7 +2357,7 @@ class _DetailSheet extends StatelessWidget {
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w700,
-                            color: AppTheme.textPrimary,
+                            color: context.appTextPrimary,
                           ),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
@@ -2389,7 +2389,7 @@ class _DetailSheet extends StatelessWidget {
                       entry.lessonText,
                       style: TextStyle(
                         fontSize: 13,
-                        color: AppTheme.textSecondary,
+                        color: context.appTextSecondary,
                       ),
                     ),
                   ],
@@ -2455,13 +2455,13 @@ class _InfoRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Row(
     children: [
-      Icon(icon, size: small ? 12 : 14, color: AppTheme.textTertiary),
+      Icon(icon, size: small ? 12 : 14, color: context.appTextTertiary),
       const SizedBox(width: 8),
       Text(
         '$label  ',
         style: TextStyle(
           fontSize: small ? 12 : 13,
-          color: AppTheme.textTertiary,
+          color: context.appTextTertiary,
         ),
       ),
       Expanded(
@@ -2470,7 +2470,7 @@ class _InfoRow extends StatelessWidget {
           style: TextStyle(
             fontSize: small ? 12 : 13,
             fontWeight: FontWeight.w500,
-            color: valueColor ?? AppTheme.textSecondary,
+            color: valueColor ?? context.appTextSecondary,
           ),
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
@@ -2506,14 +2506,14 @@ class _TimeLabel extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w700,
-                  color: AppTheme.textTertiary,
+                  color: context.appTextTertiary,
                 ),
               ),
             Text(
               '$h:$m',
               style: TextStyle(
                 fontSize: 10,
-                color: AppTheme.textTertiary,
+                color: context.appTextTertiary,
                 fontFeatures: [FontFeature.tabularFigures()],
               ),
             ),

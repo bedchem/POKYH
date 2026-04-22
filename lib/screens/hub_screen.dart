@@ -25,7 +25,7 @@ class HubScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppTheme.bg,
+      backgroundColor: context.appBg,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
@@ -39,7 +39,7 @@ class HubScreen extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 30,
                     fontWeight: FontWeight.w700,
-                    color: AppTheme.textPrimary,
+                    color: context.appTextPrimary,
                     letterSpacing: -0.5,
                   ),
                 ),
@@ -117,7 +117,7 @@ class _HubCardState extends State<_HubCard> {
         child: Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            color: AppTheme.surface,
+            color: context.appSurface,
             borderRadius: BorderRadius.circular(18),
             border: Border.all(
               color: widget.color.withValues(alpha: 0.15),
@@ -144,7 +144,7 @@ class _HubCardState extends State<_HubCard> {
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.w700,
-                        color: AppTheme.textPrimary,
+                        color: context.appTextPrimary,
                       ),
                     ),
                     const SizedBox(height: 3),
@@ -152,7 +152,7 @@ class _HubCardState extends State<_HubCard> {
                       widget.subtitle,
                       style: TextStyle(
                         fontSize: 13,
-                        color: AppTheme.textSecondary,
+                        color: context.appTextSecondary,
                       ),
                     ),
                   ],
@@ -161,7 +161,7 @@ class _HubCardState extends State<_HubCard> {
               Icon(
                 _isIOS ? CupertinoIcons.chevron_right : Icons.chevron_right,
                 size: 18,
-                color: AppTheme.textTertiary,
+                color: context.appTextTertiary,
               ),
             ],
           ),

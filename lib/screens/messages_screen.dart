@@ -72,7 +72,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppTheme.bg,
+      backgroundColor: context.appBg,
       body: ClipRect(
         child: SafeArea(
           child: Column(
@@ -89,12 +89,12 @@ class _MessagesScreenState extends State<MessagesScreen> {
                         width: 36,
                         height: 36,
                         decoration: BoxDecoration(
-                          color: AppTheme.surface,
+                          color: context.appSurface,
                           borderRadius: BorderRadius.circular(10),
                         ),
                         child: Icon(
                           CupertinoIcons.back,
-                          color: AppTheme.textPrimary,
+                          color: context.appTextPrimary,
                           size: 18,
                         ),
                       ),
@@ -106,7 +106,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
                         style: TextStyle(
                           fontSize: 30,
                           fontWeight: FontWeight.w700,
-                          color: AppTheme.textPrimary,
+                          color: context.appTextPrimary,
                           letterSpacing: -0.5,
                         ),
                       ),
@@ -145,7 +145,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
 
     return RefreshIndicator(
       color: AppTheme.accent,
-      backgroundColor: AppTheme.surface,
+      backgroundColor: context.appSurface,
       onRefresh: () => _load(force: true),
       child: ListView.separated(
         physics: const AlwaysScrollableScrollPhysics(),
@@ -172,7 +172,7 @@ class _MessageTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: AppTheme.surface,
+      color: context.appSurface,
       borderRadius: BorderRadius.circular(14),
       child: InkWell(
         onTap: onTap,
@@ -212,7 +212,7 @@ class _MessageTile extends StatelessWidget {
                               fontWeight: message.isRead
                                   ? FontWeight.w400
                                   : FontWeight.w600,
-                              color: AppTheme.textPrimary,
+                              color: context.appTextPrimary,
                             ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -224,7 +224,7 @@ class _MessageTile extends StatelessWidget {
                           style: TextStyle(
                             fontSize: 12,
                             color: message.isRead
-                                ? AppTheme.textTertiary
+                                ? context.appTextTertiary
                                 : AppTheme.accent,
                             fontWeight: message.isRead
                                 ? FontWeight.w400
@@ -245,7 +245,7 @@ class _MessageTile extends StatelessWidget {
                         fontWeight: message.isRead
                             ? FontWeight.w400
                             : FontWeight.w600,
-                        color: AppTheme.textPrimary,
+                        color: context.appTextPrimary,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -258,7 +258,7 @@ class _MessageTile extends StatelessWidget {
                         message.contentPreview,
                         style: TextStyle(
                           fontSize: 13,
-                          color: AppTheme.textSecondary,
+                          color: context.appTextSecondary,
                         ),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
@@ -273,14 +273,14 @@ class _MessageTile extends StatelessWidget {
                           Icon(
                             CupertinoIcons.paperclip,
                             size: 12,
-                            color: AppTheme.textTertiary,
+                            color: context.appTextTertiary,
                           ),
                           const SizedBox(width: 4),
                           Text(
                             'Anhang',
                             style: TextStyle(
                               fontSize: 11,
-                              color: AppTheme.textTertiary,
+                              color: context.appTextTertiary,
                             ),
                           ),
                         ],
@@ -296,7 +296,7 @@ class _MessageTile extends StatelessWidget {
                 child: Icon(
                   CupertinoIcons.chevron_right,
                   size: 14,
-                  color: AppTheme.textTertiary,
+                  color: context.appTextTertiary,
                 ),
               ),
             ],
@@ -353,7 +353,7 @@ class _SenderAvatar extends StatelessWidget {
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: AppTheme.accent,
-                border: Border.all(color: AppTheme.surface, width: 1.5),
+                border: Border.all(color: context.appSurface, width: 1.5),
               ),
             ),
           ),
@@ -399,20 +399,20 @@ class _EmptyView extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(CupertinoIcons.mail, size: 48, color: AppTheme.textTertiary),
+          Icon(CupertinoIcons.mail, size: 48, color: context.appTextTertiary),
           const SizedBox(height: 12),
           Text(
             'Keine Mitteilungen',
             style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w600,
-              color: AppTheme.textSecondary,
+              color: context.appTextSecondary,
             ),
           ),
           const SizedBox(height: 4),
           Text(
             'Neue Nachrichten erscheinen hier',
-            style: TextStyle(fontSize: 13, color: AppTheme.textTertiary),
+            style: TextStyle(fontSize: 13, color: context.appTextTertiary),
           ),
         ],
       ),
@@ -455,7 +455,7 @@ class _ErrorView extends StatelessWidget {
             Text(
               message,
               textAlign: TextAlign.center,
-              style: TextStyle(color: AppTheme.textSecondary, fontSize: 14),
+              style: TextStyle(color: context.appTextSecondary, fontSize: 14),
             ),
             const SizedBox(height: 18),
             CupertinoButton(

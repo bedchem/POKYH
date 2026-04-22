@@ -452,7 +452,7 @@ class _LoginScreenState extends State<LoginScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppTheme.bg,
+      backgroundColor: context.appBg,
       resizeToAvoidBottomInset: true,
       body: SafeArea(
         child: FadeTransition(
@@ -508,12 +508,12 @@ class _LoginScreenState extends State<LoginScreen>
                         child: Container(
                           padding: const EdgeInsets.all(8),
                           decoration: BoxDecoration(
-                            color: AppTheme.surface,
+                            color: context.appSurface,
                             borderRadius: BorderRadius.circular(10),
                           ),
                           child: Icon(
                             CupertinoIcons.back,
-                            color: AppTheme.textPrimary,
+                            color: context.appTextPrimary,
                             size: 20,
                           ),
                         ),
@@ -561,7 +561,7 @@ class _LoginScreenState extends State<LoginScreen>
             style: TextStyle(
               fontSize: 32,
               fontWeight: FontWeight.w700,
-              color: AppTheme.textPrimary,
+              color: context.appTextPrimary,
               letterSpacing: -0.5,
             ),
           ),
@@ -572,7 +572,7 @@ class _LoginScreenState extends State<LoginScreen>
                 : 'Manuelle Anmeldung',
             style: TextStyle(
               fontSize: 14,
-              color: AppTheme.textSecondary,
+              color: context.appTextSecondary,
               letterSpacing: 0.3,
             ),
           ),
@@ -597,7 +597,7 @@ class _LoginScreenState extends State<LoginScreen>
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
-                  color: AppTheme.textTertiary,
+                  color: context.appTextTertiary,
                 ),
               ),
             ),
@@ -687,7 +687,7 @@ class _LoginScreenState extends State<LoginScreen>
               _obscure
                   ? CupertinoIcons.eye_slash_fill
                   : CupertinoIcons.eye_fill,
-              color: AppTheme.textTertiary,
+              color: context.appTextTertiary,
               size: 18,
             ),
           ),
@@ -762,15 +762,15 @@ class _LoginScreenState extends State<LoginScreen>
   Widget _buildDividerWithText(String text) {
     return Row(
       children: [
-        Expanded(child: Divider(color: _withAlpha(AppTheme.textTertiary, 0.2))),
+        Expanded(child: Divider(color: _withAlpha(context.appTextTertiary, 0.2))),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12),
           child: Text(
             text,
-            style: TextStyle(color: AppTheme.textTertiary, fontSize: 12),
+            style: TextStyle(color: context.appTextTertiary, fontSize: 12),
           ),
         ),
-        Expanded(child: Divider(color: _withAlpha(AppTheme.textTertiary, 0.2))),
+        Expanded(child: Divider(color: _withAlpha(context.appTextTertiary, 0.2))),
       ],
     );
   }
@@ -789,7 +789,7 @@ class _LoginScreenState extends State<LoginScreen>
   }) {
     return Container(
       decoration: BoxDecoration(
-        color: AppTheme.surface,
+        color: context.appSurface,
         borderRadius: BorderRadius.circular(12),
       ),
       child: TextField(
@@ -800,9 +800,9 @@ class _LoginScreenState extends State<LoginScreen>
         textCapitalization: autocapitalize,
         textInputAction: textAction,
         onSubmitted: onSubmit,
-        style: TextStyle(color: AppTheme.textPrimary, fontSize: 16),
+        style: TextStyle(color: context.appTextPrimary, fontSize: 16),
         decoration: InputDecoration(
-          prefixIcon: Icon(icon, color: AppTheme.textTertiary, size: 18),
+          prefixIcon: Icon(icon, color: context.appTextTertiary, size: 18),
           suffixIcon: suffix != null
               ? Padding(
                   padding: const EdgeInsets.only(right: 12),
@@ -861,7 +861,7 @@ class _SaveLoginCheckbox extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: value ? AppTheme.accent : Colors.transparent,
                   border: Border.all(
-                    color: value ? AppTheme.accent : AppTheme.textTertiary,
+                    color: value ? AppTheme.accent : context.appTextTertiary,
                     width: 1.5,
                   ),
                   borderRadius: BorderRadius.circular(5),
@@ -878,7 +878,7 @@ class _SaveLoginCheckbox extends StatelessWidget {
               Expanded(
                 child: Text(
                   'Login speichern & Biometrie aktivieren',
-                  style: TextStyle(color: AppTheme.textSecondary, fontSize: 13),
+                  style: TextStyle(color: context.appTextSecondary, fontSize: 13),
                 ),
               ),
             ],
@@ -935,7 +935,7 @@ class _SavedAccountTile extends StatelessWidget {
         opacity: isLockedOut ? 0.5 : 1.0,
         duration: const Duration(milliseconds: 200),
         child: Material(
-          color: AppTheme.surface,
+          color: context.appSurface,
           borderRadius: BorderRadius.circular(14),
           child: InkWell(
             onTap: disabled ? null : onTap,
@@ -959,7 +959,7 @@ class _SavedAccountTile extends StatelessWidget {
                             Text(
                               account.username,
                               style: TextStyle(
-                                color: AppTheme.textPrimary,
+                                color: context.appTextPrimary,
                                 fontWeight: FontWeight.w600,
                                 fontSize: 15,
                               ),
@@ -982,7 +982,7 @@ class _SavedAccountTile extends StatelessWidget {
                             onTap: onRemove,
                             child: Icon(
                               CupertinoIcons.xmark_circle_fill,
-                              color: withAlpha(AppTheme.textTertiary, 0.4),
+                              color: withAlpha(context.appTextTertiary, 0.4),
                               size: 26,
                             ),
                           ),
@@ -1087,7 +1087,7 @@ class _AttemptsIndicator extends StatelessWidget {
                 shape: BoxShape.circle,
                 color: i < failed
                     ? AppTheme.danger
-                    : withAlpha(AppTheme.textTertiary, 0.25),
+                    : withAlpha(context.appTextTertiary, 0.25),
               ),
             ),
           ),

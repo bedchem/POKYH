@@ -87,10 +87,6 @@ class _PockyhAppState extends State<PockyhApp> {
       darkTheme: AppTheme.dark(),
       themeMode: AppTheme.themeNotifier.value,
       navigatorKey: navigatorKey,
-      builder: (context, child) {
-        AppTheme.currentBrightness = Theme.of(context).brightness;
-        return child!;
-      },
       home: const SplashScreen(),
     );
   }
@@ -204,7 +200,7 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppTheme.bg,
+      backgroundColor: context.appBg,
       body: Center(
         child: FadeTransition(
           opacity: _fade,
@@ -238,7 +234,7 @@ class _SplashScreenState extends State<SplashScreen>
                 style: TextStyle(
                   fontSize: 28,
                   fontWeight: FontWeight.w700,
-                  color: AppTheme.textPrimary,
+                  color: context.appTextPrimary,
                   letterSpacing: -0.5,
                 ),
               ),
@@ -343,7 +339,7 @@ class _AuthGateState extends State<AuthGate> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppTheme.bg,
+      backgroundColor: context.appBg,
       body: const Center(child: CupertinoActivityIndicator()),
     );
   }

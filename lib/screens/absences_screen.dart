@@ -112,7 +112,7 @@ class _AbsencesScreenState extends State<AbsencesScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppTheme.bg,
+      backgroundColor: context.appBg,
       body: SafeArea(
         child: RefreshIndicator(
           onRefresh: () => _load(forceRefresh: true),
@@ -132,10 +132,10 @@ class _AbsencesScreenState extends State<AbsencesScreen> {
                           width: 36,
                           height: 36,
                           decoration: BoxDecoration(
-                            color: AppTheme.surface,
+                            color: context.appSurface,
                             borderRadius: BorderRadius.circular(10),
                             border: Border.all(
-                              color: AppTheme.border.withValues(alpha: 0.4),
+                              color: context.appBorder.withValues(alpha: 0.4),
                             ),
                           ),
                           child: Icon(
@@ -143,7 +143,7 @@ class _AbsencesScreenState extends State<AbsencesScreen> {
                                 ? CupertinoIcons.chevron_left
                                 : Icons.arrow_back,
                             size: 16,
-                            color: AppTheme.textSecondary,
+                            color: context.appTextSecondary,
                           ),
                         ),
                       ),
@@ -157,7 +157,7 @@ class _AbsencesScreenState extends State<AbsencesScreen> {
                               style: TextStyle(
                                 fontSize: 26,
                                 fontWeight: FontWeight.w700,
-                                color: AppTheme.textPrimary,
+                                color: context.appTextPrimary,
                                 letterSpacing: -0.6,
                               ),
                             ),
@@ -166,7 +166,7 @@ class _AbsencesScreenState extends State<AbsencesScreen> {
                                 'Schuljahr ${AppConfig.currentSchoolYear}',
                                 style: TextStyle(
                                   fontSize: 13,
-                                  color: AppTheme.textTertiary,
+                                  color: context.appTextTertiary,
                                   letterSpacing: -0.1,
                                 ),
                               ),
@@ -208,7 +208,7 @@ class _AbsencesScreenState extends State<AbsencesScreen> {
                         Text(
                           'Abwesenheiten werden geladen…',
                           style: TextStyle(
-                            color: AppTheme.textSecondary,
+                            color: context.appTextSecondary,
                             fontSize: 14,
                           ),
                         ),
@@ -242,7 +242,7 @@ class _AbsencesScreenState extends State<AbsencesScreen> {
                           Text(
                             _error!,
                             style: TextStyle(
-                              color: AppTheme.textSecondary,
+                              color: context.appTextSecondary,
                               fontSize: 14,
                             ),
                             textAlign: TextAlign.center,
@@ -300,7 +300,7 @@ class _AbsencesScreenState extends State<AbsencesScreen> {
                           style: TextStyle(
                             fontSize: 17,
                             fontWeight: FontWeight.w600,
-                            color: AppTheme.textPrimary,
+                            color: context.appTextPrimary,
                           ),
                         ),
                         const SizedBox(height: 6),
@@ -309,7 +309,7 @@ class _AbsencesScreenState extends State<AbsencesScreen> {
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             fontSize: 14,
-                            color: AppTheme.textSecondary,
+                            color: context.appTextSecondary,
                             height: 1.5,
                           ),
                         ),
@@ -370,9 +370,9 @@ class _OverviewCard extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        color: AppTheme.surface,
+        color: context.appSurface,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppTheme.border.withValues(alpha: 0.35)),
+        border: Border.all(color: context.appBorder.withValues(alpha: 0.35)),
       ),
       child: Column(
         children: [
@@ -388,7 +388,7 @@ class _OverviewCard extends StatelessWidget {
                       _NumberRow(
                         label: 'Fehlstunden gesamt',
                         value: '$totalHours',
-                        color: AppTheme.textPrimary,
+                        color: context.appTextPrimary,
                         large: true,
                       ),
                       const SizedBox(height: 14),
@@ -409,7 +409,7 @@ class _OverviewCard extends StatelessWidget {
                               value: '$unexcusedHours',
                               color: unexcusedHours > 0
                                   ? AppTheme.danger
-                                  : AppTheme.textTertiary,
+                                  : context.appTextTertiary,
                               icon: CupertinoIcons.xmark_circle_fill,
                             ),
                           ),
@@ -423,7 +423,7 @@ class _OverviewCard extends StatelessWidget {
           ),
 
           // ── Divider ──────────────────────────────────────────────────
-          Divider(height: 1, color: AppTheme.separator.withValues(alpha: 0.25)),
+          Divider(height: 1, color: context.appSeparator.withValues(alpha: 0.25)),
 
           // ── Bottom: Fehlquote bar (full school year = 100 %) ─────────
           Padding(
@@ -438,7 +438,7 @@ class _OverviewCard extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w500,
-                        color: AppTheme.textSecondary,
+                        color: context.appTextSecondary,
                       ),
                     ),
                     const Spacer(),
@@ -464,7 +464,7 @@ class _OverviewCard extends StatelessWidget {
                         final fillW = (w * rateFraction).clamp(0.0, w);
                         return Stack(
                           children: [
-                            Container(width: w, color: AppTheme.card),
+                            Container(width: w, color: context.appCard),
                             if (fillW > 0)
                               Container(
                                 width: fillW,
@@ -537,7 +537,7 @@ class _NumberRow extends StatelessWidget {
         const SizedBox(height: 2),
         Text(
           label,
-          style: TextStyle(fontSize: 12, color: AppTheme.textTertiary),
+          style: TextStyle(fontSize: 12, color: context.appTextTertiary),
         ),
       ],
     );
@@ -584,7 +584,7 @@ class _MiniStat extends StatelessWidget {
               ),
               Text(
                 label,
-                style: TextStyle(fontSize: 10, color: AppTheme.textTertiary),
+                style: TextStyle(fontSize: 10, color: context.appTextTertiary),
               ),
             ],
           ),
@@ -615,7 +615,7 @@ class _BarLegend extends StatelessWidget {
         const SizedBox(width: 4),
         Text(
           label,
-          style: TextStyle(fontSize: 10, color: AppTheme.textTertiary),
+          style: TextStyle(fontSize: 10, color: context.appTextTertiary),
         ),
       ],
     );
@@ -649,7 +649,7 @@ class _MonthSection extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
-                    color: AppTheme.textTertiary,
+                    color: context.appTextTertiary,
                     letterSpacing: 1.2,
                   ),
                 ),
@@ -657,13 +657,13 @@ class _MonthSection extends StatelessWidget {
                 Expanded(
                   child: Container(
                     height: 1,
-                    color: AppTheme.separator.withValues(alpha: 0.2),
+                    color: context.appSeparator.withValues(alpha: 0.2),
                   ),
                 ),
                 const SizedBox(width: 8),
                 _MonthChip(
                   label: '$monthHours Std.',
-                  color: AppTheme.textTertiary,
+                  color: context.appTextTertiary,
                 ),
               ],
             ),
@@ -722,9 +722,9 @@ class _AbsenceCard extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        color: AppTheme.surface,
+        color: context.appSurface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppTheme.border.withValues(alpha: 0.3)),
+        border: Border.all(color: context.appBorder.withValues(alpha: 0.3)),
       ),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
@@ -740,7 +740,7 @@ class _AbsenceCard extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w700,
-                      color: AppTheme.textPrimary,
+                      color: context.appTextPrimary,
                       letterSpacing: -0.3,
                     ),
                   ),
@@ -785,7 +785,7 @@ class _AbsenceCard extends StatelessWidget {
                     vertical: 3,
                   ),
                   decoration: BoxDecoration(
-                    color: AppTheme.card,
+                    color: context.appCard,
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
@@ -793,7 +793,7 @@ class _AbsenceCard extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
-                      color: AppTheme.textSecondary,
+                      color: context.appTextSecondary,
                     ),
                   ),
                 ),
@@ -808,14 +808,14 @@ class _AbsenceCard extends StatelessWidget {
                   Icon(
                     CupertinoIcons.clock,
                     size: 12,
-                    color: AppTheme.textTertiary,
+                    color: context.appTextTertiary,
                   ),
                   const SizedBox(width: 5),
                   Text(
                     entry.timeFormatted,
                     style: TextStyle(
                       fontSize: 13,
-                      color: AppTheme.textSecondary,
+                      color: context.appTextSecondary,
                     ),
                   ),
                 ],
@@ -828,10 +828,10 @@ class _AbsenceCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: AppTheme.card,
+                  color: context.appCard,
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: Column(children: _buildDetails()),
+                child: Column(children: _buildDetails(context)),
               ),
             ],
           ],
@@ -846,7 +846,7 @@ class _AbsenceCard extends StatelessWidget {
       entry.note != null ||
       entry.excuseNote != null;
 
-  List<Widget> _buildDetails() {
+  List<Widget> _buildDetails(BuildContext context) {
     final items = <_Detail>[];
     if (entry.reasonName != null)
       items.add(_Detail(CupertinoIcons.tag, 'Grund', entry.reasonName!));
@@ -872,14 +872,14 @@ class _AbsenceCard extends StatelessWidget {
           children: [
             Padding(
               padding: const EdgeInsets.only(top: 2),
-              child: Icon(e.value.icon, size: 14, color: AppTheme.textTertiary),
+              child: Icon(e.value.icon, size: 14, color: context.appTextTertiary),
             ),
             const SizedBox(width: 6),
             SizedBox(
               width: 78,
               child: Text(
                 e.value.label,
-                style: TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+                style: TextStyle(fontSize: 12, color: context.appTextSecondary),
               ),
             ),
             const SizedBox(width: 4),
@@ -889,7 +889,7 @@ class _AbsenceCard extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w500,
-                  color: AppTheme.textPrimary,
+                  color: context.appTextPrimary,
                 ),
               ),
             ),

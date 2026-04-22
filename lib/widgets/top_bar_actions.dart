@@ -98,9 +98,9 @@ class _BellIcon extends StatelessWidget {
             height: 34,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: AppTheme.surface,
+              color: context.appSurface,
               border:
-                  Border.all(color: AppTheme.border.withValues(alpha: 0.4)),
+                  Border.all(color: context.appBorder.withValues(alpha: 0.4)),
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withValues(alpha: 0.15),
@@ -113,7 +113,7 @@ class _BellIcon extends StatelessWidget {
               child: Icon(
                 CupertinoIcons.bell_fill,
                 size: 15,
-                color: AppTheme.textSecondary,
+                color: context.appTextSecondary,
               ),
             ),
           ),
@@ -129,7 +129,7 @@ class _BellIcon extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: AppTheme.danger,
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: AppTheme.bg, width: 1.5),
+                  border: Border.all(color: context.appBg, width: 1.5),
                 ),
                 child: Center(
                   child: Text(
@@ -178,8 +178,8 @@ class _AvatarIconState extends State<_AvatarIcon> {
       height: 34,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: AppTheme.surface,
-        border: Border.all(color: AppTheme.border.withValues(alpha: 0.4)),
+        color: context.appSurface,
+        border: Border.all(color: context.appBorder.withValues(alpha: 0.4)),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.15),
@@ -198,6 +198,6 @@ class _AvatarIconState extends State<_AvatarIcon> {
 
   Widget _fallback() => Center(
         child: Icon(CupertinoIcons.person_fill,
-            size: 16, color: AppTheme.textSecondary),
+            size: 16, color: context.appTextSecondary),
       );
 }

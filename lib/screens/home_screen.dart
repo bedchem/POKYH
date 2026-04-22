@@ -324,7 +324,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final bottomInset = MediaQuery.of(context).padding.bottom;
 
     return Scaffold(
-      backgroundColor: AppTheme.bg,
+      backgroundColor: context.appBg,
       body: Stack(
         children: [
           _buildMainContent(),
@@ -407,10 +407,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             bottom: bottomInset + navLayout.bottomPadding,
           ),
           decoration: BoxDecoration(
-            color: AppTheme.surface,
+            color: context.appSurface,
             border: Border(
               top: BorderSide(
-                color: AppTheme.border.withValues(alpha: 0.5),
+                color: context.appBorder.withValues(alpha: 0.5),
                 width: 0.5,
               ),
             ),
@@ -511,8 +511,8 @@ class _SmallProfileAvatarState extends State<_SmallProfileAvatar> {
       height: 32,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: AppTheme.surface,
-        border: Border.all(color: AppTheme.border.withValues(alpha: 0.4)),
+        color: context.appSurface,
+        border: Border.all(color: context.appBorder.withValues(alpha: 0.4)),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.2),
@@ -536,7 +536,7 @@ class _SmallProfileAvatarState extends State<_SmallProfileAvatar> {
     child: Icon(
       CupertinoIcons.person_fill,
       size: 16,
-      color: AppTheme.textSecondary,
+      color: context.appTextSecondary,
     ),
   );
 }
@@ -560,8 +560,8 @@ class _MessageBadgeIcon extends StatelessWidget {
             height: 32,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: AppTheme.surface,
-              border: Border.all(color: AppTheme.border.withValues(alpha: 0.4)),
+              color: context.appSurface,
+              border: Border.all(color: context.appBorder.withValues(alpha: 0.4)),
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withValues(alpha: 0.2),
@@ -574,7 +574,7 @@ class _MessageBadgeIcon extends StatelessWidget {
               child: Icon(
                 CupertinoIcons.bell_fill,
                 size: 15,
-                color: AppTheme.textSecondary,
+                color: context.appTextSecondary,
               ),
             ),
           ),
@@ -588,7 +588,7 @@ class _MessageBadgeIcon extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: AppTheme.danger,
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: AppTheme.bg, width: 1.5),
+                  border: Border.all(color: context.appBg, width: 1.5),
                 ),
                 child: Center(
                   child: Text(
@@ -682,7 +682,7 @@ class _TabItemState extends State<_TabItem> {
 
   @override
   Widget build(BuildContext context) {
-    final targetColor = widget.active ? AppTheme.accent : AppTheme.textTertiary;
+    final targetColor = widget.active ? AppTheme.accent : context.appTextTertiary;
 
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
@@ -1159,7 +1159,7 @@ class _DashboardTabState extends State<_DashboardTab>
                         label: 'Schulende',
                         value: '—',
                         sub: 'Heute keine Schule',
-                        color: AppTheme.textTertiary,
+                        color: context.appTextTertiary,
                       )
                     : _TimeInfoCard(
                         icon: CupertinoIcons.flag_fill,
@@ -1170,7 +1170,7 @@ class _DashboardTabState extends State<_DashboardTab>
                             : 'vorbei',
                         color: minsUntilEnd != null
                             ? AppTheme.accent
-                            : AppTheme.textTertiary,
+                            : context.appTextTertiary,
                       ),
               ),
               const SizedBox(width: 10),
@@ -1248,7 +1248,7 @@ class _DashboardTabState extends State<_DashboardTab>
     return SafeArea(
       child: RefreshIndicator(
         color: AppTheme.accent,
-        backgroundColor: AppTheme.surface,
+        backgroundColor: context.appSurface,
         onRefresh: _load,
         child: CustomScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
@@ -1265,7 +1265,7 @@ class _DashboardTabState extends State<_DashboardTab>
                       style: TextStyle(
                         fontSize: 30,
                         fontWeight: FontWeight.w700,
-                        color: AppTheme.textPrimary,
+                        color: context.appTextPrimary,
                         letterSpacing: -0.5,
                       ),
                     ),
@@ -1492,7 +1492,7 @@ class _LoadingCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 20),
       decoration: BoxDecoration(
-        color: AppTheme.surface,
+        color: context.appSurface,
         borderRadius: BorderRadius.circular(14),
       ),
       child: const Center(child: CupertinoActivityIndicator(radius: 12)),
@@ -1585,7 +1585,7 @@ class _WeekOverviewCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(13),
       decoration: BoxDecoration(
-        color: AppTheme.surface,
+        color: context.appSurface,
         borderRadius: BorderRadius.circular(14),
       ),
       child: Column(
@@ -1617,7 +1617,7 @@ class _WeekOverviewCard extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
-                      color: AppTheme.textSecondary,
+                      color: context.appTextSecondary,
                     ),
                   ),
                   const SizedBox(height: 2),
@@ -1626,7 +1626,7 @@ class _WeekOverviewCard extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 10,
                       fontWeight: FontWeight.w500,
-                      color: AppTheme.textTertiary,
+                      color: context.appTextTertiary,
                     ),
                   ),
                 ],
@@ -1662,7 +1662,7 @@ class _WeekOverviewCard extends StatelessWidget {
                         fontWeight: FontWeight.w600,
                         color: isToday
                             ? AppTheme.accent
-                            : AppTheme.textTertiary,
+                            : context.appTextTertiary,
                       ),
                     ),
                     const SizedBox(height: 5),
@@ -1670,11 +1670,11 @@ class _WeekOverviewCard extends StatelessWidget {
                       width: 38,
                       height: 38,
                       decoration: BoxDecoration(
-                        color: isToday ? AppTheme.accent : AppTheme.card,
+                        color: isToday ? AppTheme.accent : context.appCard,
                         borderRadius: BorderRadius.circular(20),
                         border: markers.isNotEmpty && !isToday
                             ? Border.all(
-                                color: AppTheme.border.withValues(alpha: 0.75),
+                                color: context.appBorder.withValues(alpha: 0.75),
                                 width: 1,
                               )
                             : null,
@@ -1701,8 +1701,8 @@ class _WeekOverviewCard extends StatelessWidget {
                                   color: isToday
                                       ? Colors.white
                                       : isPast
-                                      ? AppTheme.textTertiary
-                                      : AppTheme.textPrimary,
+                                      ? context.appTextTertiary
+                                      : context.appTextPrimary,
                                 ),
                               ),
                       ),
@@ -1729,7 +1729,7 @@ class _WeekOverviewCard extends StatelessWidget {
             children: [
               Text(
                 '${allWeek.length} Std. diese Woche',
-                style: TextStyle(fontSize: 10, color: AppTheme.textTertiary),
+                style: TextStyle(fontSize: 10, color: context.appTextTertiary),
               ),
             ],
           ),
@@ -1766,7 +1766,7 @@ class _DayIconFan extends StatelessWidget {
 
   const _DayIconFan({required this.markers, required this.isToday});
 
-  (IconData, Color) _styleFor(_DayMarker marker) {
+  (IconData, Color) _styleFor(_DayMarker marker, BuildContext context) {
     // Farben EXAKT wie im Stundenplan:
     // cancelled → danger (rot), exam → warning (gelb),
     // substitution → orange, additional → accent (blau),
@@ -1783,7 +1783,7 @@ class _DayIconFan extends StatelessWidget {
       case _DayMarker.event:
         return (CupertinoIcons.star_circle_fill, AppTheme.tint);
       case _DayMarker.info:
-        return (CupertinoIcons.info_circle_fill, AppTheme.textSecondary);
+        return (CupertinoIcons.info_circle_fill, context.appTextSecondary);
     }
   }
 
@@ -1794,7 +1794,7 @@ class _DayIconFan extends StatelessWidget {
 
     // Single marker: perfectly centered.
     if (count == 1) {
-      final iconStyle = _styleFor(visible[0]);
+      final iconStyle = _styleFor(visible[0], context);
       final iconSize = isToday ? 17.3 : 16.5;
       final chipSize = iconSize + 5;
       return SizedBox(
@@ -1885,7 +1885,7 @@ class _DayIconFan extends StatelessWidget {
                 final dx = normalized * halfSpan;
                 final dy = curve * arcDepth;
                 final angle = normalized * 0.20;
-                final iconStyle = _styleFor(visible[i]);
+                final iconStyle = _styleFor(visible[i], context);
 
                 return Positioned(
                   left: baseLeft + halfSpan + dx,
@@ -2049,7 +2049,7 @@ class _TimeInfoCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppTheme.surface,
+        color: context.appSurface,
         borderRadius: BorderRadius.circular(13),
       ),
       child: Column(
@@ -2073,7 +2073,7 @@ class _TimeInfoCard extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w500,
-                    color: AppTheme.textSecondary,
+                    color: context.appTextSecondary,
                   ),
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -2093,7 +2093,7 @@ class _TimeInfoCard extends StatelessWidget {
           const SizedBox(height: 2),
           Text(
             sub,
-            style: TextStyle(fontSize: 10, color: AppTheme.textSecondary),
+            style: TextStyle(fontSize: 10, color: context.appTextSecondary),
           ),
         ],
       ),
@@ -2158,7 +2158,7 @@ class _MensaPreviewCard extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
-                    color: AppTheme.textSecondary,
+                    color: context.appTextSecondary,
                   ),
                 ),
               ],
@@ -2176,7 +2176,7 @@ class _MensaPreviewCard extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
-                  color: AppTheme.textPrimary,
+                  color: context.appTextPrimary,
                   height: 1.3,
                 ),
                 maxLines: 3,
@@ -2206,7 +2206,7 @@ class _MensaPreviewCard extends StatelessWidget {
                 'Heute nichts\nverfügbar',
                 style: TextStyle(
                   fontSize: 12,
-                  color: AppTheme.textSecondary,
+                  color: context.appTextSecondary,
                   height: 1.4,
                 ),
               ),
@@ -2236,7 +2236,7 @@ class _RecentGradesCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppTheme.surface,
+        color: context.appSurface,
         borderRadius: BorderRadius.circular(13),
       ),
       child: Column(
@@ -2266,7 +2266,7 @@ class _RecentGradesCard extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
-                    color: AppTheme.textSecondary,
+                    color: context.appTextSecondary,
                   ),
                 ),
               ),
@@ -2278,7 +2278,7 @@ class _RecentGradesCard extends StatelessWidget {
           else if (grades.isEmpty)
             Text(
               'Noch keine Noten',
-              style: TextStyle(fontSize: 11, color: AppTheme.textSecondary),
+              style: TextStyle(fontSize: 11, color: context.appTextSecondary),
             )
           else
             Column(children: grades.map((g) => _GradeRow(grade: g)).toList()),
@@ -2323,7 +2323,7 @@ class _GradeRow extends StatelessWidget {
               style: TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.w500,
-                color: AppTheme.textPrimary,
+                color: context.appTextPrimary,
               ),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -2332,7 +2332,7 @@ class _GradeRow extends StatelessWidget {
           const SizedBox(width: 3),
           Text(
             dateStr,
-            style: TextStyle(fontSize: 9, color: AppTheme.textTertiary),
+            style: TextStyle(fontSize: 9, color: context.appTextTertiary),
           ),
           const SizedBox(width: 4),
           Container(
@@ -2374,7 +2374,7 @@ class _ErrorCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppTheme.surface,
+        color: context.appSurface,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
@@ -2388,7 +2388,7 @@ class _ErrorCard extends StatelessWidget {
           Text(
             message,
             textAlign: TextAlign.center,
-            style: TextStyle(color: AppTheme.textSecondary, fontSize: 12),
+            style: TextStyle(color: context.appTextSecondary, fontSize: 12),
           ),
           const SizedBox(height: 12),
           CupertinoButton(

@@ -104,17 +104,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
       showDialog(
         context: context,
         builder: (ctx) => AlertDialog(
-          backgroundColor: AppTheme.surface,
+          backgroundColor: context.appSurface,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
           title: Text(
             'Abmelden',
-            style: TextStyle(color: AppTheme.textPrimary),
+            style: TextStyle(color: context.appTextPrimary),
           ),
           content: Text(
             'Möchtest du dich wirklich abmelden?',
-            style: TextStyle(color: AppTheme.textSecondary),
+            style: TextStyle(color: context.appTextSecondary),
           ),
           actions: [
             TextButton(
@@ -270,19 +270,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
       showDialog(
         context: context,
         builder: (ctx) => AlertDialog(
-          backgroundColor: AppTheme.surface,
+          backgroundColor: context.appSurface,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
           title: Text(
             AppConfig.appName,
-            style: TextStyle(color: AppTheme.textPrimary),
+            style: TextStyle(color: context.appTextPrimary),
           ),
           content: Text(
             'Version $_appVersion\n\n'
             'Die All‑in‑One Schul‑App für die ${AppConfig.schoolName}.\n\n'
             '© ${AppConfig.copyrightYear} – MIT Lizenz',
-            style: TextStyle(color: AppTheme.textSecondary),
+            style: TextStyle(color: context.appTextSecondary),
           ),
           actions: [
             TextButton(onPressed: _openGitHub, child: const Text('GitHub')),
@@ -325,7 +325,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     } else {
       showModalBottomSheet(
         context: context,
-        backgroundColor: AppTheme.surface,
+        backgroundColor: context.appSurface,
         shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
         ),
@@ -340,7 +340,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
-                    color: AppTheme.textPrimary,
+                    color: context.appTextPrimary,
                   ),
                 ),
               ),
@@ -387,7 +387,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           Icon(
             icon,
             size: 18,
-            color: _themeMode == value ? AppTheme.accent : AppTheme.textPrimary,
+            color: _themeMode == value ? AppTheme.accent : context.appTextPrimary,
           ),
           const SizedBox(width: 8),
           Text(
@@ -395,7 +395,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             style: TextStyle(
               color: _themeMode == value
                   ? AppTheme.accent
-                  : AppTheme.textPrimary,
+                  : context.appTextPrimary,
             ),
           ),
         ],
@@ -413,12 +413,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return ListTile(
       leading: Icon(
         icon,
-        color: selected ? AppTheme.accent : AppTheme.textSecondary,
+        color: selected ? AppTheme.accent : context.appTextSecondary,
       ),
       title: Text(
         label,
         style: TextStyle(
-          color: selected ? AppTheme.accent : AppTheme.textPrimary,
+          color: selected ? AppTheme.accent : context.appTextPrimary,
         ),
       ),
       trailing: selected
@@ -455,7 +455,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     } else {
       showModalBottomSheet(
         context: context,
-        backgroundColor: AppTheme.surface,
+        backgroundColor: context.appSurface,
         shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
         ),
@@ -470,7 +470,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
-                    color: AppTheme.textPrimary,
+                    color: context.appTextPrimary,
                   ),
                 ),
               ),
@@ -499,7 +499,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       child: Text(
         label,
         style: TextStyle(
-          color: _language == code ? AppTheme.accent : AppTheme.textPrimary,
+          color: _language == code ? AppTheme.accent : context.appTextPrimary,
         ),
       ),
     );
@@ -511,7 +511,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       title: Text(
         label,
         style: TextStyle(
-          color: selected ? AppTheme.accent : AppTheme.textPrimary,
+          color: selected ? AppTheme.accent : context.appTextPrimary,
         ),
       ),
       trailing: selected
@@ -562,7 +562,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           style: TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.w600,
-            color: AppTheme.textTertiary,
+            color: context.appTextTertiary,
             letterSpacing: 0.8,
           ),
         ),
@@ -578,7 +578,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final username = widget.service.username ?? 'Schüler';
 
     return Scaffold(
-      backgroundColor: AppTheme.bg,
+      backgroundColor: context.appBg,
       body: SafeArea(
         child: CustomScrollView(
           slivers: [
@@ -594,7 +594,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         width: 34,
                         height: 34,
                         decoration: BoxDecoration(
-                          color: AppTheme.surface,
+                          color: context.appSurface,
                           borderRadius: BorderRadius.circular(10),
                         ),
                         child: Icon(
@@ -602,7 +602,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               ? CupertinoIcons.chevron_left
                               : Icons.arrow_back,
                           size: 16,
-                          color: AppTheme.textSecondary,
+                          color: context.appTextSecondary,
                         ),
                       ),
                     ),
@@ -612,7 +612,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.w600,
-                        color: AppTheme.textPrimary,
+                        color: context.appTextPrimary,
                       ),
                     ),
                   ],
@@ -655,7 +655,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               style: TextStyle(
                                 fontSize: 20,
                                 fontWeight: FontWeight.w700,
-                                color: AppTheme.textPrimary,
+                                color: context.appTextPrimary,
                               ),
                             ),
                             const SizedBox(height: 3),
@@ -962,13 +962,13 @@ class _MetaRow extends StatelessWidget {
         Icon(
           icon,
           size: 12,
-          color: AppTheme.textTertiary.withValues(alpha: 0.7),
+          color: context.appTextTertiary.withValues(alpha: 0.7),
         ),
         const SizedBox(width: 5),
         Flexible(
           child: Text(
             text,
-            style: TextStyle(fontSize: 13, color: AppTheme.textSecondary),
+            style: TextStyle(fontSize: 13, color: context.appTextSecondary),
             overflow: TextOverflow.ellipsis,
           ),
         ),
@@ -977,7 +977,7 @@ class _MetaRow extends StatelessWidget {
           Icon(
             _isIOS ? CupertinoIcons.doc_on_clipboard : Icons.content_copy,
             size: 10,
-            color: AppTheme.textTertiary,
+            color: context.appTextTertiary,
           ),
         ],
       ],
@@ -1022,9 +1022,9 @@ class _ActionTile extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: AppTheme.surface,
+          color: context.appSurface,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppTheme.border.withValues(alpha: 0.2)),
+          border: Border.all(color: context.appBorder.withValues(alpha: 0.2)),
         ),
         child: Row(
           children: [
@@ -1057,14 +1057,14 @@ class _ActionTile extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w500,
-                      color: AppTheme.textPrimary,
+                      color: context.appTextPrimary,
                     ),
                   ),
                   Text(
                     subtitle,
                     style: TextStyle(
                       fontSize: 13,
-                      color: AppTheme.textTertiary,
+                      color: context.appTextTertiary,
                     ),
                   ),
                 ],
@@ -1073,7 +1073,7 @@ class _ActionTile extends StatelessWidget {
             Icon(
               _isIOS ? CupertinoIcons.chevron_right : Icons.chevron_right,
               size: 16,
-              color: AppTheme.textTertiary,
+              color: context.appTextTertiary,
             ),
           ],
         ),
@@ -1128,7 +1128,7 @@ class _ToastOverlayState extends State<_ToastOverlay>
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
           decoration: BoxDecoration(
-            color: AppTheme.surface,
+            color: context.appSurface,
             borderRadius: BorderRadius.circular(12),
             boxShadow: [
               BoxShadow(
@@ -1144,7 +1144,7 @@ class _ToastOverlayState extends State<_ToastOverlay>
             style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w500,
-              color: AppTheme.textPrimary,
+              color: context.appTextPrimary,
               decoration: TextDecoration.none,
             ),
           ),

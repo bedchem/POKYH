@@ -568,9 +568,9 @@ class _UpdateDialogState extends State<_UpdateDialog> {
       Platform.isIOS ? _buildCupertino() : _buildMaterial();
 
   Widget _buildMaterial() => AlertDialog(
-    backgroundColor: AppTheme.surface,
+    backgroundColor: context.appSurface,
     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-    title: Text(_title(), style: TextStyle(color: AppTheme.textPrimary)),
+    title: Text(_title(), style: TextStyle(color: context.appTextPrimary)),
     content: _content(false),
     actions: _materialActions(),
   );
@@ -586,7 +586,7 @@ class _UpdateDialogState extends State<_UpdateDialog> {
             },
             child: Text(
               'Morgen',
-              style: TextStyle(color: AppTheme.textTertiary),
+              style: TextStyle(color: context.appTextTertiary),
             ),
           ),
           TextButton(
@@ -609,7 +609,7 @@ class _UpdateDialogState extends State<_UpdateDialog> {
             },
             child: Text(
               'Morgen',
-              style: TextStyle(color: AppTheme.textTertiary),
+              style: TextStyle(color: context.appTextTertiary),
             ),
           ),
           TextButton(
@@ -694,7 +694,7 @@ class _UpdateDialogState extends State<_UpdateDialog> {
   Widget _content(bool cupertino) {
     final secondaryStyle = cupertino
         ? null
-        : TextStyle(color: AppTheme.textSecondary, fontSize: 14);
+        : TextStyle(color: context.appTextSecondary, fontSize: 14);
 
     switch (_phase) {
       case _Phase.prompt:
@@ -713,7 +713,7 @@ class _UpdateDialogState extends State<_UpdateDialog> {
                 value: _progress > 0 ? _progress : null,
                 backgroundColor: cupertino
                     ? CupertinoColors.systemGrey5
-                    : AppTheme.border,
+                    : context.appBorder,
                 valueColor: AlwaysStoppedAnimation(
                   cupertino ? CupertinoColors.activeBlue : AppTheme.accent,
                 ),

@@ -1,31 +1,7 @@
 import 'package:flutter/material.dart';
 
 class AppTheme {
-  // ── Runtime brightness (set by MaterialApp.builder) ─────────────────────
-  static Brightness currentBrightness = Brightness.dark;
   static final themeNotifier = ValueNotifier<ThemeMode>(ThemeMode.dark);
-
-  static bool get _isDark => currentBrightness == Brightness.dark;
-
-  // ── Adaptive palette ────────────────────────────────────────────────────
-  static Color get bg =>
-      _isDark ? const Color(0xFF000000) : const Color(0xFFF2F2F7);
-  static Color get surface =>
-      _isDark ? const Color(0xFF1C1C1E) : const Color(0xFFFFFFFF);
-  static Color get card =>
-      _isDark ? const Color(0xFF2C2C2E) : const Color(0xFFF2F2F7);
-  static Color get cardAlt =>
-      _isDark ? const Color(0xFF1C1C1E) : const Color(0xFFE5E5EA);
-  static Color get border =>
-      _isDark ? const Color(0xFF38383A) : const Color(0xFFD1D1D6);
-  static Color get separator =>
-      _isDark ? const Color(0xFF48484A) : const Color(0xFFC6C6C8);
-  static Color get textPrimary =>
-      _isDark ? const Color(0xFFFFFFFF) : const Color(0xFF000000);
-  static Color get textSecondary =>
-      _isDark ? const Color(0xFF98989D) : const Color(0xFF8E8E93);
-  static Color get textTertiary =>
-      _isDark ? const Color(0xFF636366) : const Color(0xFFAEAEB2);
 
   // ── Fixed colors (same in both themes) ──────────────────────────────────
   static const Color accent = Color(0xFF0A84FF);
@@ -172,4 +148,30 @@ class AppTheme {
       ),
     );
   }
+}
+
+// ── Context extension for adaptive colors ────────────────────────────────────
+// Using Theme.of(context) registers the widget as a Theme dependent so it
+// automatically rebuilds whenever the theme changes (dark ↔ light ↔ system).
+extension AppColors on BuildContext {
+  bool get _appIsDark => Theme.of(this).brightness == Brightness.dark;
+
+  Color get appBg =>
+      _appIsDark ? const Color(0xFF000000) : const Color(0xFFF2F2F7);
+  Color get appSurface =>
+      _appIsDark ? const Color(0xFF1C1C1E) : const Color(0xFFFFFFFF);
+  Color get appCard =>
+      _appIsDark ? const Color(0xFF2C2C2E) : const Color(0xFFF2F2F7);
+  Color get appCardAlt =>
+      _appIsDark ? const Color(0xFF1C1C1E) : const Color(0xFFE5E5EA);
+  Color get appBorder =>
+      _appIsDark ? const Color(0xFF38383A) : const Color(0xFFD1D1D6);
+  Color get appSeparator =>
+      _appIsDark ? const Color(0xFF48484A) : const Color(0xFFC6C6C8);
+  Color get appTextPrimary =>
+      _appIsDark ? const Color(0xFFFFFFFF) : const Color(0xFF000000);
+  Color get appTextSecondary =>
+      _appIsDark ? const Color(0xFF98989D) : const Color(0xFF8E8E93);
+  Color get appTextTertiary =>
+      _appIsDark ? const Color(0xFF636366) : const Color(0xFFAEAEB2);
 }

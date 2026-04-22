@@ -176,7 +176,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
     } else {
       showModalBottomSheet(
         context: context,
-        backgroundColor: AppTheme.surface,
+        backgroundColor: context.appSurface,
         shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
         ),
@@ -191,7 +191,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
-                    color: AppTheme.textPrimary,
+                    color: context.appTextPrimary,
                   ),
                 ),
               ),
@@ -203,7 +203,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
                   ),
                   title: Text(
                     'Neue Klasse erstellen',
-                    style: TextStyle(color: AppTheme.textPrimary),
+                    style: TextStyle(color: context.appTextPrimary),
                   ),
                   onTap: () {
                     Navigator.pop(ctx);
@@ -214,7 +214,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
                 leading: Icon(Icons.group_add_outlined, color: AppTheme.accent),
                 title: Text(
                   'Klasse beitreten',
-                  style: TextStyle(color: AppTheme.textPrimary),
+                  style: TextStyle(color: context.appTextPrimary),
                 ),
                 onTap: () {
                   Navigator.pop(ctx);
@@ -267,7 +267,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
   void _showCodeSheet(ClassRoom cls) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: AppTheme.surface,
+      backgroundColor: context.appSurface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
@@ -290,13 +290,13 @@ class _RemindersScreenState extends State<RemindersScreen> {
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w700,
-                  color: AppTheme.textPrimary,
+                  color: context.appTextPrimary,
                 ),
               ),
               const SizedBox(height: 8),
               Text(
                 'Teile diesen Code mit deiner Klasse:',
-                style: TextStyle(fontSize: 14, color: AppTheme.textSecondary),
+                style: TextStyle(fontSize: 14, color: context.appTextSecondary),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 20),
@@ -332,7 +332,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
               const SizedBox(height: 10),
               Text(
                 'Tippen zum Kopieren',
-                style: TextStyle(fontSize: 12, color: AppTheme.textTertiary),
+                style: TextStyle(fontSize: 12, color: context.appTextTertiary),
               ),
               const SizedBox(height: 16),
             ],
@@ -345,7 +345,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
   void _showMembersSheet(ClassRoom cls) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: AppTheme.surface,
+      backgroundColor: context.appSurface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -381,17 +381,17 @@ class _RemindersScreenState extends State<RemindersScreen> {
       showDialog(
         context: context,
         builder: (ctx) => AlertDialog(
-          backgroundColor: AppTheme.surface,
+          backgroundColor: context.appSurface,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
           title: Text(
             'Klasse verlassen',
-            style: TextStyle(color: AppTheme.textPrimary),
+            style: TextStyle(color: context.appTextPrimary),
           ),
           content: Text(
             'Möchtest du „${cls.name}" wirklich verlassen?',
-            style: TextStyle(color: AppTheme.textSecondary),
+            style: TextStyle(color: context.appTextSecondary),
           ),
           actions: [
             TextButton(
@@ -433,7 +433,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
         context: context,
         isScrollControlled: true,
         useSafeArea: true,
-        backgroundColor: AppTheme.surface,
+        backgroundColor: context.appSurface,
         shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
         ),
@@ -475,17 +475,17 @@ class _RemindersScreenState extends State<RemindersScreen> {
       showDialog(
         context: context,
         builder: (ctx) => AlertDialog(
-          backgroundColor: AppTheme.surface,
+          backgroundColor: context.appSurface,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
           title: Text(
             'Erinnerung löschen',
-            style: TextStyle(color: AppTheme.textPrimary),
+            style: TextStyle(color: context.appTextPrimary),
           ),
           content: Text(
             '„${reminder.title}" wirklich löschen?',
-            style: TextStyle(color: AppTheme.textSecondary),
+            style: TextStyle(color: context.appTextSecondary),
           ),
           actions: [
             TextButton(
@@ -521,11 +521,11 @@ class _RemindersScreenState extends State<RemindersScreen> {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setInner) => AlertDialog(
-          backgroundColor: AppTheme.surface,
+          backgroundColor: context.appSurface,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
-          title: Text(title, style: TextStyle(color: AppTheme.textPrimary)),
+          title: Text(title, style: TextStyle(color: context.appTextPrimary)),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -533,13 +533,13 @@ class _RemindersScreenState extends State<RemindersScreen> {
               TextField(
                 controller: controller,
                 autofocus: true,
-                style: TextStyle(color: AppTheme.textPrimary),
+                style: TextStyle(color: context.appTextPrimary),
                 decoration: InputDecoration(
                   hintText: placeholder,
-                  hintStyle: TextStyle(color: AppTheme.textTertiary),
+                  hintStyle: TextStyle(color: context.appTextTertiary),
                   enabledBorder: UnderlineInputBorder(
                     borderSide: BorderSide(
-                      color: AppTheme.border.withValues(alpha: 0.4),
+                      color: context.appBorder.withValues(alpha: 0.4),
                     ),
                   ),
                   focusedBorder: UnderlineInputBorder(
@@ -619,7 +619,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
         .firstOrNull;
 
     return Scaffold(
-      backgroundColor: AppTheme.bg,
+      backgroundColor: context.appBg,
       body: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -636,7 +636,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
                         width: 34,
                         height: 34,
                         decoration: BoxDecoration(
-                          color: AppTheme.surface,
+                          color: context.appSurface,
                           borderRadius: BorderRadius.circular(10),
                         ),
                         child: Icon(
@@ -644,7 +644,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
                               ? CupertinoIcons.chevron_left
                               : Icons.arrow_back,
                           size: 16,
-                          color: AppTheme.textSecondary,
+                          color: context.appTextSecondary,
                         ),
                       ),
                     ),
@@ -654,7 +654,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
                     style: TextStyle(
                       fontSize: 28,
                       fontWeight: FontWeight.w700,
-                      color: AppTheme.textPrimary,
+                      color: context.appTextPrimary,
                       letterSpacing: -0.5,
                     ),
                   ),
@@ -706,10 +706,10 @@ class _RemindersScreenState extends State<RemindersScreen> {
                           vertical: 8,
                         ),
                         decoration: BoxDecoration(
-                          color: AppTheme.surface,
+                          color: context.appSurface,
                           borderRadius: BorderRadius.circular(20),
                           border: Border.all(
-                            color: AppTheme.border.withValues(alpha: 0.4),
+                            color: context.appBorder.withValues(alpha: 0.4),
                           ),
                         ),
                         child: Row(
@@ -718,14 +718,14 @@ class _RemindersScreenState extends State<RemindersScreen> {
                             Icon(
                               _isIOS ? CupertinoIcons.plus : Icons.add,
                               size: 14,
-                              color: AppTheme.textSecondary,
+                              color: context.appTextSecondary,
                             ),
                             const SizedBox(width: 5),
                             Text(
                               _isAdmin ? 'Klasse' : 'Beitreten',
                               style: TextStyle(
                                 fontSize: 13,
-                                color: AppTheme.textSecondary,
+                                color: context.appTextSecondary,
                               ),
                             ),
                           ],
@@ -816,12 +816,12 @@ class _ClassChip extends StatelessWidget {
           bottom: 8,
         ),
         decoration: BoxDecoration(
-          color: selected ? AppTheme.accent : AppTheme.surface,
+          color: selected ? AppTheme.accent : context.appSurface,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
             color: selected
                 ? AppTheme.accent
-                : AppTheme.border.withValues(alpha: 0.4),
+                : context.appBorder.withValues(alpha: 0.4),
           ),
         ),
         child: Row(
@@ -832,7 +832,7 @@ class _ClassChip extends StatelessWidget {
               style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
-                color: selected ? Colors.white : AppTheme.textSecondary,
+                color: selected ? Colors.white : context.appTextSecondary,
               ),
             ),
             if (selected) ...[
@@ -914,7 +914,7 @@ class _EmptyClassesState extends StatelessWidget {
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w700,
-                color: AppTheme.textPrimary,
+                color: context.appTextPrimary,
               ),
             ),
             const SizedBox(height: 8),
@@ -924,7 +924,7 @@ class _EmptyClassesState extends StatelessWidget {
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 14,
-                  color: AppTheme.textSecondary,
+                  color: context.appTextSecondary,
                   height: 1.5,
                 ),
               )
@@ -947,10 +947,10 @@ class _EmptyClassesState extends StatelessWidget {
                     vertical: 10,
                   ),
                   decoration: BoxDecoration(
-                    color: AppTheme.surface,
+                    color: context.appSurface,
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color: AppTheme.border.withValues(alpha: 0.4),
+                      color: context.appBorder.withValues(alpha: 0.4),
                     ),
                   ),
                   child: Text(
@@ -969,7 +969,7 @@ class _EmptyClassesState extends StatelessWidget {
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 14,
-                  color: AppTheme.textSecondary,
+                  color: context.appTextSecondary,
                   height: 1.5,
                 ),
               ),
@@ -1047,7 +1047,7 @@ class _RemindersList extends StatelessWidget {
                       ? CupertinoIcons.checkmark_circle
                       : Icons.check_circle_outline,
                   size: 40,
-                  color: AppTheme.textTertiary,
+                  color: context.appTextTertiary,
                 ),
                 const SizedBox(height: 12),
                 Text(
@@ -1055,7 +1055,7 @@ class _RemindersList extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
-                    color: AppTheme.textSecondary,
+                    color: context.appTextSecondary,
                   ),
                 ),
                 const SizedBox(height: 6),
@@ -1064,7 +1064,7 @@ class _RemindersList extends StatelessWidget {
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 13,
-                    color: AppTheme.textTertiary,
+                    color: context.appTextTertiary,
                     height: 1.5,
                   ),
                 ),
@@ -1081,7 +1081,7 @@ class _RemindersList extends StatelessWidget {
                           borderRadius: BorderRadius.circular(12),
                         ),
                         margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                        backgroundColor: AppTheme.surface,
+                        backgroundColor: context.appSurface,
                       ),
                     );
                   },
@@ -1091,10 +1091,10 @@ class _RemindersList extends StatelessWidget {
                       vertical: 10,
                     ),
                     decoration: BoxDecoration(
-                      color: AppTheme.surface,
+                      color: context.appSurface,
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
-                        color: AppTheme.border.withValues(alpha: 0.3),
+                        color: context.appBorder.withValues(alpha: 0.3),
                       ),
                     ),
                     child: Row(
@@ -1103,7 +1103,7 @@ class _RemindersList extends StatelessWidget {
                         Icon(
                           _isIOS ? CupertinoIcons.share : Icons.share_outlined,
                           size: 14,
-                          color: AppTheme.textTertiary,
+                          color: context.appTextTertiary,
                         ),
                         const SizedBox(width: 7),
                         Text(
@@ -1111,7 +1111,7 @@ class _RemindersList extends StatelessWidget {
                           style: TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
-                            color: AppTheme.textSecondary,
+                            color: context.appTextSecondary,
                             letterSpacing: 1.5,
                           ),
                         ),
@@ -1137,14 +1137,14 @@ class _RemindersList extends StatelessWidget {
                     Icon(
                       _isIOS ? CupertinoIcons.share : Icons.share_outlined,
                       size: 12,
-                      color: AppTheme.textTertiary,
+                      color: context.appTextTertiary,
                     ),
                     const SizedBox(width: 5),
                     Text(
                       'Klassen-Code: ${classRoom.code}',
                       style: TextStyle(
                         fontSize: 12,
-                        color: AppTheme.textTertiary,
+                        color: context.appTextTertiary,
                         letterSpacing: 1,
                       ),
                     ),
@@ -1158,7 +1158,7 @@ class _RemindersList extends StatelessWidget {
                             ? CupertinoIcons.doc_on_clipboard
                             : Icons.content_copy,
                         size: 11,
-                        color: AppTheme.textTertiary,
+                        color: context.appTextTertiary,
                       ),
                     ),
                   ],
@@ -1282,12 +1282,12 @@ class _ReminderCardState extends State<_ReminderCard> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppTheme.surface,
+        color: context.appSurface,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: isDue
               ? AppTheme.warning.withValues(alpha: 0.3)
-              : AppTheme.border.withValues(alpha: 0.2),
+              : context.appBorder.withValues(alpha: 0.2),
         ),
         boxShadow: isDue
             ? [
@@ -1312,7 +1312,7 @@ class _ReminderCardState extends State<_ReminderCard> {
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w700,
-                    color: AppTheme.textPrimary,
+                    color: context.appTextPrimary,
                   ),
                 ),
               ),
@@ -1347,7 +1347,7 @@ class _ReminderCardState extends State<_ReminderCard> {
                   child: Icon(
                     _isIOS ? CupertinoIcons.trash : Icons.delete_outline,
                     size: 17,
-                    color: AppTheme.textTertiary,
+                    color: context.appTextTertiary,
                   ),
                 ),
               ],
@@ -1361,7 +1361,7 @@ class _ReminderCardState extends State<_ReminderCard> {
               r.body,
               style: TextStyle(
                 fontSize: 14,
-                color: AppTheme.textSecondary,
+                color: context.appTextSecondary,
                 height: 1.4,
               ),
             ),
@@ -1375,13 +1375,13 @@ class _ReminderCardState extends State<_ReminderCard> {
               Icon(
                 _isIOS ? CupertinoIcons.person_fill : Icons.person_outline,
                 size: 12,
-                color: AppTheme.textTertiary,
+                color: context.appTextTertiary,
               ),
               const SizedBox(width: 4),
               Expanded(
                 child: Text(
                   r.createdByName,
-                  style: TextStyle(fontSize: 12, color: AppTheme.textTertiary),
+                  style: TextStyle(fontSize: 12, color: context.appTextTertiary),
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
@@ -1477,7 +1477,7 @@ class _IosCreateReminderSheetState extends State<_IosCreateReminderSheet> {
       context: context,
       builder: (ctx) => Container(
         height: 320,
-        color: AppTheme.surface,
+        color: context.appSurface,
         child: Column(
           children: [
             Row(
@@ -1529,7 +1529,7 @@ class _IosCreateReminderSheetState extends State<_IosCreateReminderSheet> {
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
     return Container(
       decoration: BoxDecoration(
-        color: AppTheme.surface,
+        color: context.appSurface,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
       ),
       padding: EdgeInsets.only(bottom: bottomInset),
@@ -1545,7 +1545,7 @@ class _IosCreateReminderSheetState extends State<_IosCreateReminderSheet> {
                   width: 36,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: AppTheme.border.withValues(alpha: 0.5),
+                    color: context.appBorder.withValues(alpha: 0.5),
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -1556,7 +1556,7 @@ class _IosCreateReminderSheetState extends State<_IosCreateReminderSheet> {
                 style: TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.w700,
-                  color: AppTheme.textPrimary,
+                  color: context.appTextPrimary,
                 ),
               ),
               const SizedBox(height: 20),
@@ -1580,10 +1580,10 @@ class _IosCreateReminderSheetState extends State<_IosCreateReminderSheet> {
                 child: Container(
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
-                    color: AppTheme.card,
+                    color: context.appCard,
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color: AppTheme.border.withValues(alpha: 0.3),
+                      color: context.appBorder.withValues(alpha: 0.3),
                     ),
                   ),
                   child: Row(
@@ -1602,7 +1602,7 @@ class _IosCreateReminderSheetState extends State<_IosCreateReminderSheet> {
                               'Erinnerung am',
                               style: TextStyle(
                                 fontSize: 11,
-                                color: AppTheme.textTertiary,
+                                color: context.appTextTertiary,
                               ),
                             ),
                             const SizedBox(height: 2),
@@ -1611,7 +1611,7 @@ class _IosCreateReminderSheetState extends State<_IosCreateReminderSheet> {
                               style: TextStyle(
                                 fontSize: 14,
                                 fontWeight: FontWeight.w600,
-                                color: AppTheme.textPrimary,
+                                color: context.appTextPrimary,
                               ),
                             ),
                             if (_formatRelative(_remindAt) != null) ...[
@@ -1630,7 +1630,7 @@ class _IosCreateReminderSheetState extends State<_IosCreateReminderSheet> {
                       Icon(
                         CupertinoIcons.chevron_right,
                         size: 16,
-                        color: AppTheme.textTertiary,
+                        color: context.appTextTertiary,
                       ),
                     ],
                   ),
@@ -1746,7 +1746,7 @@ class _AndroidCreateReminderSheetState
         data: ThemeData(
           colorScheme: ColorScheme.fromSeed(
             seedColor: AppTheme.accent,
-            brightness: AppTheme.currentBrightness,
+            brightness: Theme.of(context).brightness,
           ),
         ),
         child: child!,
@@ -1761,7 +1761,7 @@ class _AndroidCreateReminderSheetState
         data: ThemeData(
           colorScheme: ColorScheme.fromSeed(
             seedColor: AppTheme.accent,
-            brightness: AppTheme.currentBrightness,
+            brightness: Theme.of(context).brightness,
           ),
         ),
         child: child!,
@@ -1815,7 +1815,7 @@ class _AndroidCreateReminderSheetState
                     width: 32,
                     height: 4,
                     decoration: BoxDecoration(
-                      color: AppTheme.border.withValues(alpha: 0.6),
+                      color: context.appBorder.withValues(alpha: 0.6),
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
@@ -1832,7 +1832,7 @@ class _AndroidCreateReminderSheetState
                       style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.w600,
-                        color: AppTheme.textPrimary,
+                        color: context.appTextPrimary,
                         letterSpacing: 0.1,
                       ),
                     ),
@@ -1845,14 +1845,14 @@ class _AndroidCreateReminderSheetState
                   controller: _titleCtrl,
                   autofocus: true,
                   textCapitalization: TextCapitalization.sentences,
-                  style: TextStyle(color: AppTheme.textPrimary),
+                  style: TextStyle(color: context.appTextPrimary),
                   decoration: InputDecoration(
                     labelText: 'Titel',
                     hintText: 'z.B. Mathe Hausaufgabe',
-                    hintStyle: TextStyle(color: AppTheme.textTertiary),
+                    hintStyle: TextStyle(color: context.appTextTertiary),
                     prefixIcon: const Icon(Icons.title_outlined),
                     filled: true,
-                    fillColor: AppTheme.card,
+                    fillColor: context.appCard,
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                       borderSide: BorderSide.none,
@@ -1860,7 +1860,7 @@ class _AndroidCreateReminderSheetState
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                       borderSide: BorderSide(
-                        color: AppTheme.border.withValues(alpha: 0.3),
+                        color: context.appBorder.withValues(alpha: 0.3),
                       ),
                     ),
                     focusedBorder: OutlineInputBorder(
@@ -1883,17 +1883,17 @@ class _AndroidCreateReminderSheetState
                   controller: _bodyCtrl,
                   maxLines: 3,
                   textCapitalization: TextCapitalization.sentences,
-                  style: TextStyle(color: AppTheme.textPrimary),
+                  style: TextStyle(color: context.appTextPrimary),
                   decoration: InputDecoration(
                     labelText: 'Notiz (optional)',
                     hintText: 'z.B. Seite 42, Aufgabe 3',
-                    hintStyle: TextStyle(color: AppTheme.textTertiary),
+                    hintStyle: TextStyle(color: context.appTextTertiary),
                     prefixIcon: const Padding(
                       padding: EdgeInsets.only(bottom: 48),
                       child: Icon(Icons.notes_outlined),
                     ),
                     filled: true,
-                    fillColor: AppTheme.card,
+                    fillColor: context.appCard,
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                       borderSide: BorderSide.none,
@@ -1901,7 +1901,7 @@ class _AndroidCreateReminderSheetState
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                       borderSide: BorderSide(
-                        color: AppTheme.border.withValues(alpha: 0.3),
+                        color: context.appBorder.withValues(alpha: 0.3),
                       ),
                     ),
                     focusedBorder: OutlineInputBorder(
@@ -1914,7 +1914,7 @@ class _AndroidCreateReminderSheetState
 
                 // Date/time row (Material InkWell)
                 Material(
-                  color: AppTheme.card,
+                  color: context.appCard,
                   borderRadius: BorderRadius.circular(12),
                   child: InkWell(
                     borderRadius: BorderRadius.circular(12),
@@ -1927,7 +1927,7 @@ class _AndroidCreateReminderSheetState
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
-                          color: AppTheme.border.withValues(alpha: 0.3),
+                          color: context.appBorder.withValues(alpha: 0.3),
                         ),
                       ),
                       child: Row(
@@ -1946,7 +1946,7 @@ class _AndroidCreateReminderSheetState
                                   'Erinnerung am',
                                   style: TextStyle(
                                     fontSize: 11,
-                                    color: AppTheme.textTertiary,
+                                    color: context.appTextTertiary,
                                     letterSpacing: 0.4,
                                   ),
                                 ),
@@ -1956,7 +1956,7 @@ class _AndroidCreateReminderSheetState
                                   style: TextStyle(
                                     fontSize: 14,
                                     fontWeight: FontWeight.w500,
-                                    color: AppTheme.textPrimary,
+                                    color: context.appTextPrimary,
                                   ),
                                 ),
                                 if (rel != null) ...[
@@ -1975,7 +1975,7 @@ class _AndroidCreateReminderSheetState
                           Icon(
                             Icons.edit_calendar_outlined,
                             size: 18,
-                            color: AppTheme.textTertiary,
+                            color: context.appTextTertiary,
                           ),
                         ],
                       ),
@@ -2061,7 +2061,7 @@ class _CupertinoField extends StatelessWidget {
           style: TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.w500,
-            color: AppTheme.textTertiary,
+            color: context.appTextTertiary,
           ),
         ),
         const SizedBox(height: 6),
@@ -2069,11 +2069,11 @@ class _CupertinoField extends StatelessWidget {
           controller: controller,
           maxLines: maxLines,
           placeholder: placeholder,
-          placeholderStyle: TextStyle(color: AppTheme.textTertiary),
-          style: TextStyle(fontSize: 15, color: AppTheme.textPrimary),
+          placeholderStyle: TextStyle(color: context.appTextTertiary),
+          style: TextStyle(fontSize: 15, color: context.appTextPrimary),
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: AppTheme.card,
+            color: context.appCard,
             borderRadius: BorderRadius.circular(12),
           ),
           autocorrect: false,
@@ -2131,7 +2131,7 @@ class _MembersSheetState extends State<_MembersSheet> {
                 width: 36,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: AppTheme.border.withValues(alpha: 0.5),
+                  color: context.appBorder.withValues(alpha: 0.5),
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -2151,7 +2151,7 @@ class _MembersSheetState extends State<_MembersSheet> {
                     style: TextStyle(
                       fontSize: 17,
                       fontWeight: FontWeight.w700,
-                      color: AppTheme.textPrimary,
+                      color: context.appTextPrimary,
                     ),
                   ),
                 ),
@@ -2160,7 +2160,7 @@ class _MembersSheetState extends State<_MembersSheet> {
             const SizedBox(height: 4),
             Text(
               '${cls.members.length} ${cls.members.length == 1 ? "Mitglied" : "Mitglieder"}',
-              style: TextStyle(fontSize: 13, color: AppTheme.textSecondary),
+              style: TextStyle(fontSize: 13, color: context.appTextSecondary),
             ),
             const SizedBox(height: 14),
             if (_names == null)
@@ -2201,7 +2201,7 @@ class _MembersSheetState extends State<_MembersSheet> {
                           style: TextStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.w500,
-                            color: AppTheme.textPrimary,
+                            color: context.appTextPrimary,
                           ),
                         ),
                       ),
@@ -2281,7 +2281,7 @@ class _ToastOverlayState extends State<_ToastOverlay>
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
           decoration: BoxDecoration(
-            color: AppTheme.surface,
+            color: context.appSurface,
             borderRadius: BorderRadius.circular(12),
             boxShadow: [
               BoxShadow(
@@ -2297,7 +2297,7 @@ class _ToastOverlayState extends State<_ToastOverlay>
             style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w500,
-              color: AppTheme.textPrimary,
+              color: context.appTextPrimary,
               decoration: TextDecoration.none,
             ),
           ),

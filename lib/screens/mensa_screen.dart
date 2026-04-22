@@ -139,7 +139,7 @@ class _MensaScreenState extends State<MensaScreen> {
     return SafeArea(
       child: RefreshIndicator(
         color: AppTheme.accent,
-        backgroundColor: AppTheme.surface,
+        backgroundColor: context.appSurface,
         onRefresh: _load,
         child: CustomScrollView(
           controller: _scrollController,
@@ -158,7 +158,7 @@ class _MensaScreenState extends State<MensaScreen> {
                       style: TextStyle(
                         fontSize: 34,
                         fontWeight: FontWeight.w700,
-                        color: AppTheme.textPrimary,
+                        color: context.appTextPrimary,
                         letterSpacing: -0.5,
                       ),
                     ),
@@ -169,7 +169,7 @@ class _MensaScreenState extends State<MensaScreen> {
                           '${_upcomingDays.length} Tage verfügbar',
                           style: TextStyle(
                             fontSize: 14,
-                            color: AppTheme.textSecondary,
+                            color: context.appTextSecondary,
                           ),
                         ),
                       ),
@@ -193,7 +193,7 @@ class _MensaScreenState extends State<MensaScreen> {
                       Text(
                         'Menü wird geladen\u2026',
                         style: TextStyle(
-                          color: AppTheme.textSecondary,
+                          color: context.appTextSecondary,
                           fontSize: 14,
                         ),
                       ),
@@ -227,7 +227,7 @@ class _MensaScreenState extends State<MensaScreen> {
                       Text(
                         _error!,
                         style: TextStyle(
-                          color: AppTheme.textSecondary,
+                          color: context.appTextSecondary,
                           fontSize: 14,
                         ),
                       ),
@@ -263,14 +263,14 @@ class _MensaScreenState extends State<MensaScreen> {
                     children: [
                       Icon(
                         CupertinoIcons.tray,
-                        color: AppTheme.textTertiary,
+                        color: context.appTextTertiary,
                         size: 36,
                       ),
                       SizedBox(height: 12),
                       Text(
                         'Kein Menü verfügbar',
                         style: TextStyle(
-                          color: AppTheme.textSecondary,
+                          color: context.appTextSecondary,
                           fontSize: 15,
                         ),
                       ),
@@ -406,8 +406,8 @@ class _DaySection extends StatelessWidget {
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
                     color: _isToday
-                        ? AppTheme.textPrimary
-                        : AppTheme.textSecondary,
+                        ? context.appTextPrimary
+                        : context.appTextSecondary,
                   ),
                 ),
               ],
@@ -440,7 +440,7 @@ class _DishCard extends StatelessWidget {
       onTap: onTap,
       child: Container(
         decoration: BoxDecoration(
-          color: AppTheme.surface,
+          color: context.appSurface,
           borderRadius: BorderRadius.circular(16),
         ),
         clipBehavior: Clip.antiAlias,
@@ -460,21 +460,21 @@ class _DishCard extends StatelessWidget {
                       fadeInDuration: Duration.zero,
                       placeholderFadeInDuration: Duration.zero,
                       placeholder: (context, url) => Container(
-                        color: AppTheme.card,
+                        color: context.appCard,
                         child: Center(
                           child: Icon(
                             CupertinoIcons.photo,
-                            color: AppTheme.textTertiary,
+                            color: context.appTextTertiary,
                             size: 32,
                           ),
                         ),
                       ),
                       errorWidget: (context, url, error) => Container(
-                        color: AppTheme.card,
+                        color: context.appCard,
                         child: Center(
                           child: Icon(
                             CupertinoIcons.photo,
-                            color: AppTheme.textTertiary,
+                            color: context.appTextTertiary,
                             size: 32,
                           ),
                         ),
@@ -494,7 +494,7 @@ class _DishCard extends StatelessWidget {
                           end: Alignment.bottomCenter,
                           colors: [
                             Colors.transparent,
-                            AppTheme.surface.withValues(alpha: 0.8),
+                            context.appSurface.withValues(alpha: 0.8),
                           ],
                         ),
                       ),
@@ -537,7 +537,7 @@ class _DishCard extends StatelessWidget {
                           style: TextStyle(
                             fontSize: 17,
                             fontWeight: FontWeight.w600,
-                            color: AppTheme.textPrimary,
+                            color: context.appTextPrimary,
                           ),
                         ),
                       ),
@@ -545,7 +545,7 @@ class _DishCard extends StatelessWidget {
                       Icon(
                         CupertinoIcons.chevron_right,
                         size: 14,
-                        color: AppTheme.textTertiary.withValues(alpha: 0.6),
+                        color: context.appTextTertiary.withValues(alpha: 0.6),
                       ),
                     ],
                   ),
@@ -556,7 +556,7 @@ class _DishCard extends StatelessWidget {
                       dish.category,
                       style: TextStyle(
                         fontSize: 13,
-                        color: AppTheme.textSecondary,
+                        color: context.appTextSecondary,
                       ),
                     ),
                   ],
@@ -711,7 +711,7 @@ class _DishDetailSheetState extends State<_DishDetailSheet> {
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
       decoration: BoxDecoration(
-        color: AppTheme.surface,
+        color: context.appSurface,
         borderRadius: BorderRadius.circular(14),
       ),
       child: Column(
@@ -727,7 +727,7 @@ class _DishDetailSheetState extends State<_DishDetailSheet> {
                   child: _StarIcon(
                     fillFraction: _voteCount > 0 ? fraction : 0.0,
                     color: AppTheme.warning,
-                    emptyColor: AppTheme.textTertiary.withValues(alpha: 0.3),
+                    emptyColor: context.appTextTertiary.withValues(alpha: 0.3),
                     size: 15,
                   ),
                 );
@@ -738,7 +738,7 @@ class _DishDetailSheetState extends State<_DishDetailSheet> {
                 style: TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.w600,
-                  color: AppTheme.textPrimary,
+                  color: context.appTextPrimary,
                 ),
               ),
               const SizedBox(width: 5),
@@ -747,7 +747,7 @@ class _DishDetailSheetState extends State<_DishDetailSheet> {
                   _voteCount == 0
                       ? 'Noch keine Bewertungen'
                       : '($_voteCount ${_voteCount == 1 ? "Bewertung" : "Bewertungen"})',
-                  style: TextStyle(fontSize: 13, color: AppTheme.textSecondary),
+                  style: TextStyle(fontSize: 13, color: context.appTextSecondary),
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
@@ -759,17 +759,17 @@ class _DishDetailSheetState extends State<_DishDetailSheet> {
               padding: const EdgeInsets.symmetric(vertical: 12),
               child: Divider(
                 height: 1,
-                color: AppTheme.textTertiary.withValues(alpha: 0.15),
+                color: context.appTextTertiary.withValues(alpha: 0.15),
               ),
             ),
             Text(
               'Wie gut ist dieses Gericht?',
-              style: TextStyle(fontSize: 13, color: AppTheme.textSecondary),
+              style: TextStyle(fontSize: 13, color: context.appTextSecondary),
             ),
             const SizedBox(height: 4),
             Text(
               'Tippen oder wischen',
-              style: TextStyle(fontSize: 11, color: AppTheme.textTertiary),
+              style: TextStyle(fontSize: 11, color: context.appTextTertiary),
             ),
             const SizedBox(height: 10),
             // Slider-style star row (Listener fires on every raw pointer event,
@@ -802,7 +802,7 @@ class _DishDetailSheetState extends State<_DishDetailSheet> {
                       child: _StarIcon(
                         fillFraction: fraction,
                         color: AppTheme.warning,
-                        emptyColor: AppTheme.textTertiary.withValues(
+                        emptyColor: context.appTextTertiary.withValues(
                           alpha: 0.35,
                         ),
                         size: _starSize,
@@ -841,7 +841,7 @@ class _DishDetailSheetState extends State<_DishDetailSheet> {
                     'Deine Bewertung: ${_userRating! == _userRating!.roundToDouble() ? _userRating!.toInt() : _userRating!.toStringAsFixed(1)} / 5',
                     style: TextStyle(
                       fontSize: 12,
-                      color: AppTheme.textSecondary,
+                      color: context.appTextSecondary,
                     ),
                   ),
                   const SizedBox(width: 6),
@@ -881,7 +881,7 @@ class _DishDetailSheetState extends State<_DishDetailSheet> {
       builder: (_, scrollController) {
         return Container(
           decoration: BoxDecoration(
-            color: AppTheme.bg,
+            color: context.appBg,
             borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
           ),
           child: Column(
@@ -894,7 +894,7 @@ class _DishDetailSheetState extends State<_DishDetailSheet> {
                   width: 36,
                   height: 5,
                   decoration: BoxDecoration(
-                    color: AppTheme.textTertiary.withValues(alpha: 0.4),
+                    color: context.appTextTertiary.withValues(alpha: 0.4),
                     borderRadius: BorderRadius.circular(3),
                   ),
                 ),
@@ -920,21 +920,21 @@ class _DishDetailSheetState extends State<_DishDetailSheet> {
                               fadeInDuration: Duration.zero,
                               placeholderFadeInDuration: Duration.zero,
                               placeholder: (context, url) => Container(
-                                color: AppTheme.card,
+                                color: context.appCard,
                                 child: Center(
                                   child: Icon(
                                     CupertinoIcons.photo,
-                                    color: AppTheme.textTertiary,
+                                    color: context.appTextTertiary,
                                     size: 40,
                                   ),
                                 ),
                               ),
                               errorWidget: (context, url, error) => Container(
-                                color: AppTheme.card,
+                                color: context.appCard,
                                 child: Center(
                                   child: Icon(
                                     CupertinoIcons.photo,
-                                    color: AppTheme.textTertiary,
+                                    color: context.appTextTertiary,
                                     size: 40,
                                   ),
                                 ),
@@ -973,7 +973,7 @@ class _DishDetailSheetState extends State<_DishDetailSheet> {
                         style: TextStyle(
                           fontSize: 26,
                           fontWeight: FontWeight.w700,
-                          color: AppTheme.textPrimary,
+                          color: context.appTextPrimary,
                           letterSpacing: -0.5,
                         ),
                       ),
@@ -984,7 +984,7 @@ class _DishDetailSheetState extends State<_DishDetailSheet> {
                           dish.category,
                           style: TextStyle(
                             fontSize: 15,
-                            color: AppTheme.textSecondary,
+                            color: context.appTextSecondary,
                           ),
                         ),
                       ],
@@ -1003,7 +1003,7 @@ class _DishDetailSheetState extends State<_DishDetailSheet> {
                             vertical: 9,
                           ),
                           decoration: BoxDecoration(
-                            color: AppTheme.surface,
+                            color: context.appSurface,
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Column(
@@ -1014,7 +1014,7 @@ class _DishDetailSheetState extends State<_DishDetailSheet> {
                                   Icon(
                                     CupertinoIcons.text_quote,
                                     size: 14,
-                                    color: AppTheme.textSecondary,
+                                    color: context.appTextSecondary,
                                   ),
                                   SizedBox(width: 6),
                                   Text(
@@ -1022,7 +1022,7 @@ class _DishDetailSheetState extends State<_DishDetailSheet> {
                                     style: TextStyle(
                                       fontSize: 13,
                                       fontWeight: FontWeight.w600,
-                                      color: AppTheme.textSecondary,
+                                      color: context.appTextSecondary,
                                     ),
                                   ),
                                 ],
@@ -1032,7 +1032,7 @@ class _DishDetailSheetState extends State<_DishDetailSheet> {
                                 dish.description('de'),
                                 style: TextStyle(
                                   fontSize: 15,
-                                  color: AppTheme.textPrimary,
+                                  color: context.appTextPrimary,
                                   height: 1.4,
                                 ),
                               ),
@@ -1049,7 +1049,7 @@ class _DishDetailSheetState extends State<_DishDetailSheet> {
                           style: TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.w700,
-                            color: AppTheme.textPrimary,
+                            color: context.appTextPrimary,
                           ),
                         ),
                         const SizedBox(height: 12),
@@ -1108,7 +1108,7 @@ class _DishDetailSheetState extends State<_DishDetailSheet> {
                           style: TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.w700,
-                            color: AppTheme.textPrimary,
+                            color: context.appTextPrimary,
                           ),
                         ),
                         const SizedBox(height: 10),
@@ -1172,7 +1172,7 @@ class _DishDetailSheetState extends State<_DishDetailSheet> {
                                 'Preis',
                                 style: TextStyle(
                                   fontSize: 15,
-                                  color: AppTheme.textSecondary,
+                                  color: context.appTextSecondary,
                                 ),
                               ),
                               const Spacer(),
@@ -1361,7 +1361,7 @@ class _NutritionCard extends StatelessWidget {
           const SizedBox(height: 2),
           Text(
             label,
-            style: TextStyle(fontSize: 12, color: AppTheme.textTertiary),
+            style: TextStyle(fontSize: 12, color: context.appTextTertiary),
           ),
         ],
       ),
@@ -1394,7 +1394,7 @@ class _NutritionBar extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppTheme.surface,
+        color: context.appSurface,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
@@ -1405,7 +1405,7 @@ class _NutritionBar extends StatelessWidget {
             style: TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w600,
-              color: AppTheme.textSecondary,
+              color: context.appTextSecondary,
             ),
           ),
           const SizedBox(height: 10),
@@ -1488,7 +1488,7 @@ class _MacroLegend extends StatelessWidget {
         const SizedBox(width: 5),
         Text(
           '$label $value',
-          style: TextStyle(fontSize: 11, color: AppTheme.textSecondary),
+          style: TextStyle(fontSize: 11, color: context.appTextSecondary),
         ),
       ],
     );

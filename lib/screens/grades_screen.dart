@@ -114,7 +114,7 @@ class _GradesScreenState extends State<GradesScreen> {
                         width: 34,
                         height: 34,
                         decoration: BoxDecoration(
-                          color: AppTheme.surface,
+                          color: context.appSurface,
                           borderRadius: BorderRadius.circular(10),
                         ),
                         child: Icon(
@@ -122,7 +122,7 @@ class _GradesScreenState extends State<GradesScreen> {
                               ? CupertinoIcons.chevron_left
                               : Icons.arrow_back,
                           size: 16,
-                          color: AppTheme.textSecondary,
+                          color: context.appTextSecondary,
                         ),
                       ),
                     ),
@@ -132,7 +132,7 @@ class _GradesScreenState extends State<GradesScreen> {
                       style: TextStyle(
                         fontSize: 28,
                         fontWeight: FontWeight.w700,
-                        color: AppTheme.textPrimary,
+                        color: context.appTextPrimary,
                         letterSpacing: -0.5,
                       ),
                     ),
@@ -147,7 +147,7 @@ class _GradesScreenState extends State<GradesScreen> {
                       '${_subjects.length} Fächer · Schuljahr ${AppConfig.currentSchoolYear}',
                       style: TextStyle(
                         fontSize: 14,
-                        color: AppTheme.textSecondary,
+                        color: context.appTextSecondary,
                       ),
                     ),
                   ),
@@ -183,7 +183,7 @@ class _GradesScreenState extends State<GradesScreen> {
                   Text(
                     'Noten werden geladen…',
                     style: TextStyle(
-                      color: AppTheme.textSecondary,
+                      color: context.appTextSecondary,
                       fontSize: 14,
                     ),
                   ),
@@ -217,7 +217,7 @@ class _GradesScreenState extends State<GradesScreen> {
                   Text(
                     _error!,
                     textAlign: TextAlign.center,
-                    style: TextStyle(color: AppTheme.textSecondary),
+                    style: TextStyle(color: context.appTextSecondary),
                   ),
                   const SizedBox(height: 18),
                   CupertinoButton(
@@ -248,7 +248,7 @@ class _GradesScreenState extends State<GradesScreen> {
             child: Center(
               child: Text(
                 'Keine Noten vorhanden',
-                style: TextStyle(color: AppTheme.textSecondary, fontSize: 15),
+                style: TextStyle(color: context.appTextSecondary, fontSize: 15),
               ),
             ),
           )
@@ -269,7 +269,7 @@ class _GradesScreenState extends State<GradesScreen> {
     );
 
     return Scaffold(
-      backgroundColor: AppTheme.bg,
+      backgroundColor: context.appBg,
       body: SafeArea(
         child: RefreshIndicator(
           onRefresh: () => _load(forceRefresh: true),
@@ -348,7 +348,7 @@ class _OverviewAndDistributionCard extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        color: AppTheme.surface,
+        color: context.appSurface,
         borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
@@ -397,7 +397,7 @@ class _OverviewAndDistributionCard extends StatelessWidget {
                         style: TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.w600,
-                          color: AppTheme.textPrimary,
+                          color: context.appTextPrimary,
                         ),
                       ),
                       const SizedBox(height: 6),
@@ -430,7 +430,7 @@ class _OverviewAndDistributionCard extends StatelessWidget {
           ),
 
           // ── Divider ──
-          Divider(color: AppTheme.border.withValues(alpha: 0.5), height: 1),
+          Divider(color: context.appBorder.withValues(alpha: 0.5), height: 1),
 
           // ── Bottom: donut + legend ──
           Padding(
@@ -455,7 +455,7 @@ class _OverviewAndDistributionCard extends StatelessWidget {
                         style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
-                          color: AppTheme.textPrimary,
+                          color: context.appTextPrimary,
                         ),
                       ),
                       const SizedBox(height: 8),
@@ -617,7 +617,7 @@ class _StatPill extends StatelessWidget {
             color: color,
           ),
         ),
-        Text(sub, style: TextStyle(fontSize: 10, color: AppTheme.textTertiary)),
+        Text(sub, style: TextStyle(fontSize: 10, color: context.appTextTertiary)),
       ],
     );
   }
@@ -667,7 +667,7 @@ class _SubjectCardState extends State<_SubjectCard>
         duration: const Duration(milliseconds: 250),
         curve: Curves.easeInOut,
         decoration: BoxDecoration(
-          color: AppTheme.surface,
+          color: context.appSurface,
           borderRadius: BorderRadius.circular(14),
           border: _expanded
               ? Border.all(color: color.withValues(alpha: 0.3))
@@ -697,7 +697,7 @@ class _SubjectCardState extends State<_SubjectCard>
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
-                            color: AppTheme.textPrimary,
+                            color: context.appTextPrimary,
                           ),
                         ),
                         const SizedBox(height: 2),
@@ -705,7 +705,7 @@ class _SubjectCardState extends State<_SubjectCard>
                           '${widget.subject.teacherName} \u00b7 ${widget.subject.grades.length} Noten',
                           style: TextStyle(
                             fontSize: 13,
-                            color: AppTheme.textSecondary,
+                            color: context.appTextSecondary,
                           ),
                         ),
                       ],
@@ -722,9 +722,9 @@ class _SubjectCardState extends State<_SubjectCard>
                       ),
                       margin: const EdgeInsets.only(right: 6),
                       decoration: BoxDecoration(
-                        color: AppTheme.border.withValues(alpha: 0.4),
+                        color: context.appBorder.withValues(alpha: 0.4),
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: AppTheme.border),
+                        border: Border.all(color: context.appBorder),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
@@ -732,7 +732,7 @@ class _SubjectCardState extends State<_SubjectCard>
                           Icon(
                             CupertinoIcons.chart_bar_alt_fill,
                             size: 12,
-                            color: AppTheme.textSecondary,
+                            color: context.appTextSecondary,
                           ),
                           const SizedBox(width: 4),
                           Text(
@@ -740,7 +740,7 @@ class _SubjectCardState extends State<_SubjectCard>
                             style: TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.w600,
-                              color: AppTheme.textSecondary,
+                              color: context.appTextSecondary,
                             ),
                           ),
                         ],
@@ -779,7 +779,7 @@ class _SubjectCardState extends State<_SubjectCard>
                     child: Icon(
                       CupertinoIcons.chevron_down,
                       size: 14,
-                      color: AppTheme.textTertiary,
+                      color: context.appTextTertiary,
                     ),
                   ),
                 ],
@@ -794,7 +794,7 @@ class _SubjectCardState extends State<_SubjectCard>
               firstChild: Column(
                 children: [
                   Divider(
-                    color: AppTheme.border.withValues(alpha: 0.5),
+                    color: context.appBorder.withValues(alpha: 0.5),
                     height: 1,
                     indent: 14,
                     endIndent: 14,
@@ -841,7 +841,7 @@ class _SubjectCardState extends State<_SubjectCard>
                                             : '\u2014'),
                                   style: TextStyle(
                                     fontSize: 13,
-                                    color: AppTheme.textSecondary,
+                                    color: context.appTextSecondary,
                                   ),
                                 ),
                               ),
@@ -850,7 +850,7 @@ class _SubjectCardState extends State<_SubjectCard>
                                 g.dateFormatted,
                                 style: TextStyle(
                                   fontSize: 12,
-                                  color: AppTheme.textTertiary,
+                                  color: context.appTextTertiary,
                                   fontFeatures: const [
                                     FontFeature.tabularFigures(),
                                   ],
@@ -976,7 +976,7 @@ class _SubjectDetailSheetState extends State<_SubjectDetailSheet> {
           behavior: HitTestBehavior.opaque,
           child: Container(
             decoration: BoxDecoration(
-              color: AppTheme.bg,
+              color: context.appBg,
               borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
             ),
             child: Column(
@@ -988,7 +988,7 @@ class _SubjectDetailSheetState extends State<_SubjectDetailSheet> {
                     width: 36,
                     height: 4,
                     decoration: BoxDecoration(
-                      color: AppTheme.border,
+                      color: context.appBorder,
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
@@ -1014,7 +1014,7 @@ class _SubjectDetailSheetState extends State<_SubjectDetailSheet> {
                           style: TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.w700,
-                            color: AppTheme.textPrimary,
+                            color: context.appTextPrimary,
                             letterSpacing: -0.3,
                           ),
                         ),
@@ -1049,7 +1049,7 @@ class _SubjectDetailSheetState extends State<_SubjectDetailSheet> {
                                     : '—',
                                 valueColor: origAvg != null
                                     ? _gradeColor(origAvg)
-                                    : AppTheme.textSecondary,
+                                    : context.appTextSecondary,
                               ),
                             ),
                             const SizedBox(width: 10),
@@ -1058,7 +1058,7 @@ class _SubjectDetailSheetState extends State<_SubjectDetailSheet> {
                                 label: 'Pos. / Neg.',
                                 value:
                                     '${widget.subject.positiveCount} / ${widget.subject.negativeCount}',
-                                valueColor: AppTheme.textPrimary,
+                                valueColor: context.appTextPrimary,
                               ),
                             ),
                             const SizedBox(width: 10),
@@ -1066,7 +1066,7 @@ class _SubjectDetailSheetState extends State<_SubjectDetailSheet> {
                               child: _MiniStatCard(
                                 label: 'Noten',
                                 value: '${widget.subject.grades.length}',
-                                valueColor: AppTheme.textPrimary,
+                                valueColor: context.appTextPrimary,
                               ),
                             ),
                           ],
@@ -1078,7 +1078,7 @@ class _SubjectDetailSheetState extends State<_SubjectDetailSheet> {
                         Container(
                           padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
-                            color: AppTheme.surface,
+                            color: context.appSurface,
                             borderRadius: BorderRadius.circular(14),
                           ),
                           child: Column(
@@ -1096,14 +1096,14 @@ class _SubjectDetailSheetState extends State<_SubjectDetailSheet> {
                                           style: TextStyle(
                                             fontSize: 14,
                                             fontWeight: FontWeight.w600,
-                                            color: AppTheme.textPrimary,
+                                            color: context.appTextPrimary,
                                           ),
                                         ),
                                         Text(
                                           'Notenentwicklung',
                                           style: TextStyle(
                                             fontSize: 11,
-                                            color: AppTheme.textSecondary,
+                                            color: context.appTextSecondary,
                                           ),
                                         ),
                                       ],
@@ -1122,7 +1122,7 @@ class _SubjectDetailSheetState extends State<_SubjectDetailSheet> {
                                         'Noten',
                                         style: TextStyle(
                                           fontSize: 10,
-                                          color: AppTheme.textTertiary,
+                                          color: context.appTextTertiary,
                                         ),
                                       ),
                                       const SizedBox(width: 10),
@@ -1138,7 +1138,7 @@ class _SubjectDetailSheetState extends State<_SubjectDetailSheet> {
                                         'Trend',
                                         style: TextStyle(
                                           fontSize: 10,
-                                          color: AppTheme.textTertiary,
+                                          color: context.appTextTertiary,
                                         ),
                                       ),
                                       if (_extraGrades.isNotEmpty) ...[
@@ -1155,7 +1155,7 @@ class _SubjectDetailSheetState extends State<_SubjectDetailSheet> {
                                           'Simulation',
                                           style: TextStyle(
                                             fontSize: 10,
-                                            color: AppTheme.textTertiary,
+                                            color: context.appTextTertiary,
                                           ),
                                         ),
                                       ],
@@ -1183,7 +1183,7 @@ class _SubjectDetailSheetState extends State<_SubjectDetailSheet> {
                         Container(
                           padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
-                            color: AppTheme.surface,
+                            color: context.appSurface,
                             borderRadius: BorderRadius.circular(14),
                           ),
                           child: Column(
@@ -1194,7 +1194,7 @@ class _SubjectDetailSheetState extends State<_SubjectDetailSheet> {
                                 style: TextStyle(
                                   fontSize: 14,
                                   fontWeight: FontWeight.w600,
-                                  color: AppTheme.textPrimary,
+                                  color: context.appTextPrimary,
                                 ),
                               ),
                               const SizedBox(height: 2),
@@ -1202,7 +1202,7 @@ class _SubjectDetailSheetState extends State<_SubjectDetailSheet> {
                                 'Simuliere zukünftige Noten',
                                 style: TextStyle(
                                   fontSize: 11,
-                                  color: AppTheme.textSecondary,
+                                  color: context.appTextSecondary,
                                 ),
                               ),
                               const SizedBox(height: 16),
@@ -1271,7 +1271,7 @@ class _SubjectDetailSheetState extends State<_SubjectDetailSheet> {
                                       'Vorhandene Noten',
                                       style: TextStyle(
                                         fontSize: 11,
-                                        color: AppTheme.textTertiary,
+                                        color: context.appTextTertiary,
                                       ),
                                     ),
                                     const SizedBox(height: 8),
@@ -1294,7 +1294,7 @@ class _SubjectDetailSheetState extends State<_SubjectDetailSheet> {
                                                   '',
                                                 );
                                             final gc = removed
-                                                ? AppTheme.textTertiary
+                                                ? context.appTextTertiary
                                                 : _gradeColor(
                                                     raw,
                                                   ).withValues(alpha: 0.85);
@@ -1314,7 +1314,7 @@ class _SubjectDetailSheetState extends State<_SubjectDetailSheet> {
                                                     ),
                                                 decoration: BoxDecoration(
                                                   color: removed
-                                                      ? AppTheme.surface
+                                                      ? context.appSurface
                                                       : gc.withValues(
                                                           alpha: 0.12,
                                                         ),
@@ -1322,7 +1322,7 @@ class _SubjectDetailSheetState extends State<_SubjectDetailSheet> {
                                                       BorderRadius.circular(9),
                                                   border: Border.all(
                                                     color: removed
-                                                        ? AppTheme.border
+                                                        ? context.appBorder
                                                               .withValues(
                                                                 alpha: 0.35,
                                                               )
@@ -1348,8 +1348,7 @@ class _SubjectDetailSheetState extends State<_SubjectDetailSheet> {
                                                                   .lineThrough
                                                             : null,
                                                         decorationColor:
-                                                            AppTheme
-                                                                .textTertiary
+                                                            context.appTextTertiary
                                                                 .withValues(
                                                                   alpha: 0.6,
                                                                 ),
@@ -1363,8 +1362,7 @@ class _SubjectDetailSheetState extends State<_SubjectDetailSheet> {
                                                                 .xmark,
                                                       size: 12,
                                                       color: removed
-                                                          ? AppTheme
-                                                                .textTertiary
+                                                          ? context.appTextTertiary
                                                                 .withValues(
                                                                   alpha: 0.5,
                                                                 )
@@ -1385,7 +1383,7 @@ class _SubjectDetailSheetState extends State<_SubjectDetailSheet> {
                                       'Testnoten',
                                       style: TextStyle(
                                         fontSize: 11,
-                                        color: AppTheme.textTertiary,
+                                        color: context.appTextTertiary,
                                       ),
                                     ),
                                     const SizedBox(height: 6),
@@ -1479,22 +1477,22 @@ class _SubjectDetailSheetState extends State<_SubjectDetailSheet> {
                                               decimal: true,
                                             ),
                                         style: TextStyle(
-                                          color: AppTheme.textPrimary,
+                                          color: context.appTextPrimary,
                                           fontSize: 14,
                                         ),
                                         placeholderStyle: TextStyle(
-                                          color: AppTheme.textTertiary,
+                                          color: context.appTextTertiary,
                                           fontSize: 14,
                                         ),
                                         decoration: BoxDecoration(
-                                          color: AppTheme.bg,
+                                          color: context.appBg,
                                           borderRadius: BorderRadius.circular(
                                             10,
                                           ),
                                           border: Border.all(
                                             color: _inputError != null
                                                 ? AppTheme.danger
-                                                : AppTheme.border,
+                                                : context.appBorder,
                                           ),
                                         ),
                                         padding: const EdgeInsets.symmetric(
@@ -1567,7 +1565,7 @@ class _MiniStatCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: AppTheme.surface,
+        color: context.appSurface,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
@@ -1575,7 +1573,7 @@ class _MiniStatCard extends StatelessWidget {
         children: [
           Text(
             label,
-            style: TextStyle(fontSize: 10, color: AppTheme.textTertiary),
+            style: TextStyle(fontSize: 10, color: context.appTextTertiary),
           ),
           const SizedBox(height: 4),
           Text(
@@ -1615,6 +1613,8 @@ class _TrendChart extends StatelessWidget {
         extraGrades: extraGrades,
         removedIndices: removedIndices,
         lineColor: color,
+        borderColor: context.appBorder,
+        labelColor: context.appTextTertiary,
       ),
       size: Size.infinite,
     );
@@ -1626,12 +1626,16 @@ class _TrendPainter extends CustomPainter {
   final List<double> extraGrades;
   final Set<int> removedIndices;
   final Color lineColor;
+  final Color borderColor;
+  final Color labelColor;
 
   const _TrendPainter({
     required this.grades,
     required this.extraGrades,
     required this.removedIndices,
     required this.lineColor,
+    required this.borderColor,
+    required this.labelColor,
   });
 
   static const double _minV = 1.0;
@@ -1665,7 +1669,7 @@ class _TrendPainter extends CustomPainter {
 
     // Grid lines
     final gridPaint = Paint()
-      ..color = AppTheme.border.withValues(alpha: 0.35)
+      ..color = borderColor.withValues(alpha: 0.35)
       ..strokeWidth = 0.5;
     for (final v in [4.0, 6.0, 7.0, 9.0]) {
       final y = _yOf(v, size.height);
@@ -1675,7 +1679,7 @@ class _TrendPainter extends CustomPainter {
         canvas,
         v.toInt().toString(),
         Offset(0, y - 6),
-        AppTheme.textTertiary.withValues(alpha: 0.6),
+        labelColor.withValues(alpha: 0.6),
         9,
       );
     }
@@ -1818,5 +1822,7 @@ class _TrendPainter extends CustomPainter {
   bool shouldRepaint(_TrendPainter old) =>
       old.grades != grades ||
       old.extraGrades != extraGrades ||
-      old.removedIndices.length != removedIndices.length;
+      old.removedIndices.length != removedIndices.length ||
+      old.borderColor != borderColor ||
+      old.labelColor != labelColor;
 }
