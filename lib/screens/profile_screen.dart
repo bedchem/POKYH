@@ -280,10 +280,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ? CupertinoIcons.doc_text
                     : Icons.description_outlined,
                 title: 'Impressum',
-                subtitle: 'untis.at/impressum',
+                subtitle: 'legal.plattnericus.dev/impressum_pokyh_plattnericus_dev_de.pdf',
                 onTap: () async {
                   final uri = Uri.parse(
-                    'https://www.untis.at/impressum',
+                    'https://legal.plattnericus.dev/impressum_pokyh_plattnericus_dev_de.pdf',
                   );
                   if (await canLaunchUrl(uri)) {
                     await launchUrl(
@@ -299,10 +299,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ? CupertinoIcons.lock_shield
                     : Icons.privacy_tip_outlined,
                 title: 'Datenschutz',
-                subtitle: 'untis.at/datenschutz-wu-apps',
+                subtitle: 'legal.plattnericus.dev/datenschutzerklaerung_pokyh_plattnericus_dev_de.pdf',
                 onTap: () async {
                   final uri = Uri.parse(
-                    'https://www.untis.at/datenschutz-wu-apps',
+                    'https://legal.plattnericus.dev/datenschutzerklaerung_pokyh_plattnericus_dev_de.pdf',
                   );
                   if (await canLaunchUrl(uri)) {
                     await launchUrl(
