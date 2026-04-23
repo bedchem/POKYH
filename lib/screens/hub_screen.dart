@@ -6,6 +6,7 @@ import '../theme/app_theme.dart';
 import 'absences_screen.dart';
 import 'grades_screen.dart';
 import 'reminders_screen.dart';
+import 'todos_screen.dart';
 
 bool get _isIOS => Platform.isIOS;
 
@@ -72,6 +73,16 @@ class HubScreen extends StatelessWidget {
                 color: AppTheme.orange,
                 onTap: () =>
                     _open(context, AbsencesScreen(service: service)),
+              ),
+              const SizedBox(height: 14),
+              _HubCard(
+                icon: _isIOS
+                    ? CupertinoIcons.checkmark_circle
+                    : Icons.check_circle_outline_rounded,
+                title: 'Todos',
+                subtitle: 'Persönliche Aufgabenliste',
+                color: AppTheme.accentSoft,
+                onTap: () => _open(context, const TodosScreen()),
               ),
             ],
           ),

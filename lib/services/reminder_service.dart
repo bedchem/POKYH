@@ -494,6 +494,19 @@ class ReminderService {
     await _notifs.cancel(notifId);
   }
 
+  Future<void> scheduleTodoNotification(
+    String id,
+    String title,
+    String? body,
+    DateTime at,
+  ) async {
+    await _scheduleNotification('todo:$id', title, body ?? '', at);
+  }
+
+  Future<void> cancelTodoNotification(String id) async {
+    await _cancelNotification('todo:$id');
+  }
+
   String _generateCode() {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     final rand = math.Random.secure();

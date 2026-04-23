@@ -241,6 +241,84 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  void _showLegalLinks() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: context.appSurface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 36,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: context.appBorder.withValues(alpha: 0.5),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Rechtliches',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                  color: context.appTextPrimary,
+                ),
+              ),
+              const SizedBox(height: 20),
+              _LegalButton(
+                icon: _isIOS
+                    ? CupertinoIcons.doc_text
+                    : Icons.description_outlined,
+                title: 'Impressum',
+                subtitle: 'untis.at/impressum',
+                onTap: () async {
+                  final uri = Uri.parse(
+                    'https://www.untis.at/impressum',
+                  );
+                  if (await canLaunchUrl(uri)) {
+                    await launchUrl(
+                      uri,
+                      mode: LaunchMode.externalApplication,
+                    );
+                  }
+                },
+              ),
+              const SizedBox(height: 10),
+              _LegalButton(
+                icon: _isIOS
+                    ? CupertinoIcons.lock_shield
+                    : Icons.privacy_tip_outlined,
+                title: 'Datenschutz',
+                subtitle: 'untis.at/datenschutz-wu-apps',
+                onTap: () async {
+                  final uri = Uri.parse(
+                    'https://www.untis.at/datenschutz-wu-apps',
+                  );
+                  if (await canLaunchUrl(uri)) {
+                    await launchUrl(
+                      uri,
+                      mode: LaunchMode.externalApplication,
+                    );
+                  }
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   void _showAbout() {
     if (_isIOS) {
       showCupertinoDialog(
@@ -825,6 +903,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     const SizedBox(height: 10),
                     _ActionTile(
                       icon: _isIOS
+                          ? CupertinoIcons.doc_text
+                          : Icons.description_outlined,
+                      title: 'Rechtliches',
+                      subtitle: 'Impressum & Datenschutz',
+                      onTap: _showLegalLinks,
+                    ),
+                    const SizedBox(height: 10),
+                    _ActionTile(
+                      icon: _isIOS
                           ? CupertinoIcons.info_circle
                           : Icons.info_outline,
                       title: 'Über POKYH',
@@ -1074,6 +1161,82 @@ class _ActionTile extends StatelessWidget {
               _isIOS ? CupertinoIcons.chevron_right : Icons.chevron_right,
               size: 16,
               color: context.appTextTertiary,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Legal Button ─────────────────────────────────────────────────────────────
+
+class _LegalButton extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  const _LegalButton({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: context.appCard,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: context.appBorder.withValues(alpha: 0.2),
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: AppTheme.accent.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(icon, size: 18, color: AppTheme.accent),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: context.appTextPrimary,
+                    ),
+                  ),
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: context.appTextTertiary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              _isIOS
+                  ? CupertinoIcons.arrow_up_right_square
+                  : Icons.open_in_new,
+              size: 16,
+              color: AppTheme.accent,
             ),
           ],
         ),

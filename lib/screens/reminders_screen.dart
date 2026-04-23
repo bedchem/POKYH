@@ -2078,6 +2078,7 @@ class _CupertinoField extends StatelessWidget {
           ),
           autocorrect: false,
           enableSuggestions: false,
+          spellCheckConfiguration: const SpellCheckConfiguration.disabled(),
           onChanged: onChanged != null ? (_) => onChanged!() : null,
         ),
       ],
