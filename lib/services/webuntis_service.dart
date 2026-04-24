@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -27,6 +28,7 @@ class WebUntisService {
 
   // Persistent HTTP client — reuses TCP/TLS connections across requests.
   final http.Client _client = http.Client();
+  static const _secureStorage = FlutterSecureStorage();
 
   String? _sessionId;
   String? _bearerToken;
@@ -352,11 +354,15 @@ class WebUntisService {
 
   Future<void> saveSession() async {
     final prefs = await SharedPreferences.getInstance();
-    if (_sessionId != null) await prefs.setString('sessionId', _sessionId!);
-    if (_studentId != null) await prefs.setInt('studentId', _studentId!);
-    if (_bearerToken != null) {
-      await prefs.setString('bearerToken', _bearerToken!);
+    // Sensitive tokens → encrypted SecureStorage
+    if (_sessionId != null) {
+      await _secureStorage.write(key: 'sessionId', value: _sessionId);
     }
+    if (_bearerToken != null) {
+      await _secureStorage.write(key: 'bearerToken', value: _bearerToken);
+    }
+    // Non-sensitive session data → SharedPreferences
+    if (_studentId != null) await prefs.setInt('studentId', _studentId!);
     if (_klasseId != null) await prefs.setInt('klasseId', _klasseId!);
     if (_klasseName != null) await prefs.setString('klasseName', _klasseName!);
     if (_schoolYearId != null) {
@@ -369,9 +375,23 @@ class WebUntisService {
   Future<bool> restoreSession() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      _sessionId = prefs.getString('sessionId');
+      // Read sensitive tokens from SecureStorage; fall back to prefs for migration
+      _sessionId = await _secureStorage.read(key: 'sessionId')
+          ?? prefs.getString('sessionId');
+      _bearerToken = await _secureStorage.read(key: 'bearerToken')
+          ?? prefs.getString('bearerToken');
+      // Migrate legacy prefs to secure storage and clean up
+      if (prefs.containsKey('sessionId') || prefs.containsKey('bearerToken')) {
+        if (_sessionId != null) {
+          await _secureStorage.write(key: 'sessionId', value: _sessionId);
+        }
+        if (_bearerToken != null) {
+          await _secureStorage.write(key: 'bearerToken', value: _bearerToken);
+        }
+        await prefs.remove('sessionId');
+        await prefs.remove('bearerToken');
+      }
       _studentId = prefs.getInt('studentId');
-      _bearerToken = prefs.getString('bearerToken');
       _klasseId = prefs.getInt('klasseId');
       _klasseName = prefs.getString('klasseName');
       _schoolYearId = prefs.getInt('schoolYearId');
@@ -420,6 +440,8 @@ class WebUntisService {
     _username = null;
     _readMessageIds = {};
     _clearCaches();
+    await _secureStorage.delete(key: 'sessionId');
+    await _secureStorage.delete(key: 'bearerToken');
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('sessionId');
     await prefs.remove('studentId');
@@ -939,6 +961,12 @@ class WebUntisService {
   /// Downloads an attachment and saves it to the temp directory.
   /// Returns the local file path ready for opening with open_filex.
   ///
+  // Erlaubt nur sichere Zeichen; verhindert Path-Traversal-Angriffe.
+  static String _sanitizeFileName(String name) {
+    final safe = name.replaceAll(RegExp(r'[^a-zA-Z0-9.\-_ ]'), '_');
+    return safe.replaceAll('..', '_').trim();
+  }
+
   /// Tries URLs in order:
   ///   1. [directUrl]  — if the API returned a ready-made download URL
   ///   2. /messages/{id}/attachments/{attachmentId}
@@ -1055,10 +1083,7 @@ class WebUntisService {
               debugPrint('[Download] S3 bytes received: ${bytes.length}');
               if (bytes.isNotEmpty) {
                 final dir = await getTemporaryDirectory();
-                final safeName = fileName.replaceAll(
-                  RegExp(r'[/\\:*?"<>|]'),
-                  '_',
-                );
+                final safeName = _sanitizeFileName(fileName);
                 final file = File('${dir.path}/$safeName');
                 await file.writeAsBytes(bytes);
                 debugPrint('[Download] File saved: ${file.path}');
@@ -1093,7 +1118,7 @@ class WebUntisService {
             !contentType.contains('text/html') &&
             response.bodyBytes.isNotEmpty) {
           final dir = await getTemporaryDirectory();
-          final safeName = fileName.replaceAll(RegExp(r'[/\\:*?"<>|]'), '_');
+          final safeName = _sanitizeFileName(fileName);
           final file = File('${dir.path}/$safeName');
           await file.writeAsBytes(response.bodyBytes);
           return file.path;

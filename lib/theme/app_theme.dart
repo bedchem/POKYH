@@ -8,6 +8,8 @@ class AppTheme {
   static const Color accentSoft = Color(0xFF5E5CE6);
   static const Color tint = Color(0xFF30D158);
   static const Color success = Color(0xFF30D158);
+  // Mittleres Grün für Noten 6.5–8.9 — in Light und Dark sichtbar
+  static const Color successMid = Color(0xFF34C759);
   static const Color warning = Color(0xFFFFD60A);
   static const Color danger = Color.fromARGB(255, 255, 13, 0);
   static const Color orange = Color(0xFFFF9F0A);

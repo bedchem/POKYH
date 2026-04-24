@@ -89,6 +89,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    NotificationService().stopPolling();
+    NotificationService().onNewMessages = null;
     _swipePageController.dispose();
     super.dispose();
   }
@@ -2294,7 +2296,7 @@ class _GradeRow extends StatelessWidget {
 
   Color _gradeColor(double v) {
     if (v >= 9) return AppTheme.success;
-    if (v >= 6.5) return const Color(0xFF86EFAC);
+    if (v >= 6.5) return AppTheme.successMid;
     if (v >= 6) return AppTheme.warning;
     if (v >= 4) return const Color(0xFFFF9F0A);
     return AppTheme.danger;

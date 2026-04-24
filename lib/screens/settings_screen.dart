@@ -3,6 +3,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import '../config/app_config.dart';
 import '../l10n/app_localizations.dart';
 import '../services/dish_service.dart';
+import '../theme/app_theme.dart';
 // notification_service removed - not used in current flow
 
 class AppSettings {
@@ -479,7 +480,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         _buildSwitchRow(
                           context,
                           icon: CupertinoIcons.leaf_arrow_circlepath,
-                          iconColor: const Color(0xFF34C759),
+                          iconColor: AppTheme.tint,
                           title: l.get('vegan_only'),
                           value: _settings.veganOnly,
                           onChanged: (v) => _update(() {

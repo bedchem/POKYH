@@ -9,6 +9,7 @@ class Todo {
   final String description;
   final bool isDone;
   final DateTime? remindAt;
+  final DateTime? doneAt;
   final DateTime createdAt;
 
   const Todo({
@@ -17,6 +18,7 @@ class Todo {
     this.description = '',
     this.isDone = false,
     this.remindAt,
+    this.doneAt,
     required this.createdAt,
   });
 
@@ -28,6 +30,7 @@ class Todo {
       description: data['description'] as String? ?? '',
       isDone: data['isDone'] as bool? ?? false,
       remindAt: (data['remindAt'] as Timestamp?)?.toDate(),
+      doneAt: (data['doneAt'] as Timestamp?)?.toDate(),
       createdAt:
           (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
     );
@@ -79,7 +82,7 @@ class TodoService {
     DateTime? remindAt,
   }) async {
     final ref = await _getRef();
-    if (ref == null) return;
+    if (ref == null) throw StateError('uid unavailable');
     final doc = await ref.add({
       'title': title,
       'description': description,
@@ -107,7 +110,7 @@ class TodoService {
     bool clearRemindAt = false,
   }) async {
     final ref = await _getRef();
-    if (ref == null) return;
+    if (ref == null) throw StateError('uid unavailable');
     await ref.doc(id).update({
       'title': title,
       'description': description,
@@ -133,6 +136,7 @@ class TodoService {
     if (ref == null) return;
     await ref.doc(id).update({
       'isDone': isDone,
+      'doneAt': isDone ? FieldValue.serverTimestamp() : FieldValue.delete(),
       'updatedAt': FieldValue.serverTimestamp(),
     });
     if (isDone) {
@@ -146,5 +150,26 @@ class TodoService {
     await ref.doc(id).delete();
     await _reminders.cancelTodoNotification(id);
     debugPrint('[TodoService] deleted $id');
+  }
+
+  // Löscht alle erledigten Todos, die vor mehr als 24h abgehakt wurden.
+  Future<void> cleanupDoneTodos() async {
+    final ref = await _getRef();
+    if (ref == null) return;
+    final cutoff = Timestamp.fromDate(
+      DateTime.now().subtract(const Duration(hours: 24)),
+    );
+    try {
+      final snap = await ref
+          .where('doneAt', isLessThan: cutoff)
+          .get();
+      for (final doc in snap.docs) {
+        await doc.reference.delete();
+        await _reminders.cancelTodoNotification(doc.id);
+        debugPrint('[TodoService] auto-deleted done todo ${doc.id}');
+      }
+    } catch (e) {
+      debugPrint('[TodoService] cleanup error: $e');
+    }
   }
 }

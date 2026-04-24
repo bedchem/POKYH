@@ -1527,7 +1527,9 @@ class _IosCreateReminderSheetState extends State<_IosCreateReminderSheet> {
   @override
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
-    return Container(
+    return Material(
+      type: MaterialType.transparency,
+      child: Container(
       decoration: BoxDecoration(
         color: context.appSurface,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
@@ -1669,6 +1671,7 @@ class _IosCreateReminderSheetState extends State<_IosCreateReminderSheet> {
             ],
           ),
         ),
+      ),
       ),
     );
   }

@@ -5,6 +5,7 @@ import '../services/firebase_auth_service.dart';
 import '../services/reminder_service.dart';
 import '../services/todo_service.dart';
 import '../theme/app_theme.dart';
+import '../utils/error_message.dart';
 
 bool get _isIOS => Platform.isIOS;
 
@@ -34,6 +35,7 @@ class _TodosScreenState extends State<TodosScreen> {
     if (FirebaseAuthService.instance.stableUid == null) {
       await FirebaseAuthService.instance.resolveStableUid();
     }
+    await TodoService().cleanupDoneTodos();
     if (mounted) {
       setState(() {
         _stream = TodoService().todoStream();
@@ -626,8 +628,38 @@ class _TodoSheetState extends State<_TodoSheet> {
         );
       }
       if (mounted) Navigator.pop(context);
-    } catch (_) {
-      if (mounted) setState(() => _saving = false);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _saving = false);
+      final msg = simplifyErrorMessage(e);
+      if (_isIOS) {
+        showCupertinoDialog(
+          context: context,
+          builder: (ctx) => CupertinoAlertDialog(
+            title: const Text('Fehler'),
+            content: Text(msg),
+            actions: [
+              CupertinoDialogAction(
+                isDefaultAction: true,
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+      } else {
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+          SnackBar(
+            content: Text(msg),
+            backgroundColor: AppTheme.danger,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          ),
+        );
+      }
     }
   }
 

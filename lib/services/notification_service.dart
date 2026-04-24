@@ -25,6 +25,9 @@ class NotificationService {
   WebUntisService? _service;
   Set<int> _knownMessageIds = {};
   bool _skipNextPollNotification = false;
+  // Guard against duplicate FCM token-refresh / message listeners
+  bool _tokenRefreshListenerRegistered = false;
+  bool _fcmListenersRegistered = false;
 
   /// Called once on app startup.
   Future<void> initialize() async {
@@ -109,17 +112,20 @@ class NotificationService {
           .set({'fcmToken': token}, SetOptions(merge: true));
       debugPrint('FCM token saved to Firestore for $stableUid');
 
-      // Keep Firestore in sync when the token rotates.
-      _messaging.onTokenRefresh.listen((newToken) async {
-        await prefs.setString('fcm_token', newToken);
-        try {
-          await FirebaseFirestore.instance
-              .collection('users')
-              .doc(stableUid)
-              .set({'fcmToken': newToken}, SetOptions(merge: true));
-          debugPrint('FCM token refreshed for $stableUid');
-        } catch (_) {}
-      });
+      // Keep Firestore in sync when the token rotates (only register once).
+      if (!_tokenRefreshListenerRegistered) {
+        _tokenRefreshListenerRegistered = true;
+        _messaging.onTokenRefresh.listen((newToken) async {
+          await prefs.setString('fcm_token', newToken);
+          try {
+            await FirebaseFirestore.instance
+                .collection('users')
+                .doc(stableUid)
+                .set({'fcmToken': newToken}, SetOptions(merge: true));
+            debugPrint('FCM token refreshed for $stableUid');
+          } catch (_) {}
+        });
+      }
     } catch (e) {
       debugPrint('FCM token save failed: $e');
     }
@@ -200,16 +206,21 @@ class NotificationService {
       debugPrint('FCM token error: $e');
     }
 
-    _messaging.onTokenRefresh.listen((token) async {
-      debugPrint('FCM Token refreshed: $token');
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('fcm_token', token);
-    });
+    if (!_tokenRefreshListenerRegistered) {
+      _tokenRefreshListenerRegistered = true;
+      _messaging.onTokenRefresh.listen((token) async {
+        debugPrint('FCM Token refreshed: $token');
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('fcm_token', token);
+      });
+    }
   }
 
   // ── FCM message listeners ────────────────────────────────────────────────
 
   void _setupFcmListeners() {
+    if (_fcmListenersRegistered) return;
+    _fcmListenersRegistered = true;
     // Foreground FCM message: show OS notification + refresh messages list.
     FirebaseMessaging.onMessage.listen((RemoteMessage message) async {
       debugPrint('FCM foreground message: ${message.notification?.title}');

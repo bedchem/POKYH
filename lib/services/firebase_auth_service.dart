@@ -82,13 +82,15 @@ class FirebaseAuthService {
     _stableUid = await _resolveStableUid(username, firebaseUid, klasseId: klasseId, klasseName: klasseName);
     _username = username;
 
-    _logBox(
-      '✅ ANGEMELDET',
-      'Username   : $username',
-      'StableUID  : $_stableUid',
-      'FirebaseUID: $firebaseUid',
-      '(StableUID ist auf jedem Gerät gleich)',
-    );
+    if (kDebugMode) {
+      _logBox(
+        '✅ ANGEMELDET',
+        'Username   : $username',
+        'StableUID  : $_stableUid',
+        'FirebaseUID: $firebaseUid',
+        '(StableUID ist auf jedem Gerät gleich)',
+      );
+    }
   }
 
   /// Sucht oder erstellt users/{username} in Firestore und gibt die stableUid zurück.
