@@ -280,10 +280,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ? CupertinoIcons.doc_text
                     : Icons.description_outlined,
                 title: 'Impressum',
-                subtitle: 'legal.plattnericus.dev/impressum_pokyh_plattnericus_dev_de.pdf',
+                subtitle: 'pokyh.com/legal?view=impressum',
                 onTap: () async {
                   final uri = Uri.parse(
-                    'https://legal.plattnericus.dev/impressum_pokyh_plattnericus_dev_de.pdf',
+                    'https://pokyh.com/legal?view=impressum',
                   );
                   if (await canLaunchUrl(uri)) {
                     await launchUrl(
@@ -299,10 +299,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ? CupertinoIcons.lock_shield
                     : Icons.privacy_tip_outlined,
                 title: 'Datenschutz',
-                subtitle: 'legal.plattnericus.dev/datenschutzerklaerung_pokyh_plattnericus_dev_de.pdf',
+                subtitle: 'pokyh.com/legal?view=datenschutz',
                 onTap: () async {
                   final uri = Uri.parse(
-                    'https://legal.plattnericus.dev/datenschutzerklaerung_pokyh_plattnericus_dev_de.pdf',
+                    'https://pokyh.com/legal?view=datenschutz',
                   );
                   if (await canLaunchUrl(uri)) {
                     await launchUrl(

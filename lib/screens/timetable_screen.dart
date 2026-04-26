@@ -1479,12 +1479,11 @@ class _MergedCell extends StatelessWidget {
     final hasHomework = slots.any((s) => s.homework.isNotEmpty);
     final isPast = slots.any((s) => s.isPast);
 
-    // Slightly lighter than before in both themes.
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final baseCellColor = isDark ? context.appCardAlt : context.appCard;
     final cellBg = Color.alphaBlend(
-      Colors.white.withValues(
-        alpha: Theme.of(context).brightness == Brightness.dark ? 0.10 : 0.22,
-      ),
-      context.appCard,
+      Colors.white.withValues(alpha: isDark ? 0.08 : 0.16),
+      baseCellColor,
     );
 
     final bool isSpecial =
@@ -1515,7 +1514,7 @@ class _MergedCell extends StatelessWidget {
 
     final borderColor = isSpecial
         ? (highlightColor ?? AppTheme.accent).withValues(alpha: 0.78)
-        : context.appBorder.withValues(alpha: 0.25);
+        : context.appBorder.withValues(alpha: 0.35);
     final borderWidth = isSpecial ? 1.6 : 1.1;
 
     // Jede Cell ist tappable, sofern ein Eintrag existiert

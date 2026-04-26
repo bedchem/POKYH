@@ -15,6 +15,21 @@ import 'profile_screen.dart';
 import 'messages_screen.dart';
 import 'hub_screen.dart';
 
+class _DS {
+  static const bg = Color(0xFF0D0D0D);
+  static const surface = Color(0xFF141414);
+  static const border = Color(0xFF2A2A2A);
+  static const accent = Color(0xFF6C6CFF);
+  static const accentGreen = Color(0xFF34C759);
+  static const accentYellow = Color(0xFFFFCC00);
+  static const accentOrange = Color(0xFFFF9500);
+  static const accentRed = Color(0xFFFF3B30);
+  static const textPrimary = Color(0xFFFFFFFF);
+  static const textSecondary = Color(0xFF8A8A8A);
+  static const textTertiary = Color(0xFF5E5E5E);
+  static const radius = 14.0;
+}
+
 class HomeScreen extends StatefulWidget {
   final WebUntisService service;
   const HomeScreen({super.key, required this.service});
@@ -95,26 +110,20 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     super.dispose();
   }
 
-  // Timestamp when the app went to background. Null means app is in foreground.
   DateTime? _backgroundedAt;
   static const _inactivityTimeout = Duration(minutes: 1);
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.paused) {
-      // Record when the app went to background, but do NOT clear the session
-      // yet — clearing immediately caused Face ID to bug out (double prompt,
-      // slow re-auth) because iOS hadn't finished dismissing the app overlay.
       _backgroundedAt = DateTime.now();
       widget.service.saveSession().ignore();
       NotificationService().stopPolling();
     } else if (state == AppLifecycleState.resumed) {
       final backgroundedAt = _backgroundedAt;
       _backgroundedAt = null;
-
       if (backgroundedAt != null &&
           DateTime.now().difference(backgroundedAt) >= _inactivityTimeout) {
-        // Been away for 1+ minute → clean logout, then show login.
         widget.service.clearSession();
         if (!mounted) return;
         Navigator.of(context).pushAndRemoveUntil(
@@ -127,7 +136,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           (route) => false,
         );
       } else {
-        // Back within 1 minute → session still valid, just resume polling.
         NotificationService().startPolling(widget.service);
       }
     }
@@ -148,13 +156,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   void _setTab(int tab, {bool animate = true}) {
     if (_tab == tab) return;
-
     final targetSwipeIndex = _swipeIndexForTab(tab);
     if (targetSwipeIndex == null) return;
-
     setState(() => _tab = tab);
 
-    final syncSwipePage = () {
+    void syncSwipePage() {
       if (!_swipePageController.hasClients) return;
       final current =
           _swipePageController.page?.round() ??
@@ -169,7 +175,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       } else {
         _swipePageController.jumpToPage(targetSwipeIndex);
       }
-    };
+    }
 
     if (_swipePageController.hasClients) {
       syncSwipePage();
@@ -184,17 +190,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Widget _buildMainContent() {
     return PageView(
       controller: _swipePageController,
-      // On timetable keep outer swipe disabled to avoid gesture conflicts with
-      // the timetable's own horizontal week swipe. Programmatic tab changes
-      // still animate with animateToPage.
       physics: _tab == 1
           ? const NeverScrollableScrollPhysics()
           : const BouncingScrollPhysics(),
       onPageChanged: (index) {
         final nextTab = _tabForSwipeIndex(index);
-        if (nextTab != _tab) {
-          setState(() => _tab = nextTab);
-        }
+        if (nextTab != _tab) setState(() => _tab = nextTab);
       },
       children: _screens,
     );
@@ -246,11 +247,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (!mounted) return;
     final messenger = ScaffoldMessenger.maybeOf(context);
     if (messenger == null) return;
-
     final text = count == 1
         ? 'Neue Mitteilung: ${subject ?? ''}'
         : '$count neue Mitteilungen';
-
     messenger.showSnackBar(
       SnackBar(
         content: Row(
@@ -304,7 +303,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         builder: (_) => MessagesScreen(service: widget.service),
       ),
     );
-    // Refresh unread count when returning
     if (mounted) {
       setState(() => _unreadMessages = widget.service.unreadMessageCount);
     }
@@ -322,9 +320,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    final navLayout = _HomeNavLayout.forPlatform(Theme.of(context).platform);
-    final bottomInset = MediaQuery.of(context).padding.bottom;
-
     return Scaffold(
       backgroundColor: context.appBg,
       body: Stack(
@@ -350,135 +345,25 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           ),
         ],
       ),
-      bottomNavigationBar: GestureDetector(
-        behavior: HitTestBehavior.translucent,
-        onHorizontalDragUpdate: (details) {
-          if (!_swipePageController.hasClients) return;
-          final screenWidth = MediaQuery.of(context).size.width;
-          final delta = details.primaryDelta ?? 0;
-          final current = _swipePageController.page ?? _tab.toDouble();
-          final newPage = (current - delta / screenWidth).clamp(
-            0.0,
-            (_swipeTabs.length - 1).toDouble(),
-          );
-          _swipePageController.jumpTo(newPage * screenWidth);
-          final nearest = newPage.round().clamp(0, _swipeTabs.length - 1);
-          if (nearest != _tab) {
-            HapticFeedback.selectionClick();
-            setState(() => _tab = nearest);
+      bottomNavigationBar: _PokyhBottomNav(
+        currentTab: _tab,
+        onTabChanged: (tab) {
+          if (tab == 1 && _tab == 1) {
+            final now = DateTime.now();
+            final isWeekend = now.weekday >= 6;
+            _timetableKey.currentState?.jumpToWeekAndDay(
+              weekOffset: isWeekend ? 1 : 0,
+              dayIndex: isWeekend ? 0 : now.weekday - 1,
+            );
           }
-        },
-        onHorizontalDragEnd: (details) {
-          if (!_swipePageController.hasClients) return;
-          final velocity = details.primaryVelocity ?? 0;
-          final currentPage = _swipePageController.page ?? _tab.toDouble();
-          int targetPage;
-          if (velocity < -400) {
-            targetPage = (currentPage.floor() + 1).clamp(
-              0,
-              _swipeTabs.length - 1,
-            );
-          } else if (velocity > 400) {
-            targetPage = (currentPage.ceil() - 1).clamp(
-              0,
-              _swipeTabs.length - 1,
-            );
+          if (tab == 3) {
+            _showMensaTab();
           } else {
-            targetPage = currentPage.round().clamp(0, _swipeTabs.length - 1);
+            _setTab(tab);
           }
-          if (targetPage != _tab) {
-            HapticFeedback.selectionClick();
-            setState(() => _tab = targetPage);
-          }
-          _swipePageController.animateToPage(
-            targetPage,
-            duration: const Duration(milliseconds: 300),
-            curve: Curves.easeOutCubic,
-          );
         },
-        onHorizontalDragCancel: () {
-          if (!_swipePageController.hasClients) return;
-          _swipePageController.animateToPage(
-            _tab,
-            duration: const Duration(milliseconds: 250),
-            curve: Curves.easeOutCubic,
-          );
-        },
-        child: Container(
-          padding: EdgeInsets.only(
-            bottom: bottomInset + navLayout.bottomPadding,
-          ),
-          decoration: BoxDecoration(
-            color: context.appSurface,
-            border: Border(
-              top: BorderSide(
-                color: context.appBorder.withValues(alpha: 0.5),
-                width: 0.5,
-              ),
-            ),
-          ),
-          child: SafeArea(
-            top: false,
-            bottom: false,
-            child: SizedBox(
-              height: navLayout.barHeight,
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Expanded(
-                    child: _TabItem(
-                      layout: navLayout,
-                      icon: CupertinoIcons.house_fill,
-                      label: 'Home',
-                      active: _tab == 0,
-                      onTap: () => _setTab(0),
-                    ),
-                  ),
-                  Expanded(
-                    child: _TabItem(
-                      layout: navLayout,
-                      icon: CupertinoIcons.calendar,
-                      label: 'Stundenplan',
-                      active: _tab == 1,
-                      onTap: () {
-                        if (_tab == 1) {
-                          final timetableState = _timetableKey.currentState;
-                          if (timetableState != null) {
-                            final now = DateTime.now();
-                            final isWeekend = now.weekday >= 6;
-                            timetableState.jumpToWeekAndDay(
-                              weekOffset: isWeekend ? 1 : 0,
-                              dayIndex: isWeekend ? 0 : now.weekday - 1,
-                            );
-                          }
-                        }
-                        _setTab(1);
-                      },
-                    ),
-                  ),
-                  Expanded(
-                    child: _TabItem(
-                      layout: navLayout,
-                      icon: CupertinoIcons.square_grid_2x2_fill,
-                      label: 'Schule',
-                      active: _tab == 2,
-                      onTap: () => _setTab(2),
-                    ),
-                  ),
-                  Expanded(
-                    child: _TabItem(
-                      layout: navLayout,
-                      icon: CupertinoIcons.flame_fill,
-                      label: 'Mensa',
-                      active: _tab == 3,
-                      onTap: _showMensaTab,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
+        pageController: _swipePageController,
+        swipeTabs: _swipeTabs,
       ),
     );
   }
@@ -509,19 +394,12 @@ class _SmallProfileAvatarState extends State<_SmallProfileAvatar> {
   Widget build(BuildContext context) {
     final bytes = widget.service.profileImageBytes;
     return Container(
-      width: 32,
-      height: 32,
+      width: 36,
+      height: 36,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         color: context.appSurface,
-        border: Border.all(color: context.appBorder.withValues(alpha: 0.4)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.2),
-            blurRadius: 7,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        border: Border.all(color: context.appBorder, width: 1.5),
       ),
       clipBehavior: Clip.antiAlias,
       child: bytes != null
@@ -534,12 +412,8 @@ class _SmallProfileAvatarState extends State<_SmallProfileAvatar> {
     );
   }
 
-  Widget _fallback() => Center(
-    child: Icon(
-      CupertinoIcons.person_fill,
-      size: 16,
-      color: context.appTextSecondary,
-    ),
+  Widget _fallback() => const Center(
+    child: Icon(CupertinoIcons.person_fill, size: 16, color: _DS.accent),
   );
 }
 
@@ -552,31 +426,24 @@ class _MessageBadgeIcon extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: 32,
-      height: 32,
+      width: 36,
+      height: 36,
       child: Stack(
         clipBehavior: Clip.none,
         children: [
           Container(
-            width: 32,
-            height: 32,
+            width: 36,
+            height: 36,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: context.appSurface,
-              border: Border.all(color: context.appBorder.withValues(alpha: 0.4)),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.2),
-                  blurRadius: 7,
-                  offset: const Offset(0, 2),
-                ),
-              ],
+              border: Border.all(color: context.appBorder, width: 1.5),
             ),
-            child: Center(
+            child: const Center(
               child: Icon(
-                CupertinoIcons.bell_fill,
-                size: 15,
-                color: context.appTextSecondary,
+                CupertinoIcons.chat_bubble_fill,
+                size: 16,
+                color: _DS.accent,
               ),
             ),
           ),
@@ -610,60 +477,93 @@ class _MessageBadgeIcon extends StatelessWidget {
   }
 }
 
-// ── Tab Item ──────────────────────────────────────────────────────────────────
+class _PokyhBottomNav extends StatelessWidget {
+  final int currentTab;
+  final void Function(int) onTabChanged;
+  final PageController pageController;
+  final List<int> swipeTabs;
 
-class _HomeNavLayout {
-  final double barHeight;
-  final double bottomPadding;
-  final double contentYOffset;
-  final double iconSize;
-  final double iconLabelSpacing;
-  final double labelFontSize;
-
-  const _HomeNavLayout({
-    required this.barHeight,
-    required this.bottomPadding,
-    required this.contentYOffset,
-    required this.iconSize,
-    required this.iconLabelSpacing,
-    required this.labelFontSize,
+  const _PokyhBottomNav({
+    required this.currentTab,
+    required this.onTabChanged,
+    required this.pageController,
+    required this.swipeTabs,
   });
 
-  // Android keeps the current visual design.
-  static const android = _HomeNavLayout(
-    barHeight: 35,
-    bottomPadding: 16,
-    contentYOffset: 10,
-    iconSize: 18,
-    iconLabelSpacing: 2,
-    labelFontSize: 9,
-  );
+  static const _items = [
+    (CupertinoIcons.house_fill, 'Home'),
+    (CupertinoIcons.calendar, 'Stundenplan'),
+    (CupertinoIcons.square_grid_2x2_fill, 'Schule'),
+    (CupertinoIcons.flame_fill, 'Mensa'),
+  ];
 
-  // iOS is intentionally a bit more compact.
-  static const ios = _HomeNavLayout(
-    barHeight: 30,
-    bottomPadding: 5,
-    contentYOffset: 10,
-    iconSize: 24,
-    iconLabelSpacing: 1,
-    labelFontSize: 11,
-  );
+  @override
+  Widget build(BuildContext context) {
+    final bottomInset = MediaQuery.of(context).padding.bottom;
 
-  static _HomeNavLayout forPlatform(TargetPlatform platform) {
-    if (platform == TargetPlatform.iOS) return ios;
-    return android;
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onHorizontalDragUpdate: (details) {
+        if (!pageController.hasClients) return;
+        final screenWidth = MediaQuery.of(context).size.width;
+        final delta = details.primaryDelta ?? 0;
+        final current = pageController.page ?? currentTab.toDouble();
+        final newPage = (current - delta / screenWidth).clamp(
+          0.0,
+          (swipeTabs.length - 1).toDouble(),
+        );
+        pageController.jumpTo(newPage * screenWidth);
+      },
+      onHorizontalDragEnd: (details) {
+        if (!pageController.hasClients) return;
+        final velocity = details.primaryVelocity ?? 0;
+        final currentPage = pageController.page ?? currentTab.toDouble();
+        int targetPage;
+        if (velocity < -400) {
+          targetPage = (currentPage.floor() + 1).clamp(0, swipeTabs.length - 1);
+        } else if (velocity > 400) {
+          targetPage = (currentPage.ceil() - 1).clamp(0, swipeTabs.length - 1);
+        } else {
+          targetPage = currentPage.round().clamp(0, swipeTabs.length - 1);
+        }
+        pageController.animateToPage(
+          targetPage,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOutCubic,
+        );
+      },
+      child: Container(
+        padding: EdgeInsets.only(bottom: bottomInset + 12, top: 10),
+        decoration: BoxDecoration(
+          color: context.appSurface,
+          border: Border(top: BorderSide(color: context.appBorder, width: 0.5)),
+        ),
+        child: Row(
+          children: List.generate(_items.length, (i) {
+            final (icon, label) = _items[i];
+            final active = currentTab == i;
+            return Expanded(
+              child: _NavItem(
+                icon: icon,
+                label: label,
+                active: active,
+                onTap: () => onTabChanged(i),
+              ),
+            );
+          }),
+        ),
+      ),
+    );
   }
 }
 
-class _TabItem extends StatefulWidget {
-  final _HomeNavLayout layout;
+class _NavItem extends StatefulWidget {
   final IconData icon;
   final String label;
   final bool active;
   final VoidCallback onTap;
 
-  const _TabItem({
-    required this.layout,
+  const _NavItem({
     required this.icon,
     required this.label,
     required this.active,
@@ -671,82 +571,51 @@ class _TabItem extends StatefulWidget {
   });
 
   @override
-  State<_TabItem> createState() => _TabItemState();
+  State<_NavItem> createState() => _NavItemState();
 }
 
-class _TabItemState extends State<_TabItem> {
-  bool _isPressed = false;
-
-  void _setPressed(bool value) {
-    if (_isPressed == value) return;
-    setState(() => _isPressed = value);
-  }
+class _NavItemState extends State<_NavItem> {
+  bool _pressed = false;
 
   @override
   Widget build(BuildContext context) {
-    final targetColor = widget.active ? AppTheme.accent : context.appTextTertiary;
-
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTapDown: (_) => _setPressed(true),
-      onTapUp: (_) => _setPressed(false),
-      onTapCancel: () => _setPressed(false),
+      onTapDown: (_) => setState(() => _pressed = true),
+      onTapUp: (_) => setState(() => _pressed = false),
+      onTapCancel: () => setState(() => _pressed = false),
       onTap: widget.onTap,
-      child: SizedBox.expand(
-        child: AnimatedScale(
-          scale: _isPressed ? 0.94 : 1.0,
-          duration: const Duration(milliseconds: 120),
-          curve: Curves.easeOutCubic,
-          child: Center(
-            child: Transform.translate(
-              // Keep the visual vertical offset but avoid layout overflow by
-              // allowing the content to scale down if it doesn't fit the
-              // available nav bar height. Using FittedBox with BoxFit.scaleDown
-              // prevents RenderFlex overflows on compact bars (e.g. iOS).
-              offset: Offset(0, widget.layout.contentYOffset),
-              child: FittedBox(
-                fit: BoxFit.scaleDown,
-                alignment: Alignment.center,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    TweenAnimationBuilder<Color?>(
-                      tween: ColorTween(end: targetColor),
-                      duration: const Duration(milliseconds: 220),
-                      curve: Curves.easeOutCubic,
-                      builder: (_, color, __) => Icon(
-                        widget.icon,
-                        size: widget.layout.iconSize,
-                        color: color ?? targetColor,
-                      ),
-                    ),
-                    SizedBox(height: widget.layout.iconLabelSpacing),
-                    AnimatedDefaultTextStyle(
-                      duration: const Duration(milliseconds: 220),
-                      curve: Curves.easeOutCubic,
-                      style: TextStyle(
-                        fontSize: widget.layout.labelFontSize,
-                        height: 1,
-                        fontWeight: widget.active
-                            ? FontWeight.w600
-                            : FontWeight.w400,
-                        color: targetColor,
-                      ),
-                      child: Text(
-                        widget.label,
-                        strutStyle: const StrutStyle(
-                          forceStrutHeight: true,
-                          height: 1,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+      child: AnimatedScale(
+        scale: _pressed ? 0.9 : 1.0,
+        duration: const Duration(milliseconds: 100),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+              decoration: BoxDecoration(
+                color: widget.active
+                    ? _DS.accent.withValues(alpha: 0.15)
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Icon(
+                widget.icon,
+                size: 20,
+                color: widget.active ? _DS.accent : context.appTextTertiary,
               ),
             ),
-          ),
+            const SizedBox(height: 2),
+            Text(
+              widget.label,
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: widget.active ? FontWeight.w600 : FontWeight.w400,
+                color: widget.active ? _DS.accent : context.appTextTertiary,
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -773,12 +642,14 @@ class _NextExam {
 class _RecentGrade {
   final String subject;
   final double value;
+  final String markName;
   final int date;
   final int lastUpdate;
   final String type;
   const _RecentGrade({
     required this.subject,
     required this.value,
+    required this.markName,
     required this.date,
     required this.lastUpdate,
     required this.type,
@@ -789,15 +660,20 @@ class _RecentGrade {
 //  CARD SECTION ENUM + PERSISTENCE
 // ═══════════════════════════════════════════════════════════════════════════════
 
-enum _CardSection { weekOverview, examBanner, infoRow, mensa }
+// Neue Reihenfolge:
+// 1. weekOverview   – Wochenübersicht (oben, immer)
+// 2. todaySection   – "Heute": Mensa + Schulende/Stunden in einer Karte
+// 3. nextExam       – Nächste Schularbeit
+// 4. recentGrades   – Letzte Noten
+enum _CardSection { weekOverview, todaySection, nextExam, recentGrades }
 
-const _kCardOrderKey = 'dashboard_card_order_v1';
+const _kCardOrderKey = 'dashboard_card_order_v2';
 
 final _defaultOrder = [
   _CardSection.weekOverview,
-  _CardSection.examBanner,
-  _CardSection.infoRow,
-  _CardSection.mensa,
+  _CardSection.todaySection,
+  _CardSection.nextExam,
+  _CardSection.recentGrades,
 ];
 
 List<_CardSection> _orderFromStrings(List<String> saved) {
@@ -836,26 +712,33 @@ class _DashboardTab extends StatefulWidget {
 
 class _DashboardTabState extends State<_DashboardTab>
     with SingleTickerProviderStateMixin {
+  // ── Timetable state ──────────────────────────────────────────────────────
   List<TimetableEntry> _today = [];
   List<TimetableEntry> _allWeek = [];
+  List<TimetableEntry> _allFutureExams = [];
+  bool _isWeekend = false;
   bool _loadingTimetable = true;
   String? _errorTimetable;
 
+  // ── Grades state ─────────────────────────────────────────────────────────
   List<_RecentGrade> _recentGrades = [];
   double? _weekAverage;
   bool _loadingGrades = true;
 
+  // ── Mensa state ──────────────────────────────────────────────────────────
   String? _mensaToday;
   String? _mensaCategory;
   bool _loadingMensa = true;
 
-  late AnimationController _fadeController;
-
+  // ── Card order ────────────────────────────────────────────────────────────
   List<_CardSection> _cardOrder = List.from(_defaultOrder);
+
+  late AnimationController _fadeController;
 
   @override
   void initState() {
     super.initState();
+    _isWeekend = DateTime.now().weekday >= 6;
     _fadeController = AnimationController(
       duration: const Duration(milliseconds: 600),
       vsync: this,
@@ -890,33 +773,26 @@ class _DashboardTabState extends State<_DashboardTab>
   }
 
   Future<void> _load() async {
-    // Show cached data immediately so the screen isn't blank while fetching.
+    _isWeekend = DateTime.now().weekday >= 6;
     _applyGradesCache(widget.service.cachedGrades);
     final cachedWeek = widget.service.getCachedWeek(_getDisplayMonday());
     if (cachedWeek != null) _applyTimetableCache(cachedWeek);
-
     setState(() {
       _loadingTimetable = cachedWeek == null;
       _loadingGrades = widget.service.cachedGrades == null;
       _loadingMensa = true;
       _errorTimetable = null;
     });
-
     _fadeController.reset();
     await Future.wait([_loadTimetable(), _loadGrades(), _loadMensa()]);
     if (mounted) _fadeController.forward();
   }
 
-  /// Der Montag, dessen Woche auf der Startseite angezeigt werden soll.
-  /// Am Wochenende (Sa/So) bereits die kommende Woche, an Schultagen die
-  /// aktuelle Woche.
   DateTime _getDisplayMonday() {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final thisMonday = today.subtract(Duration(days: today.weekday - 1));
-    if (now.weekday >= 6) {
-      return thisMonday.add(const Duration(days: 7));
-    }
+    if (now.weekday >= 6) return thisMonday.add(const Duration(days: 7));
     return thisMonday;
   }
 
@@ -924,7 +800,10 @@ class _DashboardTabState extends State<_DashboardTab>
     final now = DateTime.now();
     final todayInt = _dateInt(now);
     _allWeek = allWeek;
-    _today = allWeek.where((e) => e.date == todayInt).toList();
+    _today = now.weekday < 6
+        ? allWeek.where((e) => e.date == todayInt).toList()
+        : [];
+    _allFutureExams = allWeek.where((e) => e.isExam).toList();
     _loadingTimetable = false;
   }
 
@@ -940,6 +819,7 @@ class _DashboardTabState extends State<_DashboardTab>
           _RecentGrade(
             subject: subject.subjectName,
             value: grade.markDisplayValue,
+            markName: grade.markName,
             date: grade.date,
             lastUpdate: grade.lastUpdate,
             type: grade.examType,
@@ -950,7 +830,7 @@ class _DashboardTabState extends State<_DashboardTab>
       }
     }
     allGrades.sort((a, b) => b.lastUpdate.compareTo(a.lastUpdate));
-    _recentGrades = allGrades.take(3).toList();
+    _recentGrades = allGrades.take(5).toList();
     _weekAverage = count > 0 ? sum / count : null;
     _loadingGrades = false;
   }
@@ -958,14 +838,35 @@ class _DashboardTabState extends State<_DashboardTab>
   Future<void> _loadTimetable() async {
     try {
       final now = DateTime.now();
+      final displayMonday = _getDisplayMonday();
+
       final allWeek = await widget.service.getWeekTimetable(
-        weekStart: _getDisplayMonday(),
+        weekStart: displayMonday,
       );
+
+      // Fetch up to 8 more weeks to find future exams
+      final futureExams = <TimetableEntry>[...allWeek.where((e) => e.isExam)];
+
+      for (int weekOffset = 1; weekOffset <= 7; weekOffset++) {
+        try {
+          final weekStart = displayMonday.add(Duration(days: 7 * weekOffset));
+          final weekEntries = await widget.service.getWeekTimetable(
+            weekStart: weekStart,
+          );
+          futureExams.addAll(weekEntries.where((e) => e.isExam));
+        } catch (_) {
+          break;
+        }
+      }
+
       final todayInt = _dateInt(now);
       if (mounted) {
         setState(() {
           _allWeek = allWeek;
-          _today = allWeek.where((e) => e.date == todayInt).toList();
+          _today = now.weekday < 6
+              ? allWeek.where((e) => e.date == todayInt).toList()
+              : [];
+          _allFutureExams = futureExams;
           _loadingTimetable = false;
         });
       }
@@ -1009,7 +910,6 @@ class _DashboardTabState extends State<_DashboardTab>
       final dishes =
           await dishService.fetchFromServer(untisService: widget.service) ??
           await dishService.loadFromCache(untisService: widget.service);
-
       if (!mounted) return;
       if (dishes == null || dishes.isEmpty) {
         setState(() {
@@ -1018,27 +918,28 @@ class _DashboardTabState extends State<_DashboardTab>
         });
         return;
       }
-
       final now = DateTime.now();
       final today = DateTime(now.year, now.month, now.day);
-      final todayDishes = dishes.where((d) {
+
+      // On weekends, show no menu for today
+      final targetDate = today;
+
+      final targetDishes = dishes.where((d) {
         final key = DateTime(d.date.year, d.date.month, d.date.day);
-        return key == today;
+        return key == targetDate;
       }).toList();
 
-      if (todayDishes.isEmpty) {
+      if (targetDishes.isEmpty) {
         setState(() {
           _mensaToday = null;
           _loadingMensa = false;
         });
         return;
       }
-
-      final main = todayDishes.firstWhere(
+      final main = targetDishes.firstWhere(
         (d) => d.category.toLowerCase().contains('haupt'),
-        orElse: () => todayDishes.first,
+        orElse: () => targetDishes.first,
       );
-
       setState(() {
         _mensaToday = main.name('de');
         _mensaCategory = main.category.isNotEmpty ? main.category : null;
@@ -1075,12 +976,12 @@ class _DashboardTabState extends State<_DashboardTab>
   _NextExam? _getNextExam(DateTime now) {
     final todayInt = _dateInt(now);
     final nowMins = now.hour * 60 + now.minute;
+
     final exams =
-        _allWeek.where((e) {
+        _allFutureExams.where((e) {
           if (!e.isExam) return false;
           if (e.date > todayInt) return true;
           if (e.date < todayInt) return false;
-          // Same day: skip exams whose lesson time has already passed
           final endMins = (e.endTime ~/ 100) * 60 + (e.endTime % 100);
           return endMins > nowMins;
         }).toList()..sort(
@@ -1088,6 +989,7 @@ class _DashboardTabState extends State<_DashboardTab>
               ? a.startTime.compareTo(b.startTime)
               : a.date.compareTo(b.date),
         );
+
     if (exams.isEmpty) return null;
     final e = exams.first;
     final d = e.date.toString();
@@ -1099,15 +1001,35 @@ class _DashboardTabState extends State<_DashboardTab>
     final diff = examDate
         .difference(DateTime(now.year, now.month, now.day))
         .inDays;
+
     String label;
     if (diff == 0) {
       label = 'Heute';
     } else if (diff == 1) {
       label = 'Morgen';
-    } else {
+    } else if (diff < 7) {
       const wd = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
       label = 'in $diff Tagen (${wd[examDate.weekday - 1]})';
+    } else {
+      const wd = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
+      const mo = [
+        'Jan',
+        'Feb',
+        'März',
+        'Apr',
+        'Mai',
+        'Jun',
+        'Jul',
+        'Aug',
+        'Sep',
+        'Okt',
+        'Nov',
+        'Dez',
+      ];
+      label =
+          '${wd[examDate.weekday - 1]}, ${examDate.day}. ${mo[examDate.month - 1]}';
     }
+
     return _NextExam(
       entry: e,
       label: label,
@@ -1116,19 +1038,60 @@ class _DashboardTabState extends State<_DashboardTab>
     );
   }
 
+  String _greetingName() {
+    final name = widget.service.username ?? '';
+    final parts = name.trim().split(' ');
+    return parts.isNotEmpty && parts.first.isNotEmpty ? parts.first : 'Schüler';
+  }
+
+  String _greeting() {
+    final h = DateTime.now().hour;
+    if (h < 11) return 'Guten Morgen';
+    if (h < 17) return 'Guten Tag';
+    return 'Guten Abend';
+  }
+
+  String _dayString() {
+    final now = DateTime.now();
+    const days = [
+      'Montag',
+      'Dienstag',
+      'Mittwoch',
+      'Donnerstag',
+      'Freitag',
+      'Samstag',
+      'Sonntag',
+    ];
+    const months = [
+      'Januar',
+      'Februar',
+      'März',
+      'April',
+      'Mai',
+      'Juni',
+      'Juli',
+      'August',
+      'September',
+      'Oktober',
+      'November',
+      'Dezember',
+    ];
+    return '${days[now.weekday - 1]}, ${now.day}. ${months[now.month - 1]} ${now.year}';
+  }
+
   // ── Card content builders ──────────────────────────────────────────────────
 
   Widget? _cardContent(_CardSection section, DateTime now) {
-    final nextExam = _loadingTimetable ? null : _getNextExam(now);
+    final nextExam = _getNextExam(now);
     final schoolEnd = _getSchoolEnd();
     final minsUntilEnd = _minsUntilEnd(now);
 
     switch (section) {
+      // ── 1. Week overview (always shown, loading spinner if needed) ──────
       case _CardSection.weekOverview:
         if (_loadingTimetable && _allWeek.isEmpty) {
           return const _LoadingCard();
         }
-        if (_allWeek.isEmpty) return null;
         return _WeekOverviewCard(
           allWeek: _allWeek,
           now: now,
@@ -1136,65 +1099,54 @@ class _DashboardTabState extends State<_DashboardTab>
           service: widget.service,
         );
 
-      case _CardSection.examBanner:
-        if (_loadingTimetable && _allWeek.isEmpty) return null;
-        if (_errorTimetable != null) return null;
-        return GestureDetector(
-          onTap: () => widget.onExamTap?.call(nextExam),
-          child: _ExamBanner(nextExam: nextExam),
+      // ── 2. Today section: Mensa top, then school-end + lessons row ──────
+      case _CardSection.todaySection:
+        return _TodaySectionCard(
+          isWeekend: _isWeekend,
+          mensaToday: _mensaToday,
+          mensaCategory: _mensaCategory,
+          loadingMensa: _loadingMensa,
+          schoolEnd: schoolEnd,
+          minsUntilEnd: minsUntilEnd,
+          todayLessons: _today.length,
+          loadingTimetable: _loadingTimetable,
+          errorTimetable: _errorTimetable,
+          onMensaTap: widget.onMensaTap,
+          onRetry: _load,
         );
 
-      case _CardSection.infoRow:
-        if (_loadingTimetable && _today.isEmpty && now.weekday <= 5) {
-          return const _LoadingCard();
-        }
-        if (_errorTimetable != null) {
-          return _ErrorCard(message: _errorTimetable!, onRetry: _load);
-        }
-        return IntrinsicHeight(
-          child: Row(
-            children: [
-              Expanded(
-                child: _today.isEmpty
-                    ? _TimeInfoCard(
-                        icon: CupertinoIcons.moon_zzz_fill,
-                        label: 'Schulende',
-                        value: '—',
-                        sub: 'Heute keine Schule',
-                        color: context.appTextTertiary,
-                      )
-                    : _TimeInfoCard(
-                        icon: CupertinoIcons.flag_fill,
-                        label: 'Schulende',
-                        value: schoolEnd ?? '—',
-                        sub: minsUntilEnd != null
-                            ? 'noch ${_fmtDuration(minsUntilEnd)}'
-                            : 'vorbei',
-                        color: minsUntilEnd != null
-                            ? AppTheme.accent
-                            : context.appTextTertiary,
-                      ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _RecentGradesCard(
-                  grades: _recentGrades,
-                  average: _weekAverage,
-                  loading: _loadingGrades,
-                ),
-              ),
-            ],
-          ),
+      // ── 3. Next exam (always shown; spinner while loading) ───────────────
+      case _CardSection.nextExam:
+        if (_errorTimetable != null && _allFutureExams.isEmpty) return null;
+        return GestureDetector(
+          onTap: nextExam != null
+              ? () => widget.onExamTap?.call(nextExam)
+              : null,
+          child: _loadingTimetable && _allFutureExams.isEmpty
+              ? Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: context.appSurface,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _SectionHeader(label: 'NÄCHSTE SCHULARBEIT'),
+                      const SizedBox(height: 12),
+                      const _LoadingCard(),
+                    ],
+                  ),
+                )
+              : _ExamCard(nextExam: nextExam),
         );
 
-      case _CardSection.mensa:
-        return GestureDetector(
-          onTap: widget.onMensaTap,
-          child: _MensaPreviewCard(
-            dish: _mensaToday,
-            category: _mensaCategory,
-            loading: _loadingMensa,
-          ),
+      // ── 4. Recent grades (always shown) ──────────────────────────────────
+      case _CardSection.recentGrades:
+        return _RecentGradesCard(
+          grades: _recentGrades,
+          average: _weekAverage,
+          loading: _loadingGrades,
         );
     }
   }
@@ -1202,25 +1154,16 @@ class _DashboardTabState extends State<_DashboardTab>
   void _onReorder(int oldIndex, int newIndex) {
     HapticFeedback.lightImpact();
     setState(() {
-      // Get the visible list to map indices correctly
       final now = DateTime.now();
       final visible = _cardOrder
           .where((s) => _cardContent(s, now) != null)
           .toList();
-
       final movedSection = visible[oldIndex];
-
-      // Remove from full order
       _cardOrder.remove(movedSection);
-
-      // Find insertion point in full order
-      // newIndex refers to position in the visible list after removal
       final newVisible = _cardOrder
           .where((s) => _cardContent(s, now) != null)
           .toList();
-
       if (newIndex >= newVisible.length) {
-        // Insert after last visible item
         final lastVisible = newVisible.isNotEmpty ? newVisible.last : null;
         if (lastVisible == null) {
           _cardOrder.add(movedSection);
@@ -1240,67 +1183,156 @@ class _DashboardTabState extends State<_DashboardTab>
   @override
   Widget build(BuildContext context) {
     final now = DateTime.now();
-
-    // Build the visible list of (section, widget) pairs
     final visibleCards = _cardOrder
         .map((s) => (section: s, content: _cardContent(s, now)))
         .where((pair) => pair.content != null)
         .toList();
 
-    return SafeArea(
-      child: RefreshIndicator(
-        color: AppTheme.accent,
-        backgroundColor: context.appSurface,
-        onRefresh: _load,
-        child: CustomScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          slivers: [
-            // Header
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 14, 52, 0),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Text(
-                      'Home',
-                      style: TextStyle(
-                        fontSize: 30,
-                        fontWeight: FontWeight.w700,
-                        color: context.appTextPrimary,
-                        letterSpacing: -0.5,
+    return Container(
+      color: context.appBg,
+      child: SafeArea(
+        child: RefreshIndicator(
+          color: _DS.accent,
+          backgroundColor: context.appSurface,
+          onRefresh: _load,
+          child: CustomScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            slivers: [
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 70, 0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _dayString(),
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: context.appTextSecondary,
+                        ),
                       ),
-                    ),
-                    const Spacer(),
-                  ],
+                      const SizedBox(height: 4),
+                      RichText(
+                        text: TextSpan(
+                          style: TextStyle(
+                            fontSize: 28,
+                            fontWeight: FontWeight.w700,
+                            color: context.appTextPrimary,
+                            height: 1.15,
+                          ),
+                          children: [
+                            TextSpan(text: '${_greeting()},\n'),
+                            TextSpan(
+                              text: _greetingName(),
+                              style: const TextStyle(color: _DS.accent),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-
-            const SliverToBoxAdapter(child: SizedBox(height: 10)),
-
-            // Reorderable card list
-            SliverToBoxAdapter(
-              child: _CardReorderList(
-                cards: visibleCards
-                    .map(
-                      (p) => _CardEntry(
-                        key: ValueKey(p.section.name),
-                        section: p.section,
-                        child: p.content!,
-                      ),
-                    )
-                    .toList(),
-                onReorder: _onReorder,
+              const SliverToBoxAdapter(child: SizedBox(height: 24)),
+              SliverToBoxAdapter(
+                child: _CardReorderList(
+                  cards: visibleCards
+                      .map(
+                        (p) => _CardEntry(
+                          key: ValueKey(p.section.name),
+                          section: p.section,
+                          child: p.content!,
+                        ),
+                      )
+                      .toList(),
+                  onReorder: _onReorder,
+                ),
               ),
-            ),
-
-            const SliverToBoxAdapter(child: SizedBox(height: 24)),
-          ],
+              const SliverToBoxAdapter(child: SizedBox(height: 32)),
+            ],
+          ),
         ),
       ),
     );
   }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  SECTION HEADER HELPER
+// ═══════════════════════════════════════════════════════════════════════════════
+
+class _SectionHeader extends StatelessWidget {
+  final String label;
+  final String? sublabel;
+
+  const _SectionHeader({required this.label, this.sublabel});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0.9,
+            color: context.appTextTertiary,
+          ),
+        ),
+        if (sublabel != null) ...[
+          Text(
+            ' · ',
+            style: TextStyle(color: context.appTextTertiary, fontSize: 11),
+          ),
+          Text(
+            sublabel!,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.9,
+              color: context.appTextTertiary,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  TODAY SECTION CARD
+//  Layout: HEUTE header → Mensa preview → Schulende + Stunden (row)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+class _TodaySectionCard extends StatelessWidget {
+  final bool isWeekend;
+  final String? mensaToday;
+  final String? mensaCategory;
+  final bool loadingMensa;
+  final String? schoolEnd;
+  final int? minsUntilEnd;
+  final int todayLessons;
+  final bool loadingTimetable;
+  final String? errorTimetable;
+  final VoidCallback onMensaTap;
+  final VoidCallback onRetry;
+
+  static const _kOrange = Color(0xFFFF6B35);
+
+  const _TodaySectionCard({
+    required this.isWeekend,
+    required this.mensaToday,
+    required this.mensaCategory,
+    required this.loadingMensa,
+    required this.schoolEnd,
+    required this.minsUntilEnd,
+    required this.todayLessons,
+    required this.loadingTimetable,
+    required this.errorTimetable,
+    required this.onMensaTap,
+    required this.onRetry,
+  });
 
   String _fmtDuration(int mins) {
     if (mins < 60) return '${mins}min';
@@ -1308,202 +1340,619 @@ class _DashboardTabState extends State<_DashboardTab>
     final m = mins % 60;
     return m == 0 ? '${h}h' : '${h}h ${m}min';
   }
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-//  CARD ENTRY MODEL
-// ═══════════════════════════════════════════════════════════════════════════════
-
-class _CardEntry {
-  final Key key;
-  final _CardSection section;
-  final Widget child;
-  const _CardEntry({
-    required this.key,
-    required this.section,
-    required this.child,
-  });
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-//  CARD REORDER LIST  –  robust drag with correct index math
-// ═══════════════════════════════════════════════════════════════════════════════
-
-class _CardReorderList extends StatefulWidget {
-  final List<_CardEntry> cards;
-  final void Function(int oldIndex, int newIndex) onReorder;
-
-  const _CardReorderList({required this.cards, required this.onReorder});
-
-  @override
-  State<_CardReorderList> createState() => _CardReorderListState();
-}
-
-class _CardReorderListState extends State<_CardReorderList> {
-  int? _draggingIndex;
-  int? _hoverIndex;
-
-  void _startDrag(int index) {
-    HapticFeedback.mediumImpact();
-    setState(() {
-      _draggingIndex = index;
-      _hoverIndex = null;
-    });
-  }
-
-  void _endDrag() {
-    setState(() {
-      _draggingIndex = null;
-      _hoverIndex = null;
-    });
-  }
-
-  void _updateHover(int index) {
-    if (_hoverIndex != index) {
-      setState(() => _hoverIndex = index);
-    }
-  }
-
-  void _clearHover() {
-    if (_hoverIndex != null) {
-      setState(() => _hoverIndex = null);
-    }
-  }
-
-  void _drop(int fromIndex, int toIndex) {
-    _endDrag();
-    if (fromIndex != toIndex) {
-      widget.onReorder(fromIndex, toIndex);
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
-    final screenWidth = MediaQuery.of(context).size.width;
+    final now = DateTime.now();
+    final surface = context.appSurface;
+    final textPrimary = context.appTextPrimary;
+    final textSecondary = context.appTextSecondary;
+    final textTertiary = context.appTextTertiary;
+    const months = [
+      'Jan',
+      'Feb',
+      'März',
+      'Apr',
+      'Mai',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Okt',
+      'Nov',
+      'Dez',
+    ];
+    final dayLabel = '${now.day}. ${months[now.month - 1]}';
 
     return Column(
-      children: List.generate(widget.cards.length, (index) {
-        final entry = widget.cards[index];
-        final isDraggingThis = _draggingIndex == index;
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _SectionHeader(label: 'HEUTE', sublabel: dayLabel),
+        const SizedBox(height: 10),
 
-        return Padding(
-          key: entry.key,
-          padding: EdgeInsets.fromLTRB(16, 0, 16, 10),
-          child: LongPressDraggable<int>(
-            data: index,
-            delay: const Duration(milliseconds: 380),
-            hapticFeedbackOnStart: true,
-            onDragStarted: () => _startDrag(index),
-            onDragEnd: (_) => _endDrag(),
-            onDraggableCanceled: (_, _) => _endDrag(),
-            // Ghost following finger
-            feedback: Material(
-              color: Colors.transparent,
-              child: SizedBox(
-                width: screenWidth - 32,
-                child: Transform(
-                  transform: Matrix4.diagonal3Values(1.04, 1.04, 1.0),
-                  alignment: Alignment.topCenter,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(14),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.28),
-                          blurRadius: 22,
-                          spreadRadius: 1,
-                          offset: const Offset(0, 10),
-                        ),
-                      ],
-                    ),
-                    child: Opacity(opacity: 0.93, child: entry.child),
-                  ),
-                ),
+        GestureDetector(
+          onTap: onMensaTap,
+          child: Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: surface,
+              borderRadius: BorderRadius.circular(_DS.radius),
+              border: Border.all(
+                color: _kOrange.withValues(alpha: 0.18),
+                width: 1,
               ),
             ),
-            // Slot left behind while dragging
-            childWhenDragging: AnimatedContainer(
-              duration: const Duration(milliseconds: 220),
-              height: 56,
-              decoration: BoxDecoration(
-                color: AppTheme.accent.withValues(alpha: 0.07),
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(
-                  color: AppTheme.accent.withValues(alpha: 0.28),
-                  width: 1.5,
-                ),
-              ),
-            ),
-            child: DragTarget<int>(
-              onWillAcceptWithDetails: (details) {
-                if (details.data == index) return false;
-                _updateHover(index);
-                return true;
-              },
-              onLeave: (_) => _clearHover(),
-              onAcceptWithDetails: (details) => _drop(details.data, index),
-              builder: (context, candidateData, _) {
-                final isTarget = candidateData.isNotEmpty;
-                return AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  curve: Curves.easeOut,
-                  transform: Matrix4.diagonal3Values(
-                    isDraggingThis ? 0.96 : 1.0,
-                    isDraggingThis ? 0.96 : 1.0,
-                    1.0,
-                  ),
-                  transformAlignment: Alignment.center,
+            child: Row(
+              children: [
+                Container(
+                  width: 38,
+                  height: 38,
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(14),
-                    border: isTarget
-                        ? Border.all(
-                            color: AppTheme.accent.withValues(alpha: 0.65),
-                            width: 2,
-                          )
-                        : null,
-                    boxShadow: isTarget
-                        ? [
-                            BoxShadow(
-                              color: AppTheme.accent.withValues(alpha: 0.18),
-                              blurRadius: 14,
-                              spreadRadius: 2,
-                            ),
-                          ]
-                        : null,
+                    color: _kOrange.withValues(alpha: 0.22),
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                  child: entry.child,
-                );
-              },
+                  child: const Center(
+                    child: Icon(
+                      CupertinoIcons.flame_fill,
+                      size: 18,
+                      color: _kOrange,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: loadingMensa
+                      ? const CupertinoActivityIndicator(radius: 8)
+                      : mensaToday != null
+                      ? Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Mensa heute',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                                color: _kOrange,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              mensaToday!,
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                                color: context.appTextPrimary,
+                                height: 1.35,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        )
+                      : Text(
+                          'Heute gibt es nichts',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: context.appTextSecondary,
+                          ),
+                        ),
+                ),
+                const SizedBox(width: 10),
+                Icon(
+                  CupertinoIcons.chevron_right,
+                  size: 14,
+                  color: context.appTextTertiary,
+                ),
+              ],
             ),
           ),
-        );
-      }),
+        ),
+
+        const SizedBox(height: 10),
+
+        if (errorTimetable != null && !loadingTimetable)
+          _ErrorCard(message: errorTimetable!, onRetry: onRetry)
+        else
+          Row(
+            children: [
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: context.appSurface,
+                    borderRadius: BorderRadius.circular(_DS.radius),
+                    border: Border.all(
+                      color: const Color.fromARGB(
+                        255,
+                        119,
+                        119,
+                        119,
+                      ).withValues(alpha: 0.18),
+                      width: 0.8,
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            width: 22,
+                            height: 22,
+                            decoration: BoxDecoration(
+                              color: _DS.accent.withValues(alpha: 0.14),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Center(
+                              child: Icon(
+                                CupertinoIcons.flag_fill,
+                                size: 11,
+                                color: _DS.accent,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Schulende',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
+                              color: textSecondary,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      if (loadingTimetable)
+                        const CupertinoActivityIndicator(radius: 8)
+                      else ...[
+                        Text(
+                          isWeekend ? '—' : schoolEnd ?? '—',
+                          style: TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w700,
+                            color: minsUntilEnd != null
+                                ? _DS.accent
+                                : textTertiary,
+                            fontFeatures: const [FontFeature.tabularFigures()],
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          isWeekend
+                              ? 'Wochenende'
+                              : minsUntilEnd != null
+                              ? 'noch ${_fmtDuration(minsUntilEnd!)}'
+                              : schoolEnd == null
+                              ? 'Kein Unterricht'
+                              : 'vorbei',
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: context.appTextSecondary,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: context.appSurface,
+                    borderRadius: BorderRadius.circular(_DS.radius),
+                    border: Border.all(
+                      color: const Color.fromARGB(
+                        255,
+                        119,
+                        119,
+                        119,
+                      ).withValues(alpha: 0.18),
+                      width: 0.8,
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            width: 22,
+                            height: 22,
+                            decoration: BoxDecoration(
+                              color: _DS.accentYellow.withValues(alpha: 0.14),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Center(
+                              child: Icon(
+                                CupertinoIcons.book_fill,
+                                size: 11,
+                                color: _DS.accentYellow,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Stunden heute',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
+                              color: textSecondary,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      if (loadingTimetable)
+                        const CupertinoActivityIndicator(radius: 8)
+                      else ...[
+                        Text(
+                          isWeekend ? '—' : '$todayLessons',
+                          style: TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w700,
+                            color: isWeekend
+                                ? context.appTextTertiary
+                                : todayLessons > 0
+                                    ? context.appTextPrimary
+                                    : context.appTextTertiary,
+                            fontFeatures: const [FontFeature.tabularFigures()],
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          isWeekend
+                              ? 'Wochenende'
+                              : todayLessons == 0
+                                  ? 'Kein Unterricht'
+                                  : 'Stunden',
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: context.appTextSecondary,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+      ],
     );
   }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-//  LOADING CARD PLACEHOLDER
+//  EXAM CARD  (nächste Schularbeit)
 // ═══════════════════════════════════════════════════════════════════════════════
 
-class _LoadingCard extends StatelessWidget {
-  const _LoadingCard();
+class _ExamCard extends StatelessWidget {
+  final _NextExam? nextExam;
+  const _ExamCard({required this.nextExam});
+
+  Color _chipColor(_NextExam exam) {
+    if (exam.isToday) return _DS.accentRed;
+    if (exam.daysUntil <= 3) return _DS.accentOrange;
+    if (exam.daysUntil <= 7) return _DS.accentYellow;
+    return _DS.accent;
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 20),
-      decoration: BoxDecoration(
-        color: context.appSurface,
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: const Center(child: CupertinoActivityIndicator(radius: 12)),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const _SectionHeader(label: 'NÄCHSTE SCHULARBEIT'),
+        const SizedBox(height: 10),
+        if (nextExam == null)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+            decoration: BoxDecoration(
+              color: _DS.accentGreen.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(_DS.radius),
+              border: Border.all(
+                color: _DS.accentGreen.withValues(alpha: 0.22),
+                width: 1,
+              ),
+            ),
+            child: Row(
+              children: const [
+                Icon(
+                  CupertinoIcons.checkmark_seal_fill,
+                  size: 16,
+                  color: _DS.accentGreen,
+                ),
+                SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Keine Schularbeit gefunden',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: _DS.accentGreen,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          )
+        else
+          Builder(
+            builder: (context) {
+              final exam = nextExam!;
+              final color = _chipColor(exam);
+              final d = exam.entry.date.toString();
+              final examDate = DateTime(
+                int.parse(d.substring(0, 4)),
+                int.parse(d.substring(4, 6)),
+                int.parse(d.substring(6, 8)),
+              );
+              const wd = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
+              const mo = [
+                'Jan',
+                'Feb',
+                'März',
+                'Apr',
+                'Mai',
+                'Jun',
+                'Jul',
+                'Aug',
+                'Sep',
+                'Okt',
+                'Nov',
+                'Dez',
+              ];
+              final dateStr =
+                  '${wd[examDate.weekday - 1]}., ${examDate.day}. ${mo[examDate.month - 1]}';
+              final timeStr =
+                  '${(exam.entry.startTime ~/ 100).toString().padLeft(2, '0')}:${(exam.entry.startTime % 100).toString().padLeft(2, '0')}';
+
+              return Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: context.appSurface,
+                  borderRadius: BorderRadius.circular(_DS.radius),
+                  border: Border.all(
+                    color: color.withValues(alpha: 0.25),
+                    width: 1,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: color.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Center(
+                        child: Icon(
+                          CupertinoIcons.doc_text_fill,
+                          size: 18,
+                          color: color,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            exam.entry.displayName,
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                              color: context.appTextPrimary,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '$dateStr · $timeStr · ${exam.entry.roomName}',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: context.appTextSecondary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: color.withValues(alpha: 0.14),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        exam.label,
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: color,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+      ],
     );
   }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-//  WEEK OVERVIEW CARD
+//  RECENT GRADES CARD
+// ═══════════════════════════════════════════════════════════════════════════════
+
+class _RecentGradesCard extends StatelessWidget {
+  final List<_RecentGrade> grades;
+  final double? average;
+  final bool loading;
+  const _RecentGradesCard({
+    required this.grades,
+    required this.loading,
+    this.average,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const _SectionHeader(label: 'LETZTE NOTEN'),
+        const SizedBox(height: 10),
+        Container(
+          decoration: BoxDecoration(
+            color: context.appSurface,
+            borderRadius: BorderRadius.circular(_DS.radius),
+            border: Border.all(
+              color: const Color.fromARGB(
+                255,
+                119,
+                119,
+                119,
+              ).withValues(alpha: 0.18),
+              width: 0.8,
+            ),
+          ),
+          child: loading
+              ? const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 20),
+                  child: Center(child: CupertinoActivityIndicator(radius: 10)),
+                )
+              : grades.isEmpty
+              ? Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: Text(
+                    'Noch keine Noten',
+                    style: TextStyle(color: context.appTextSecondary, fontSize: 13),
+                  ),
+                )
+              : Column(
+                  children: grades.indexed.map((pair) {
+                    final (i, grade) = pair;
+                    final isLast = i == grades.length - 1;
+                    return _GradeRow(grade: grade, isLast: isLast);
+                  }).toList(),
+                ),
+        ),
+      ],
+    );
+  }
+}
+
+class _GradeRow extends StatelessWidget {
+  final _RecentGrade grade;
+  final bool isLast;
+  const _GradeRow({required this.grade, required this.isLast});
+
+  Color _gradeColor(double v) {
+    if (v >= 9) return _DS.accentGreen;
+    if (v >= 6.5) return _DS.accentGreen;
+    if (v >= 6) return _DS.accentOrange;
+    if (v >= 4) return _DS.accentYellow;
+    return _DS.accentRed;
+  }
+
+  String _fmtValue(double v) {
+    if (v % 1 == 0) return v.toInt().toString();
+    var formatted = v.toStringAsFixed(2);
+    formatted = formatted.replaceFirst(RegExp(r'0+$'), '');
+    formatted = formatted.replaceFirst(RegExp(r'\\.$'), '');
+    return formatted;
+  }
+
+  String _dateStr(int date) {
+    final d = date.toString();
+    if (d.length == 8) {
+      return '${d.substring(6)}.${d.substring(4, 6)}.';
+    }
+    return '';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final color = _gradeColor(grade.value);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+      decoration: BoxDecoration(
+        border: !isLast
+            ? Border(
+                bottom: BorderSide(
+                  color: const Color.fromARGB(
+                    255,
+                    119,
+                    119,
+                    119,
+                  ).withValues(alpha: 0.18),
+                  width: 0.5,
+                ),
+              )
+            : null,
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  grade.subject,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: context.appTextPrimary,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '${grade.type} · ${_dateStr(grade.date)}',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: context.appTextSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.18),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Center(
+              child: Text(
+                grade.markName.isNotEmpty ? grade.markName : _fmtValue(grade.value),
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                  color: color,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  WEEK OVERVIEW CARD  (unverändert aus deinem Code)
 // ═══════════════════════════════════════════════════════════════════════════════
 
 class _WeekOverviewCard extends StatelessWidget {
@@ -1550,30 +1999,76 @@ class _WeekOverviewCard extends StatelessWidget {
 
   List<_DayMarker> _dayMarkersForEntries(List<TimetableEntry> entries) {
     final seen = <_DayMarker>{};
-    for (final entry in entries) {
-      final marker = _markerForEntry(entry);
+    final groups = <_DayEntryGroup>[];
+    final sortedEntries = [...entries]..sort((a, b) => a.startTime.compareTo(b.startTime));
+
+    for (final entry in sortedEntries) {
+      var added = false;
+      for (final group in groups) {
+        if (entry.startTime < group.endTime && entry.endTime > group.startTime) {
+          group.add(entry);
+          added = true;
+          break;
+        }
+      }
+      if (!added) {
+        groups.add(_DayEntryGroup(entry));
+      }
+    }
+
+    for (final group in groups) {
+      final marker = _markerForSlot(group.entries);
       if (marker != null) seen.add(marker);
     }
-    // Sort ascending by priority so the HIGHEST priority (exam) is last → rightmost in fan.
+
     final markers = seen.toList()
       ..sort((a, b) => _dayMarkerPriority(a).compareTo(_dayMarkerPriority(b)));
     return markers;
   }
 
+  _DayMarker? _markerForSlot(List<TimetableEntry> entries) {
+    final cancelled = entries.where((e) => e.isCancelled).toList();
+    final active = entries.where((e) => !e.isCancelled).toList();
+
+    if (cancelled.isNotEmpty && active.isNotEmpty) {
+      final additionalOnly = active
+          .where((e) => e.isAdditional && !e.isSubstitution)
+          .toList();
+      final ambiguous = active
+          .where((e) => e.isAdditional && e.isSubstitution)
+          .toList();
+      final substitutionOnly = active
+          .where((e) => e.isSubstitution && !e.isAdditional)
+          .toList();
+      final chosen = additionalOnly.isNotEmpty
+          ? additionalOnly.first
+          : ambiguous.isNotEmpty
+              ? ambiguous.first
+              : substitutionOnly.isNotEmpty
+                  ? substitutionOnly.first
+                  : active.first;
+      final marker = _markerForEntry(chosen);
+      return marker ?? _DayMarker.substitution;
+    }
+
+    final markers = entries
+        .map(_markerForEntry)
+        .whereType<_DayMarker>()
+        .toList();
+    if (markers.isEmpty) return null;
+    markers.sort((a, b) => _dayMarkerPriority(a).compareTo(_dayMarkerPriority(b)));
+    return markers.last;
+  }
+
   _DayMarker? _markerForEntry(TimetableEntry entry) {
     if (entry.isExam) return _DayMarker.exam;
     if (entry.isCancelled) return _DayMarker.cancelled;
-    // Substitution vor Additional prüfen: eine Vertretung die zusätzlich als
-    // Zusatzstunde markiert ist wird im Stundenplan auch als Vertretung
-    // (orange) dargestellt.
     if (entry.isSubstitution) return _DayMarker.substitution;
     if (entry.isAdditional) return _DayMarker.additional;
-    // Ganztägiges Ereignis / Veranstaltung: kein Fach aber Lesson-Text.
     if (entry.subjectName.trim().isEmpty &&
         entry.lessonText.trim().isNotEmpty) {
       return _DayMarker.event;
     }
-    // Info-Text an normaler Stunde (z.B. Lehrer-Notiz).
     if (entry.lessonText.trim().isNotEmpty) return _DayMarker.info;
     return null;
   }
@@ -1585,10 +2080,19 @@ class _WeekOverviewCard extends StatelessWidget {
     final headerDate = isNextWeek ? monday : now;
 
     return Container(
-      padding: const EdgeInsets.all(13),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: context.appSurface,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(_DS.radius),
+        border: Border.all(
+          color: const Color.fromARGB(
+            255,
+            119,
+            119,
+            119,
+          ).withValues(alpha: 0.18),
+          width: 0.8,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1596,21 +2100,21 @@ class _WeekOverviewCard extends StatelessWidget {
           Row(
             children: [
               Container(
-                width: 24,
-                height: 24,
+                width: 26,
+                height: 26,
                 decoration: BoxDecoration(
-                  color: AppTheme.tint.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(7),
+                  color: _DS.accent.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(8),
                 ),
                 child: const Center(
                   child: Icon(
                     CupertinoIcons.calendar,
                     size: 12,
-                    color: AppTheme.tint,
+                    color: _DS.accent,
                   ),
                 ),
               ),
-              const SizedBox(width: 7),
+              const SizedBox(width: 10),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -1635,10 +2139,10 @@ class _WeekOverviewCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 14),
           Row(
             children: List.generate(5, (i) {
-              final day = monday.add(Duration(days: i));
+                      final day = monday.add(Duration(days: i));
               final dateInt = _dateInt(day);
               final dayEntries = allWeek
                   .where((e) => e.date == dateInt)
@@ -1650,7 +2154,11 @@ class _WeekOverviewCard extends StatelessWidget {
               final isPast = day.isBefore(
                 DateTime(now.year, now.month, now.day),
               );
-              final markers = _dayMarkersForEntries(dayEntries);
+              final isHolidayDay = dayEntries.isEmpty &&
+                  (allWeek.isEmpty || allWeek.any((e) => e.date != dateInt));
+              final markers = isHolidayDay
+                  ? const [_DayMarker.holiday]
+                  : _dayMarkersForEntries(dayEntries);
               final hasExam = markers.contains(_DayMarker.exam);
               final hasCancelled = markers.contains(_DayMarker.cancelled);
 
@@ -1662,32 +2170,28 @@ class _WeekOverviewCard extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 10,
                         fontWeight: FontWeight.w600,
-                        color: isToday
-                            ? AppTheme.accent
-                            : context.appTextTertiary,
+                        color: isToday ? _DS.accent : context.appTextTertiary,
                       ),
                     ),
-                    const SizedBox(height: 5),
+                    const SizedBox(height: 6),
                     Container(
-                      width: 38,
-                      height: 38,
+                      width: 40,
+                      height: 40,
                       decoration: BoxDecoration(
-                        color: isToday ? AppTheme.accent : context.appCard,
+                        color: isToday ? _DS.accent : context.appCardAlt,
                         borderRadius: BorderRadius.circular(20),
-                        border: markers.isNotEmpty && !isToday
+                        border: !isToday
                             ? Border.all(
-                                color: context.appBorder.withValues(alpha: 0.75),
+                                color: context.appBorder.withValues(alpha: 0.7),
                                 width: 1,
                               )
                             : null,
                         boxShadow: isToday
                             ? [
                                 BoxShadow(
-                                  color: AppTheme.accent.withValues(
-                                    alpha: 0.12,
-                                  ),
+                                  color: _DS.accent.withValues(alpha: 0.14),
                                   blurRadius: 10,
-                                  offset: const Offset(0, 3),
+                                  offset: const Offset(0, 4),
                                 ),
                               ]
                             : null,
@@ -1703,19 +2207,19 @@ class _WeekOverviewCard extends StatelessWidget {
                                   color: isToday
                                       ? Colors.white
                                       : isPast
-                                      ? context.appTextTertiary
-                                      : context.appTextPrimary,
+                                          ? context.appTextTertiary
+                                          : context.appTextPrimary,
                                 ),
                               ),
                       ),
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 6),
                     if (hasCancelled && !hasExam)
                       Container(
                         width: 4,
                         height: 4,
                         decoration: BoxDecoration(
-                          color: AppTheme.danger.withValues(alpha: 0.6),
+                          color: _DS.accentRed.withValues(alpha: 0.65),
                           shape: BoxShape.circle,
                         ),
                       )
@@ -1726,14 +2230,10 @@ class _WeekOverviewCard extends StatelessWidget {
               );
             }),
           ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              Text(
-                '${allWeek.length} Std. diese Woche',
-                style: TextStyle(fontSize: 10, color: context.appTextTertiary),
-              ),
-            ],
+          const SizedBox(height: 12),
+          Text(
+            '${allWeek.length} Std. diese Woche',
+            style: TextStyle(fontSize: 10, color: context.appTextTertiary),
           ),
         ],
       ),
@@ -1741,24 +2241,41 @@ class _WeekOverviewCard extends StatelessWidget {
   }
 }
 
-enum _DayMarker { exam, cancelled, substitution, additional, event, info }
+enum _DayMarker { exam, cancelled, substitution, additional, event, holiday, info }
 
-// Higher value → further right in the fan (more visible on the right side).
-// Ranking: info < event < additional < substitution < cancelled < exam
 int _dayMarkerPriority(_DayMarker marker) {
   switch (marker) {
     case _DayMarker.info:
       return 0;
-    case _DayMarker.event:
+    case _DayMarker.holiday:
       return 1;
-    case _DayMarker.additional:
+    case _DayMarker.event:
       return 2;
-    case _DayMarker.substitution:
+    case _DayMarker.additional:
       return 3;
-    case _DayMarker.cancelled:
+    case _DayMarker.substitution:
       return 4;
-    case _DayMarker.exam:
+    case _DayMarker.cancelled:
       return 5;
+    case _DayMarker.exam:
+      return 6;
+  }
+}
+
+class _DayEntryGroup {
+  int startTime;
+  int endTime;
+  final List<TimetableEntry> entries;
+
+  _DayEntryGroup(TimetableEntry entry)
+      : startTime = entry.startTime,
+        endTime = entry.endTime,
+        entries = [entry];
+
+  void add(TimetableEntry entry) {
+    entries.add(entry);
+    startTime = startTime < entry.startTime ? startTime : entry.startTime;
+    endTime = endTime > entry.endTime ? endTime : entry.endTime;
   }
 }
 
@@ -1769,10 +2286,6 @@ class _DayIconFan extends StatelessWidget {
   const _DayIconFan({required this.markers, required this.isToday});
 
   (IconData, Color) _styleFor(_DayMarker marker, BuildContext context) {
-    // Farben EXAKT wie im Stundenplan:
-    // cancelled → danger (rot), exam → warning (gelb),
-    // substitution → orange, additional → accent (blau),
-    // event → tint (grün), info → textSecondary (grau).
     switch (marker) {
       case _DayMarker.exam:
         return (CupertinoIcons.doc_text_fill, AppTheme.warning);
@@ -1784,6 +2297,8 @@ class _DayIconFan extends StatelessWidget {
         return (CupertinoIcons.plus_app_fill, AppTheme.accent);
       case _DayMarker.event:
         return (CupertinoIcons.star_circle_fill, AppTheme.tint);
+      case _DayMarker.holiday:
+        return (CupertinoIcons.sun_max_fill, AppTheme.orange);
       case _DayMarker.info:
         return (CupertinoIcons.info_circle_fill, context.appTextSecondary);
     }
@@ -1791,11 +2306,11 @@ class _DayIconFan extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final visible = markers;
+    final visible = markers.isNotEmpty ? [markers.last] : markers;
     final count = visible.length;
 
-    // Single marker: perfectly centered.
     if (count == 1) {
+      final isHoliday = visible[0] == _DayMarker.holiday;
       final iconStyle = _styleFor(visible[0], context);
       final iconSize = isToday ? 17.3 : 16.5;
       final chipSize = iconSize + 5;
@@ -1814,7 +2329,11 @@ class _DayIconFan extends StatelessWidget {
                 width: 0.8,
               ),
             ),
-            child: Icon(iconStyle.$1, size: iconSize, color: Colors.white),
+            child: isHoliday
+                ? const Center(
+                    child: Text('🏖️', style: TextStyle(fontSize: 14)),
+                  )
+                : Icon(iconStyle.$1, size: iconSize, color: Colors.white),
           ),
         ),
       );
@@ -1828,8 +2347,8 @@ class _DayIconFan extends StatelessWidget {
         ? 13.5
         : 12.2;
     final iconSize = isToday ? baseIconSize + 0.8 : baseIconSize;
-    final fanWidth = 38.0;
-    final fanHeight = 38.0;
+    const fanWidth = 38.0;
+    const fanHeight = 38.0;
     final step = count <= 3
         ? 7.2
         : count <= 5
@@ -1838,7 +2357,7 @@ class _DayIconFan extends StatelessWidget {
         ? 5.0
         : 4.4;
     final halfSpan = ((count - 1) * step) / 2;
-    final arcDepth = 4.0;
+    const arcDepth = 4.0;
     final centerFillWidth = count <= 2 ? 18.0 : (20.0 + (count - 2) * 1.6);
     final centerFillAlpha = isToday ? 0.30 : 0.24;
     final chipSize = iconSize + 5;
@@ -1846,14 +2365,12 @@ class _DayIconFan extends StatelessWidget {
     final envelopeWidth = chipSize + (halfSpan * 2);
     final baseLeft = (fanWidth - envelopeWidth) / 2;
 
-    // Compute average dy across all icons so the group is vertically centered.
     double avgDy = 0;
     for (int i = 0; i < count; i++) {
       final n = (i / (count - 1)) * 2 - 1;
       avgDy += (n * n) * arcDepth;
     }
     avgDy /= count;
-    // baseTop such that (baseTop + avgDy + chipSize/2) == fanHeight/2.
     final baseTop = fanHeight / 2 - chipSize / 2 - avgDy;
 
     final centerX = fanWidth / 2;
@@ -1924,440 +2441,21 @@ class _DayIconFan extends StatelessWidget {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-//  EXAM BANNER
+//  LOADING CARD
 // ═══════════════════════════════════════════════════════════════════════════════
 
-class _ExamBanner extends StatelessWidget {
-  final _NextExam? nextExam;
-  const _ExamBanner({required this.nextExam});
-
-  @override
-  Widget build(BuildContext context) {
-    if (nextExam == null) {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
-        decoration: BoxDecoration(
-          color: AppTheme.success.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: AppTheme.success.withValues(alpha: 0.22),
-            width: 1,
-          ),
-        ),
-        child: Row(
-          children: [
-            Icon(
-              CupertinoIcons.checkmark_seal_fill,
-              size: 13,
-              color: AppTheme.success,
-            ),
-            const SizedBox(width: 7),
-            const Text(
-              'Keine Prüfung diese Woche',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: AppTheme.success,
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    final exam = nextExam!;
-    final color = exam.isToday ? AppTheme.danger : AppTheme.warning;
-    final icon = exam.isToday
-        ? CupertinoIcons.exclamationmark_circle_fill
-        : CupertinoIcons.calendar_badge_plus;
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 14),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withValues(alpha: 0.35), width: 1),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(top: 2),
-            child: Icon(icon, size: 19, color: color),
-          ),
-          const SizedBox(width: 11),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  exam.isToday ? 'Prüfung heute' : 'Nächste Prüfung',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: color.withValues(alpha: 0.85),
-                  ),
-                ),
-                const SizedBox(height: 5),
-                Text(
-                  exam.entry.displayName,
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: color,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  exam.label,
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w500,
-                    color: color.withValues(alpha: 0.65),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-//  TIME INFO CARD
-// ═══════════════════════════════════════════════════════════════════════════════
-
-class _TimeInfoCard extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String value;
-  final String sub;
-  final Color color;
-
-  const _TimeInfoCard({
-    required this.icon,
-    required this.label,
-    required this.value,
-    required this.sub,
-    required this.color,
-  });
+class _LoadingCard extends StatelessWidget {
+  const _LoadingCard();
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.symmetric(vertical: 20),
       decoration: BoxDecoration(
         color: context.appSurface,
-        borderRadius: BorderRadius.circular(13),
+        borderRadius: BorderRadius.circular(14),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 22,
-                height: 22,
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.13),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Center(child: Icon(icon, size: 11, color: color)),
-              ),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w500,
-                    color: context.appTextSecondary,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
-              color: color,
-              fontFeatures: const [FontFeature.tabularFigures()],
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            sub,
-            style: TextStyle(fontSize: 10, color: context.appTextSecondary),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-//  MENSA PREVIEW CARD
-// ═══════════════════════════════════════════════════════════════════════════════
-
-class _MensaPreviewCard extends StatelessWidget {
-  final String? dish;
-  final String? category;
-  final bool loading;
-  const _MensaPreviewCard({this.dish, this.category, required this.loading});
-
-  static const _kOrange = Color(0xFFFF6B35);
-  static const _kAmber = Color(0xFFFF9500);
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(13),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            _kOrange.withValues(alpha: 0.18),
-            _kAmber.withValues(alpha: 0.07),
-          ],
-        ),
-        border: Border.all(color: _kOrange.withValues(alpha: 0.25), width: 1),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  width: 24,
-                  height: 24,
-                  decoration: BoxDecoration(
-                    color: _kOrange.withValues(alpha: 0.22),
-                    borderRadius: BorderRadius.circular(7),
-                  ),
-                  child: const Center(
-                    child: Icon(
-                      CupertinoIcons.flame_fill,
-                      size: 12,
-                      color: _kOrange,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 7),
-                Text(
-                  'Mensa',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: context.appTextSecondary,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            if (loading)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 6),
-                child: CupertinoActivityIndicator(radius: 8),
-              )
-            else if (dish != null) ...[
-              const SizedBox(height: 5),
-              Text(
-                dish!,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: context.appTextPrimary,
-                  height: 1.3,
-                ),
-                maxLines: 3,
-                overflow: TextOverflow.ellipsis,
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  const Text(
-                    'Zum Menü',
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w600,
-                      color: _kOrange,
-                    ),
-                  ),
-                  const SizedBox(width: 3),
-                  Icon(
-                    CupertinoIcons.arrow_right,
-                    size: 9,
-                    color: _kOrange.withValues(alpha: 0.8),
-                  ),
-                ],
-              ),
-            ] else
-              Text(
-                'Heute nichts\nverfügbar',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: context.appTextSecondary,
-                  height: 1.4,
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-//  RECENT GRADES CARD
-// ═══════════════════════════════════════════════════════════════════════════════
-
-class _RecentGradesCard extends StatelessWidget {
-  final List<_RecentGrade> grades;
-  final double? average;
-  final bool loading;
-  const _RecentGradesCard({
-    required this.grades,
-    required this.loading,
-    this.average,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: context.appSurface,
-        borderRadius: BorderRadius.circular(13),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 24,
-                height: 24,
-                decoration: BoxDecoration(
-                  color: AppTheme.accent.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(7),
-                ),
-                child: const Center(
-                  child: Icon(
-                    CupertinoIcons.chart_bar_fill,
-                    size: 12,
-                    color: AppTheme.accent,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 7),
-              Expanded(
-                child: Text(
-                  'Letzte Noten',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: context.appTextSecondary,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          if (loading)
-            const CupertinoActivityIndicator(radius: 8)
-          else if (grades.isEmpty)
-            Text(
-              'Noch keine Noten',
-              style: TextStyle(fontSize: 11, color: context.appTextSecondary),
-            )
-          else
-            Column(children: grades.map((g) => _GradeRow(grade: g)).toList()),
-        ],
-      ),
-    );
-  }
-}
-
-class _GradeRow extends StatelessWidget {
-  final _RecentGrade grade;
-  const _GradeRow({required this.grade});
-
-  Color _gradeColor(double v) {
-    if (v >= 9) return AppTheme.success;
-    if (v >= 6.5) return AppTheme.successMid;
-    if (v >= 6) return AppTheme.warning;
-    if (v >= 4) return const Color(0xFFFF9F0A);
-    return AppTheme.danger;
-  }
-
-  String _fmtValue(double v) {
-    if (v % 1 == 0) return v.toInt().toString();
-    return v.toStringAsFixed(2).replaceAll(RegExp(r'0+$'), '');
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final color = _gradeColor(grade.value);
-    final d = grade.date.toString();
-    final dateStr = d.length == 8
-        ? '${d.substring(6)}.${d.substring(4, 6)}'
-        : '';
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              grade.subject,
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w500,
-                color: context.appTextPrimary,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          const SizedBox(width: 3),
-          Text(
-            dateStr,
-            style: TextStyle(fontSize: 9, color: context.appTextTertiary),
-          ),
-          const SizedBox(width: 4),
-          Container(
-            constraints: const BoxConstraints(minWidth: 28),
-            height: 20,
-            padding: const EdgeInsets.symmetric(horizontal: 5),
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(5),
-            ),
-            child: Center(
-              child: Text(
-                _fmtValue(grade.value),
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  color: color,
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
+      child: const Center(child: CupertinoActivityIndicator(radius: 12)),
     );
   }
 }
@@ -2377,7 +2475,7 @@ class _ErrorCard extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: context.appSurface,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(14),
       ),
       child: Column(
         children: [
@@ -2413,3 +2511,143 @@ class _ErrorCard extends StatelessWidget {
     );
   }
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  CARD ENTRY + REORDER LIST
+// ═══════════════════════════════════════════════════════════════════════════════
+
+class _CardEntry {
+  final Key key;
+  final _CardSection section;
+  final Widget child;
+  const _CardEntry({
+    required this.key,
+    required this.section,
+    required this.child,
+  });
+}
+
+class _CardReorderList extends StatefulWidget {
+  final List<_CardEntry> cards;
+  final void Function(int oldIndex, int newIndex) onReorder;
+
+  const _CardReorderList({required this.cards, required this.onReorder});
+
+  @override
+  State<_CardReorderList> createState() => _CardReorderListState();
+}
+
+class _CardReorderListState extends State<_CardReorderList> {
+  int? _draggingIndex;
+
+  void _startDrag(int index) {
+    HapticFeedback.mediumImpact();
+    setState(() => _draggingIndex = index);
+  }
+
+  void _endDrag() => setState(() => _draggingIndex = null);
+
+  void _drop(int from, int to) {
+    _endDrag();
+    if (from != to) widget.onReorder(from, to);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+
+    return Column(
+      children: List.generate(widget.cards.length, (index) {
+        final entry = widget.cards[index];
+        final isDragging = _draggingIndex == index;
+
+        return Padding(
+          key: entry.key,
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+          child: LongPressDraggable<int>(
+            data: index,
+            delay: const Duration(milliseconds: 380),
+            hapticFeedbackOnStart: true,
+            onDragStarted: () => _startDrag(index),
+            onDragEnd: (_) => _endDrag(),
+            onDraggableCanceled: (_, _) => _endDrag(),
+            feedback: Material(
+              color: Colors.transparent,
+              child: SizedBox(
+                width: screenWidth - 32,
+                child: Transform(
+                  transform: Matrix4.diagonal3Values(1.04, 1.04, 1.0),
+                  alignment: Alignment.topCenter,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(14),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.28),
+                          blurRadius: 22,
+                          spreadRadius: 1,
+                          offset: const Offset(0, 10),
+                        ),
+                      ],
+                    ),
+                    child: Opacity(opacity: 0.93, child: entry.child),
+                  ),
+                ),
+              ),
+            ),
+            childWhenDragging: AnimatedContainer(
+              duration: const Duration(milliseconds: 220),
+              height: 56,
+              decoration: BoxDecoration(
+                color: AppTheme.accent.withValues(alpha: 0.07),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: AppTheme.accent.withValues(alpha: 0.28),
+                  width: 1.5,
+                ),
+              ),
+            ),
+            child: DragTarget<int>(
+              onWillAcceptWithDetails: (d) => d.data != index,
+              onLeave: (_) {},
+              onAcceptWithDetails: (d) => _drop(d.data, index),
+              builder: (context, candidates, _) {
+                final isTarget = candidates.isNotEmpty;
+                return AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  transform: Matrix4.diagonal3Values(
+                    isDragging ? 0.97 : 1.0,
+                    isDragging ? 0.97 : 1.0,
+                    1.0,
+                  ),
+                  transformAlignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(14),
+                    border: isTarget
+                        ? Border.all(
+                            color: AppTheme.accent.withValues(alpha: 0.6),
+                            width: 2,
+                          )
+                        : null,
+                    boxShadow: isTarget
+                        ? [
+                            BoxShadow(
+                              color: AppTheme.accent.withValues(alpha: 0.18),
+                              blurRadius: 14,
+                              spreadRadius: 2,
+                            ),
+                          ]
+                        : null,
+                  ),
+                  child: entry.child,
+                );
+              },
+            ),
+          ),
+        );
+      }),
+    );
+  }
+}
+
+
