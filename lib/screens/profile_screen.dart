@@ -215,17 +215,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _sendFeedback() async {
     final uri = Uri(
       scheme: 'mailto',
-      path: 'feedback@plattnericus.dev',
+      path: AppConfig.feedbackEmail,
       queryParameters: {
         'subject': '[${AppConfig.appName}] Feedback',
         'body':
             '\n\n---\nVersion: $_appVersion\nSchule: ${AppConfig.schoolName}',
       },
     );
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri);
-    } else {
-      _showToast('Mail‑App nicht verfügbar');
+
+    try {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } catch (_) {
+      _showToast('Mail-App nicht verfügbar');
     }
   }
 
@@ -286,10 +287,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     'https://pokyh.com/legal?view=impressum',
                   );
                   if (await canLaunchUrl(uri)) {
-                    await launchUrl(
-                      uri,
-                      mode: LaunchMode.externalApplication,
-                    );
+                    await launchUrl(uri, mode: LaunchMode.externalApplication);
                   }
                 },
               ),
@@ -305,10 +303,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     'https://pokyh.com/legal?view=datenschutz',
                   );
                   if (await canLaunchUrl(uri)) {
-                    await launchUrl(
-                      uri,
-                      mode: LaunchMode.externalApplication,
-                    );
+                    await launchUrl(uri, mode: LaunchMode.externalApplication);
                   }
                 },
               ),
@@ -465,7 +460,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
           Icon(
             icon,
             size: 18,
-            color: _themeMode == value ? AppTheme.accent : context.appTextPrimary,
+            color: _themeMode == value
+                ? AppTheme.accent
+                : context.appTextPrimary,
           ),
           const SizedBox(width: 8),
           Text(
@@ -1193,9 +1190,7 @@ class _LegalButton extends StatelessWidget {
         decoration: BoxDecoration(
           color: context.appCard,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: context.appBorder.withValues(alpha: 0.2),
-          ),
+          border: Border.all(color: context.appBorder.withValues(alpha: 0.2)),
         ),
         child: Row(
           children: [
@@ -1232,9 +1227,7 @@ class _LegalButton extends StatelessWidget {
               ),
             ),
             Icon(
-              _isIOS
-                  ? CupertinoIcons.arrow_up_right_square
-                  : Icons.open_in_new,
+              _isIOS ? CupertinoIcons.arrow_up_right_square : Icons.open_in_new,
               size: 16,
               color: AppTheme.accent,
             ),

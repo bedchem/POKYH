@@ -13,7 +13,7 @@ class AppConfig {
   static const String schoolName = 'LBS Brixen';
 
   // ── Contacts / Links ───────────────────────────────────────────────────────
-  static const String feedbackEmail = 'feedback@plattnericus.dev';
+  static const String feedbackEmail = 'contact@pokyh.com';
   static const String githubOwner = 'bedchem';
   static const String githubRepo = 'POKYH';
   static const String githubUrl = 'https://github.com/$githubOwner/$githubRepo';
@@ -22,7 +22,8 @@ class AppConfig {
   static const String mensaApiUrl = 'https://mensa.plattnericus.dev/mensa.json';
 
   // ── WebUntis ───────────────────────────────────────────────────────────────
-  static const String webUntisBaseUrl = 'https://lbs-brixen.webuntis.com/WebUntis';
+  static const String webUntisBaseUrl =
+      'https://lbs-brixen.webuntis.com/WebUntis';
   static const String webUntisSchool = 'lbs-brixen';
   static const String webUntisSchoolNameCookie = '_bGJzLWJyaXhlbg==';
 
@@ -32,8 +33,18 @@ class AppConfig {
 
   /// Abbreviated month names (index 0 = January).
   static const List<String> monthLabels = [
-    'Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun',
-    'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez',
+    'Jan',
+    'Feb',
+    'Mär',
+    'Apr',
+    'Mai',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Okt',
+    'Nov',
+    'Dez',
   ];
 
   // ── School year ────────────────────────────────────────────────────────────
