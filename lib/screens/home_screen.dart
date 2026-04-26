@@ -508,12 +508,12 @@ class _HomeNavLayout {
 
   // iOS: frosted glass with labels always visible.
   static const ios = _HomeNavLayout(
-    barHeight: 50,
+    barHeight: 45,
     bottomPadding: 8,
     contentYOffset: 14,
-    iconSize: 24,
-    iconLabelSpacing: 8,
-    labelFontSize: 12,
+    iconSize: 18,
+    iconLabelSpacing: 2,
+    labelFontSize: 10,
   );
 
   static _HomeNavLayout forPlatform(TargetPlatform platform) {
