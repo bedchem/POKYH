@@ -1492,8 +1492,7 @@ class _MergedCell extends StatelessWidget {
         primary.kind == _SlotKind.replacement ||
         primary.kind == _SlotKind.event ||
         entry.isSubstitution ||
-        entry.isAdditional ||
-        hasHomework;
+        entry.isAdditional;
 
     Color? highlightColor;
     if (entry.isCancelled) {
@@ -1508,8 +1507,6 @@ class _MergedCell extends StatelessWidget {
           : AppTheme.orange;
     } else if (primary.kind == _SlotKind.event || entry.lessonText.isNotEmpty) {
       highlightColor = AppTheme.tint;
-    } else if (hasHomework) {
-      highlightColor = AppTheme.accentSoft;
     }
 
     final borderColor = isSpecial
