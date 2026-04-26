@@ -1,3 +1,4 @@
+import 'dart:ui' show ImageFilter;
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
@@ -495,24 +496,24 @@ class _HomeNavLayout {
     required this.labelFontSize,
   });
 
-  // Android keeps the current visual design.
+  // Android: icon-only Material 3 style, bigger icons since no labels.
   static const android = _HomeNavLayout(
-    barHeight: 28,
-    bottomPadding: 5,
-    contentYOffset: 10,
-    iconSize: 18,
-    iconLabelSpacing: 2,
+    barHeight: 32,
+    bottomPadding: 6,
+    contentYOffset: 8,
+    iconSize: 24,
+    iconLabelSpacing: 0,
     labelFontSize: 9,
   );
 
-  // iOS is intentionally a bit more compact.
+  // iOS: frosted glass with labels always visible.
   static const ios = _HomeNavLayout(
-    barHeight: 30,
-    bottomPadding: 5,
-    contentYOffset: 10,
+    barHeight: 50,
+    bottomPadding: 8,
+    contentYOffset: 14,
     iconSize: 24,
-    iconLabelSpacing: 1,
-    labelFontSize: 11,
+    iconLabelSpacing: 8,
+    labelFontSize: 12,
   );
 
   static _HomeNavLayout forPlatform(TargetPlatform platform) {
@@ -543,68 +544,125 @@ class _PokyhBottomNav extends StatelessWidget {
     (CupertinoIcons.flame_fill, 'Mensa'),
   ];
 
+  void _handleDragUpdate(BuildContext context, DragUpdateDetails details) {
+    if (!pageController.hasClients) return;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final delta = details.primaryDelta ?? 0;
+    final current = pageController.page ?? currentTab.toDouble();
+    final newPage = (current - delta / screenWidth).clamp(
+      0.0,
+      (swipeTabs.length - 1).toDouble(),
+    );
+    pageController.jumpTo(newPage * screenWidth);
+  }
+
+  void _handleDragEnd(DragEndDetails details) {
+    if (!pageController.hasClients) return;
+    final velocity = details.primaryVelocity ?? 0;
+    final currentPage = pageController.page ?? currentTab.toDouble();
+    int targetPage;
+    if (velocity < -400) {
+      targetPage = (currentPage.floor() + 1).clamp(0, swipeTabs.length - 1);
+    } else if (velocity > 400) {
+      targetPage = (currentPage.ceil() - 1).clamp(0, swipeTabs.length - 1);
+    } else {
+      targetPage = currentPage.round().clamp(0, swipeTabs.length - 1);
+    }
+    pageController.animateToPage(
+      targetPage,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.of(context).padding.bottom;
+    final isIOS = Theme.of(context).platform == TargetPlatform.iOS;
 
     return GestureDetector(
       behavior: HitTestBehavior.translucent,
-      onHorizontalDragUpdate: (details) {
-        if (!pageController.hasClients) return;
-        final screenWidth = MediaQuery.of(context).size.width;
-        final delta = details.primaryDelta ?? 0;
-        final current = pageController.page ?? currentTab.toDouble();
-        final newPage = (current - delta / screenWidth).clamp(
-          0.0,
-          (swipeTabs.length - 1).toDouble(),
-        );
-        pageController.jumpTo(newPage * screenWidth);
-      },
-      onHorizontalDragEnd: (details) {
-        if (!pageController.hasClients) return;
-        final velocity = details.primaryVelocity ?? 0;
-        final currentPage = pageController.page ?? currentTab.toDouble();
-        int targetPage;
-        if (velocity < -400) {
-          targetPage = (currentPage.floor() + 1).clamp(0, swipeTabs.length - 1);
-        } else if (velocity > 400) {
-          targetPage = (currentPage.ceil() - 1).clamp(0, swipeTabs.length - 1);
-        } else {
-          targetPage = currentPage.round().clamp(0, swipeTabs.length - 1);
-        }
-        pageController.animateToPage(
-          targetPage,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOutCubic,
-        );
-      },
-      child: Container(
-        padding: EdgeInsets.only(
-          bottom: bottomInset + layout.bottomPadding,
-          top: layout.contentYOffset,
-        ),
-        constraints: BoxConstraints(
-          minHeight: layout.barHeight + bottomInset + layout.bottomPadding,
-        ),
-        decoration: BoxDecoration(
-          color: context.appSurface,
-          border: Border(top: BorderSide(color: context.appBorder, width: 0.5)),
-        ),
-        child: Row(
-          children: List.generate(_items.length, (i) {
-            final (icon, label) = _items[i];
-            final active = currentTab == i;
-            return Expanded(
-              child: _NavItem(
-                icon: icon,
-                label: label,
-                active: active,
-                onTap: () => onTabChanged(i),
-                layout: layout,
+      onHorizontalDragUpdate: (d) => _handleDragUpdate(context, d),
+      onHorizontalDragEnd: _handleDragEnd,
+      child: isIOS
+          ? _buildIOSBar(context, bottomInset)
+          : _buildAndroidBar(context, bottomInset),
+    );
+  }
+
+  // iOS: frosted glass background, labels always visible.
+  Widget _buildIOSBar(BuildContext context, double bottomInset) {
+    final effectiveBottom = bottomInset / 3 + layout.bottomPadding;
+    return ClipRect(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+        child: Container(
+          padding: EdgeInsets.only(
+            bottom: effectiveBottom,
+            top: layout.contentYOffset,
+          ),
+          constraints: BoxConstraints(
+            minHeight: layout.barHeight + effectiveBottom,
+          ),
+          decoration: BoxDecoration(
+            color: context.appSurface.withValues(alpha: 0.72),
+            border: Border(
+              top: BorderSide(
+                color: context.appBorder.withValues(alpha: 0.5),
+                width: 0.5,
               ),
-            );
-          }),
+            ),
+          ),
+          child: Row(
+            children: List.generate(_items.length, (i) {
+              final (icon, label) = _items[i];
+              final active = currentTab == i;
+              return Expanded(
+                child: _NavItem(
+                  icon: icon,
+                  label: label,
+                  active: active,
+                  onTap: () => onTabChanged(i),
+                  layout: layout,
+                  showLabel: true,
+                ),
+              );
+            }),
+          ),
         ),
+      ),
+    );
+  }
+
+  // Android: solid surface, icon-only (no labels), Material 3 feel.
+  Widget _buildAndroidBar(BuildContext context, double bottomInset) {
+    return Container(
+      padding: EdgeInsets.only(
+        bottom: bottomInset + layout.bottomPadding,
+        top: layout.contentYOffset,
+      ),
+      constraints: BoxConstraints(
+        minHeight: layout.barHeight + bottomInset + layout.bottomPadding,
+      ),
+      decoration: BoxDecoration(
+        color: context.appSurface,
+        border: Border(top: BorderSide(color: context.appBorder, width: 0.5)),
+      ),
+      child: Row(
+        children: List.generate(_items.length, (i) {
+          final (icon, label) = _items[i];
+          final active = currentTab == i;
+          return Expanded(
+            child: _NavItem(
+              icon: icon,
+              label: label,
+              active: active,
+              onTap: () => onTabChanged(i),
+              layout: layout,
+              showLabel: false,
+            ),
+          );
+        }),
       ),
     );
   }
@@ -616,6 +674,7 @@ class _NavItem extends StatefulWidget {
   final bool active;
   final VoidCallback onTap;
   final _HomeNavLayout layout;
+  final bool showLabel;
 
   const _NavItem({
     required this.icon,
@@ -623,6 +682,7 @@ class _NavItem extends StatefulWidget {
     required this.active,
     required this.onTap,
     required this.layout,
+    this.showLabel = true,
   });
 
   @override
@@ -648,7 +708,10 @@ class _NavItemState extends State<_NavItem> {
           children: [
             AnimatedContainer(
               duration: const Duration(milliseconds: 200),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+              padding: EdgeInsets.symmetric(
+                horizontal: widget.showLabel ? 8 : 10,
+                vertical: 6,
+              ),
               decoration: BoxDecoration(
                 color: widget.active
                     ? _DS.accent.withValues(alpha: 0.15)
@@ -661,15 +724,18 @@ class _NavItemState extends State<_NavItem> {
                 color: widget.active ? _DS.accent : context.appTextTertiary,
               ),
             ),
-            SizedBox(height: widget.layout.iconLabelSpacing),
-            Text(
-              widget.label,
-              style: TextStyle(
-                fontSize: widget.layout.labelFontSize,
-                fontWeight: widget.active ? FontWeight.w600 : FontWeight.w400,
-                color: widget.active ? _DS.accent : context.appTextTertiary,
+            if (widget.showLabel) ...[
+              SizedBox(height: widget.layout.iconLabelSpacing),
+              Text(
+                widget.label,
+                style: TextStyle(
+                  fontSize: widget.layout.labelFontSize,
+                  fontWeight:
+                      widget.active ? FontWeight.w600 : FontWeight.w400,
+                  color: widget.active ? _DS.accent : context.appTextTertiary,
+                ),
               ),
-            ),
+            ],
           ],
         ),
       ),
