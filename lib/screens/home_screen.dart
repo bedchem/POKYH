@@ -364,6 +364,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         },
         pageController: _swipePageController,
         swipeTabs: _swipeTabs,
+        layout: _HomeNavLayout.forPlatform(Theme.of(context).platform),
       ),
     );
   }
@@ -477,17 +478,62 @@ class _MessageBadgeIcon extends StatelessWidget {
   }
 }
 
+class _HomeNavLayout {
+  final double barHeight;
+  final double bottomPadding;
+  final double contentYOffset;
+  final double iconSize;
+  final double iconLabelSpacing;
+  final double labelFontSize;
+
+  const _HomeNavLayout({
+    required this.barHeight,
+    required this.bottomPadding,
+    required this.contentYOffset,
+    required this.iconSize,
+    required this.iconLabelSpacing,
+    required this.labelFontSize,
+  });
+
+  // Android keeps the current visual design.
+  static const android = _HomeNavLayout(
+    barHeight: 35,
+    bottomPadding: 16,
+    contentYOffset: 10,
+    iconSize: 18,
+    iconLabelSpacing: 2,
+    labelFontSize: 9,
+  );
+
+  // iOS is intentionally a bit more compact.
+  static const ios = _HomeNavLayout(
+    barHeight: 30,
+    bottomPadding: 5,
+    contentYOffset: 10,
+    iconSize: 24,
+    iconLabelSpacing: 1,
+    labelFontSize: 11,
+  );
+
+  static _HomeNavLayout forPlatform(TargetPlatform platform) {
+    if (platform == TargetPlatform.iOS) return ios;
+    return android;
+  }
+}
+
 class _PokyhBottomNav extends StatelessWidget {
   final int currentTab;
   final void Function(int) onTabChanged;
   final PageController pageController;
   final List<int> swipeTabs;
+  final _HomeNavLayout layout;
 
   const _PokyhBottomNav({
     required this.currentTab,
     required this.onTabChanged,
     required this.pageController,
     required this.swipeTabs,
+    required this.layout,
   });
 
   static const _items = [
@@ -533,7 +579,8 @@ class _PokyhBottomNav extends StatelessWidget {
         );
       },
       child: Container(
-        padding: EdgeInsets.only(bottom: bottomInset + 12, top: 10),
+        padding: EdgeInsets.only(bottom: bottomInset + layout.bottomPadding, top: layout.contentYOffset),
+        constraints: BoxConstraints(minHeight: layout.barHeight + bottomInset + layout.bottomPadding),
         decoration: BoxDecoration(
           color: context.appSurface,
           border: Border(top: BorderSide(color: context.appBorder, width: 0.5)),
@@ -548,6 +595,7 @@ class _PokyhBottomNav extends StatelessWidget {
                 label: label,
                 active: active,
                 onTap: () => onTabChanged(i),
+                layout: layout,
               ),
             );
           }),
@@ -562,12 +610,14 @@ class _NavItem extends StatefulWidget {
   final String label;
   final bool active;
   final VoidCallback onTap;
+  final _HomeNavLayout layout;
 
   const _NavItem({
     required this.icon,
     required this.label,
     required this.active,
     required this.onTap,
+    required this.layout,
   });
 
   @override
@@ -602,15 +652,15 @@ class _NavItemState extends State<_NavItem> {
               ),
               child: Icon(
                 widget.icon,
-                size: 20,
+                size: widget.layout.iconSize,
                 color: widget.active ? _DS.accent : context.appTextTertiary,
               ),
             ),
-            const SizedBox(height: 2),
+            SizedBox(height: widget.layout.iconLabelSpacing),
             Text(
               widget.label,
               style: TextStyle(
-                fontSize: 10,
+                fontSize: widget.layout.labelFontSize,
                 fontWeight: widget.active ? FontWeight.w600 : FontWeight.w400,
                 color: widget.active ? _DS.accent : context.appTextTertiary,
               ),
