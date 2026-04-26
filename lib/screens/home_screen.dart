@@ -497,8 +497,8 @@ class _HomeNavLayout {
 
   // Android keeps the current visual design.
   static const android = _HomeNavLayout(
-    barHeight: 35,
-    bottomPadding: 16,
+    barHeight: 28,
+    bottomPadding: 5,
     contentYOffset: 10,
     iconSize: 18,
     iconLabelSpacing: 2,
@@ -579,8 +579,13 @@ class _PokyhBottomNav extends StatelessWidget {
         );
       },
       child: Container(
-        padding: EdgeInsets.only(bottom: bottomInset + layout.bottomPadding, top: layout.contentYOffset),
-        constraints: BoxConstraints(minHeight: layout.barHeight + bottomInset + layout.bottomPadding),
+        padding: EdgeInsets.only(
+          bottom: bottomInset + layout.bottomPadding,
+          top: layout.contentYOffset,
+        ),
+        constraints: BoxConstraints(
+          minHeight: layout.barHeight + bottomInset + layout.bottomPadding,
+        ),
         decoration: BoxDecoration(
           color: context.appSurface,
           border: Border(top: BorderSide(color: context.appBorder, width: 0.5)),
@@ -1646,8 +1651,8 @@ class _TodaySectionCard extends StatelessWidget {
                             color: isWeekend
                                 ? context.appTextTertiary
                                 : todayLessons > 0
-                                    ? context.appTextPrimary
-                                    : context.appTextTertiary,
+                                ? context.appTextPrimary
+                                : context.appTextTertiary,
                             fontFeatures: const [FontFeature.tabularFigures()],
                           ),
                         ),
@@ -1656,8 +1661,8 @@ class _TodaySectionCard extends StatelessWidget {
                           isWeekend
                               ? 'Wochenende'
                               : todayLessons == 0
-                                  ? 'Kein Unterricht'
-                                  : 'Stunden',
+                              ? 'Kein Unterricht'
+                              : 'Stunden',
                           style: TextStyle(
                             fontSize: 10,
                             color: context.appTextSecondary,
@@ -1887,7 +1892,10 @@ class _RecentGradesCard extends StatelessWidget {
                   padding: const EdgeInsets.all(14),
                   child: Text(
                     'Noch keine Noten',
-                    style: TextStyle(color: context.appTextSecondary, fontSize: 13),
+                    style: TextStyle(
+                      color: context.appTextSecondary,
+                      fontSize: 13,
+                    ),
                   ),
                 )
               : Column(
@@ -1986,7 +1994,9 @@ class _GradeRow extends StatelessWidget {
             ),
             child: Center(
               child: Text(
-                grade.markName.isNotEmpty ? grade.markName : _fmtValue(grade.value),
+                grade.markName.isNotEmpty
+                    ? grade.markName
+                    : _fmtValue(grade.value),
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w800,
@@ -2050,12 +2060,14 @@ class _WeekOverviewCard extends StatelessWidget {
   List<_DayMarker> _dayMarkersForEntries(List<TimetableEntry> entries) {
     final seen = <_DayMarker>{};
     final groups = <_DayEntryGroup>[];
-    final sortedEntries = [...entries]..sort((a, b) => a.startTime.compareTo(b.startTime));
+    final sortedEntries = [...entries]
+      ..sort((a, b) => a.startTime.compareTo(b.startTime));
 
     for (final entry in sortedEntries) {
       var added = false;
       for (final group in groups) {
-        if (entry.startTime < group.endTime && entry.endTime > group.startTime) {
+        if (entry.startTime < group.endTime &&
+            entry.endTime > group.startTime) {
           group.add(entry);
           added = true;
           break;
@@ -2093,10 +2105,10 @@ class _WeekOverviewCard extends StatelessWidget {
       final chosen = additionalOnly.isNotEmpty
           ? additionalOnly.first
           : ambiguous.isNotEmpty
-              ? ambiguous.first
-              : substitutionOnly.isNotEmpty
-                  ? substitutionOnly.first
-                  : active.first;
+          ? ambiguous.first
+          : substitutionOnly.isNotEmpty
+          ? substitutionOnly.first
+          : active.first;
       final marker = _markerForEntry(chosen);
       return marker ?? _DayMarker.substitution;
     }
@@ -2106,7 +2118,9 @@ class _WeekOverviewCard extends StatelessWidget {
         .whereType<_DayMarker>()
         .toList();
     if (markers.isEmpty) return null;
-    markers.sort((a, b) => _dayMarkerPriority(a).compareTo(_dayMarkerPriority(b)));
+    markers.sort(
+      (a, b) => _dayMarkerPriority(a).compareTo(_dayMarkerPriority(b)),
+    );
     return markers.last;
   }
 
@@ -2192,7 +2206,7 @@ class _WeekOverviewCard extends StatelessWidget {
           const SizedBox(height: 14),
           Row(
             children: List.generate(5, (i) {
-                      final day = monday.add(Duration(days: i));
+              final day = monday.add(Duration(days: i));
               final dateInt = _dateInt(day);
               final dayEntries = allWeek
                   .where((e) => e.date == dateInt)
@@ -2204,7 +2218,8 @@ class _WeekOverviewCard extends StatelessWidget {
               final isPast = day.isBefore(
                 DateTime(now.year, now.month, now.day),
               );
-              final isHolidayDay = dayEntries.isEmpty &&
+              final isHolidayDay =
+                  dayEntries.isEmpty &&
                   (allWeek.isEmpty || allWeek.any((e) => e.date != dateInt));
               final markers = isHolidayDay
                   ? const [_DayMarker.holiday]
@@ -2257,8 +2272,8 @@ class _WeekOverviewCard extends StatelessWidget {
                                   color: isToday
                                       ? Colors.white
                                       : isPast
-                                          ? context.appTextTertiary
-                                          : context.appTextPrimary,
+                                      ? context.appTextTertiary
+                                      : context.appTextPrimary,
                                 ),
                               ),
                       ),
@@ -2291,7 +2306,15 @@ class _WeekOverviewCard extends StatelessWidget {
   }
 }
 
-enum _DayMarker { exam, cancelled, substitution, additional, event, holiday, info }
+enum _DayMarker {
+  exam,
+  cancelled,
+  substitution,
+  additional,
+  event,
+  holiday,
+  info,
+}
 
 int _dayMarkerPriority(_DayMarker marker) {
   switch (marker) {
@@ -2318,9 +2341,9 @@ class _DayEntryGroup {
   final List<TimetableEntry> entries;
 
   _DayEntryGroup(TimetableEntry entry)
-      : startTime = entry.startTime,
-        endTime = entry.endTime,
-        entries = [entry];
+    : startTime = entry.startTime,
+      endTime = entry.endTime,
+      entries = [entry];
 
   void add(TimetableEntry entry) {
     entries.add(entry);
@@ -2699,5 +2722,3 @@ class _CardReorderListState extends State<_CardReorderList> {
     );
   }
 }
-
-
