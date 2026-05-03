@@ -10,7 +10,7 @@ import '../services/webuntis_service.dart';
 import '../theme/app_theme.dart';
 import '../utils/error_message.dart';
 import '../services/secure_credential_service.dart';
-import '../services/firebase_auth_service.dart';
+import '../services/auth_service.dart';
 import '../services/notification_service.dart';
 import '../services/reminder_service.dart';
 import 'home_screen.dart';
@@ -76,7 +76,20 @@ class _LoginScreenState extends State<LoginScreen>
     );
     _fade = CurvedAnimation(parent: _anim, curve: Curves.easeOut);
     _anim.forward();
+    _userCtrl.addListener(_forceLowercase);
     _init();
+  }
+
+  void _forceLowercase() {
+    final text = _userCtrl.text;
+    final lower = text.toLowerCase();
+    if (text != lower) {
+      final cursor = _userCtrl.selection;
+      _userCtrl.value = _userCtrl.value.copyWith(
+        text: lower,
+        selection: cursor,
+      );
+    }
   }
 
   Future<void> _init() async {
@@ -105,6 +118,7 @@ class _LoginScreenState extends State<LoginScreen>
   @override
   void dispose() {
     _anim.dispose();
+    _userCtrl.removeListener(_forceLowercase);
     _userCtrl.dispose();
     _passCtrl.dispose();
     _focusUser.dispose();
@@ -380,22 +394,23 @@ class _LoginScreenState extends State<LoginScreen>
     final klasseId = _service.klasseId;
     final klasseName = _service.klasseName;
 
-    FirebaseAuthService.instance
-        .signInAnonymously(username, klasseId: klasseId, klasseName: klasseName)
-        .then((_) {
-          final stableUid = FirebaseAuthService.instance.stableUid;
-          if (stableUid != null) {
-            NotificationService().saveFcmTokenForUser(stableUid).ignore();
+    AuthService.instance
+        .signIn(username, klasseId: klasseId, klasseName: klasseName)
+        .catchError((e) {
+          debugPrint('[Login] Backend auth failed: $e');
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Backend-Verbindung fehlgeschlagen: ${simplifyErrorMessage(e)}'),
+                backgroundColor: Colors.orange,
+                behavior: SnackBarBehavior.floating,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                duration: const Duration(seconds: 5),
+              ),
+            );
           }
-          if (klasseId != null && klasseName != null && klasseName.isNotEmpty) {
-            ReminderService()
-                .autoJoinOrCreateWebuntisClass(klasseName, klasseId)
-                .catchError(
-                  (e) => debugPrint('[Login] Auto-Klasse Fehler: $e'),
-                );
-          }
-        })
-        .catchError((e) => debugPrint('[Login] Firebase auth failed: $e'));
+        });
 
     _service
         .fetchProfileImage()

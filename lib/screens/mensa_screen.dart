@@ -7,7 +7,7 @@ import '../models/dish.dart';
 import '../services/dish_service.dart';
 import '../services/webuntis_service.dart';
 import '../services/rating_service.dart';
-import '../services/firebase_auth_service.dart';
+import '../services/auth_service.dart';
 import '../theme/app_theme.dart';
 
 class MensaScreenController extends ChangeNotifier {
@@ -667,7 +667,7 @@ class _DishDetailSheetState extends State<_DishDetailSheet> {
     });
     try {
       final username =
-          widget.username ?? FirebaseAuthService.instance.username ?? 'anonym';
+          widget.username ?? AuthService.instance.username ?? 'anonym';
       final r = await RatingService.instance.submitRating(
         widget.dish.id,
         stars,
@@ -702,7 +702,7 @@ class _DishDetailSheetState extends State<_DishDetailSheet> {
       );
     }
 
-    final isLoggedIn = FirebaseAuthService.instance.userId != null;
+    final isLoggedIn = AuthService.instance.isSignedIn;
     final showSelector =
         isLoggedIn && (_userRating == null || _editMode) && !_submitting;
     final displayHover = _hoverRating ?? 0.0;

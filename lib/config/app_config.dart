@@ -1,10 +1,9 @@
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+
 enum AppThemeMode { system, light, dark }
 
 /// Central configuration for all app-wide constants.
-///
-/// Nothing school- or service-specific should be hardcoded in widgets.
-/// Add every string, URL, or tunable value here so the app can be adapted
-/// to a different school or deployment by editing this single file.
+/// Secrets (API keys, server key) are loaded from .env — never hardcode them here.
 class AppConfig {
   AppConfig._();
 
@@ -20,6 +19,14 @@ class AppConfig {
 
   // ── API endpoints ──────────────────────────────────────────────────────────
   static const String mensaApiUrl = 'https://mensa.plattnericus.dev/mensa.json';
+
+  // ── Custom Backend (values from .env) ─────────────────────────────────────
+  static String get backendUrl =>
+      dotenv.env['BACKEND_URL'] ?? 'https://api.pokyh.com';
+  static String get backendApiKey =>
+      dotenv.env['BACKEND_API_KEY'] ?? '';
+  static String get backendServerKey =>
+      dotenv.env['BACKEND_SERVER_KEY'] ?? '';
 
   // ── WebUntis ───────────────────────────────────────────────────────────────
   static const String webUntisBaseUrl =

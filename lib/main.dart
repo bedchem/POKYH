@@ -1,13 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
-import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'config/app_config.dart';
-import 'firebase_options.dart';
 import 'services/webuntis_service.dart';
 import 'services/notification_service.dart';
-import 'services/firebase_auth_service.dart';
+import 'services/auth_service.dart';
 import 'services/reminder_service.dart';
 import 'screens/login_screen.dart';
 import 'screens/home_screen.dart';
@@ -22,16 +21,15 @@ String appVersion = '';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Run Firebase init, SharedPreferences and PackageInfo in parallel —
-  // none of them depend on each other.
+  await dotenv.load(fileName: '.env');
+
   final results = await Future.wait([
-    Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform),
     SharedPreferences.getInstance(),
     PackageInfo.fromPlatform(),
   ]);
 
-  final prefs = results[1] as SharedPreferences;
-  final info = results[2] as PackageInfo;
+  final prefs = results[0] as SharedPreferences;
+  final info = results[1] as PackageInfo;
 
   appVersion = info.version;
 
@@ -287,28 +285,13 @@ class _AuthGateState extends State<AuthGate> {
     _SplashScreenState._prefetchAll(widget.service);
     widget.service.fetchProfileImage().ignore();
     if (widget.service.username != null) {
-      FirebaseAuthService.instance
-          .signInAnonymously(
+      AuthService.instance
+          .signIn(
             widget.service.username!,
             klasseId: widget.service.klasseId,
             klasseName: widget.service.klasseName,
           )
-          .then((_) {
-            final stableUid = FirebaseAuthService.instance.stableUid;
-            if (stableUid != null) {
-              NotificationService().saveFcmTokenForUser(stableUid).ignore();
-            }
-            final kid = widget.service.klasseId;
-            final kname = widget.service.klasseName;
-            if (kid != null && kname != null && kname.isNotEmpty) {
-              ReminderService()
-                  .autoJoinOrCreateWebuntisClass(kname, kid)
-                  .catchError(
-                    (e) => debugPrint('[Restore] Auto-Klasse Fehler: $e'),
-                  );
-            }
-          })
-          .catchError((e) => debugPrint('[Restore] Firebase auth failed: $e'));
+          .catchError((e) => debugPrint('[Restore] Backend auth failed: $e'));
     }
     final notifService = NotificationService();
     notifService.startPolling(widget.service);

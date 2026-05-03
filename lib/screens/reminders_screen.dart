@@ -3,7 +3,7 @@ import 'dart:io' show Platform;
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../services/firebase_auth_service.dart';
+import '../services/auth_service.dart';
 import '../services/reminder_service.dart';
 import '../services/webuntis_service.dart';
 import '../theme/app_theme.dart';
@@ -116,11 +116,11 @@ class _RemindersScreenState extends State<RemindersScreen> {
   }
 
   Future<void> _loadMyStableUid() async {
-    final uid = await FirebaseAuthService.instance.resolveStableUid();
+    final uid = await AuthService.instance.resolveStableUid();
     if (mounted) {
       setState(() {
         _myStableUid = uid;
-        _myUsername = FirebaseAuthService.instance.username;
+        _myUsername = AuthService.instance.username;
       });
     }
   }
@@ -2121,7 +2121,7 @@ class _MembersSheetState extends State<_MembersSheet> {
   @override
   Widget build(BuildContext context) {
     final cls = widget.cls;
-    final myStableUid = FirebaseAuthService.instance.stableUid;
+    final myStableUid = AuthService.instance.stableUid;
 
     return SafeArea(
       child: Padding(

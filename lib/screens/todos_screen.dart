@@ -1,7 +1,7 @@
 import 'dart:io' show Platform;
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import '../services/firebase_auth_service.dart';
+import '../services/auth_service.dart';
 import '../services/reminder_service.dart';
 import '../services/todo_service.dart';
 import '../theme/app_theme.dart';
@@ -32,8 +32,8 @@ class _TodosScreenState extends State<TodosScreen> {
 
   Future<void> _init() async {
     await ReminderService().initialize();
-    if (FirebaseAuthService.instance.stableUid == null) {
-      await FirebaseAuthService.instance.resolveStableUid();
+    if (AuthService.instance.stableUid == null) {
+      await AuthService.instance.resolveStableUid();
     }
     await TodoService().cleanupDoneTodos();
     if (mounted) {
@@ -125,6 +125,26 @@ class _TodosScreenState extends State<TodosScreen> {
                   : StreamBuilder<List<Todo>>(
                       stream: _stream,
                       builder: (context, snap) {
+                        if (snap.hasError) {
+                          return Center(
+                            child: Padding(
+                              padding: const EdgeInsets.all(24),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(CupertinoIcons.exclamationmark_circle_fill,
+                                      color: Colors.red, size: 40),
+                                  const SizedBox(height: 12),
+                                  Text(
+                                    'Fehler beim Laden der Todos:\n${snap.error}',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(color: context.appTextSecondary),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        }
                         if (snap.connectionState ==
                                 ConnectionState.waiting &&
                             !snap.hasData) {

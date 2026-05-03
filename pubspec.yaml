@@ -22,14 +22,11 @@ dependencies:
   path_provider: ^2.1.0
   open_filex: ^4.5.0
   shared_preferences: ^2.2.0
-  firebase_core: ^4.6.0
-  firebase_messaging: ^16.2.0
-  firebase_auth: ^6.0.0
-  cloud_firestore: ^6.3.0
   haptic_feedback: ^0.6.4+3
   flutter_local_notifications: ^17.2.4
   timezone: ^0.9.4
   flutter_timezone: ^5.0.0
+  flutter_dotenv: ^5.2.1
 
 dev_dependencies:
   flutter_launcher_icons: ^0.13.1
@@ -41,6 +38,7 @@ flutter:
   uses-material-design: true
   assets:
     - assets/icons/
+    - .env
 
 flutter_icons:
   android: true

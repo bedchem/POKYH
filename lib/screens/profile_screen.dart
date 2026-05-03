@@ -9,7 +9,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../config/app_config.dart';
 import '../main.dart' show appVersion;
 import '../services/dish_service.dart';
-import '../services/firebase_auth_service.dart';
+import '../services/auth_service.dart';
 import '../services/webuntis_service.dart';
 import '../services/update_service.dart';
 import '../theme/app_theme.dart';
@@ -177,10 +177,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _copyStableUid() {
-    final uid =
-        FirebaseAuthService.instance.stableUid ??
-        FirebaseAuthService.instance.userId ??
-        '';
+    final uid = AuthService.instance.stableUid ?? '';
     if (uid.isEmpty) return;
     Clipboard.setData(ClipboardData(text: uid));
     _showToast(
@@ -755,9 +752,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             ],
                             Builder(
                               builder: (context) {
-                                final stableUid =
-                                    FirebaseAuthService.instance.stableUid ??
-                                    FirebaseAuthService.instance.userId;
+                                final stableUid = AuthService.instance.stableUid;
                                 if (stableUid == null)
                                   return const SizedBox.shrink();
                                 final displayUid = stableUid.length > 16

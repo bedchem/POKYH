@@ -1,6 +1,7 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'dart:async';
 import 'package:flutter/foundation.dart';
-import 'firebase_auth_service.dart';
+import 'auth_service.dart';
+import 'api_client.dart';
 import 'reminder_service.dart';
 
 class Todo {
@@ -22,17 +23,17 @@ class Todo {
     required this.createdAt,
   });
 
-  factory Todo.fromDoc(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
+  factory Todo.fromJson(Map<String, dynamic> d) {
     return Todo(
-      id: doc.id,
-      title: data['title'] as String? ?? '',
-      description: data['description'] as String? ?? '',
-      isDone: data['isDone'] as bool? ?? false,
-      remindAt: (data['remindAt'] as Timestamp?)?.toDate(),
-      doneAt: (data['doneAt'] as Timestamp?)?.toDate(),
-      createdAt:
-          (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      id: d['id'] as String,
+      title: d['title'] as String? ?? '',
+      description: d['details'] as String? ?? '',
+      isDone: d['done'] as bool? ?? false,
+      remindAt: d['dueAt'] != null ? DateTime.tryParse(d['dueAt'] as String) : null,
+      doneAt: d['doneAt'] != null ? DateTime.tryParse(d['doneAt'] as String) : null,
+      createdAt: d['createdAt'] != null
+          ? DateTime.tryParse(d['createdAt'] as String) ?? DateTime.now()
+          : DateTime.now(),
     );
   }
 }
@@ -42,38 +43,46 @@ class TodoService {
   factory TodoService() => _instance;
   TodoService._();
 
-  final _db = FirebaseFirestore.instance;
+  final _api = ApiClient.instance;
   final _reminders = ReminderService();
 
-  CollectionReference<Map<String, dynamic>>? _ref;
-
-  Future<CollectionReference<Map<String, dynamic>>?> _getRef() async {
-    if (_ref != null) return _ref;
-    String? uid = FirebaseAuthService.instance.stableUid;
-    if (uid == null || uid.isEmpty) {
-      uid = await FirebaseAuthService.instance.resolveStableUid();
-    }
-    if (uid == null || uid.isEmpty) return null;
-    _ref = _db
-        .collection('user_todos')
-        .doc(uid)
-        .collection('todos');
-    return _ref;
-  }
+  String? get _username => AuthService.instance.username;
 
   Stream<List<Todo>> todoStream() {
-    final uid = FirebaseAuthService.instance.stableUid;
-    if (uid == null || uid.isEmpty) return const Stream.empty();
-    return _db
-        .collection('user_todos')
-        .doc(uid)
-        .collection('todos')
-        .orderBy('createdAt', descending: true)
-        .snapshots()
-        .map(
-          (snap) =>
-              snap.docs.map((doc) => Todo.fromDoc(doc)).toList(),
-        );
+    if (_username == null) return const Stream.empty();
+
+    final controller = StreamController<List<Todo>>();
+    bool active = true;
+
+    Future<void> fetch() async {
+      if (!active || controller.isClosed) return;
+      try {
+        final todos = await _fetchTodos();
+        if (!controller.isClosed) controller.add(todos);
+      } catch (e) {
+        if (!controller.isClosed) controller.addError(e);
+      }
+    }
+
+    fetch();
+    final timer = Timer.periodic(const Duration(seconds: 30), (_) => fetch());
+
+    controller.onCancel = () {
+      active = false;
+      timer.cancel();
+    };
+
+    return controller.stream;
+  }
+
+  Future<List<Todo>> _fetchTodos() async {
+    final username = _username;
+    if (username == null) return [];
+    final data = await _api.get('/users/$username/todos') as List<dynamic>?;
+    return (data ?? [])
+        .cast<Map<String, dynamic>>()
+        .map(Todo.fromJson)
+        .toList();
   }
 
   Future<void> addTodo({
@@ -81,20 +90,17 @@ class TodoService {
     String description = '',
     DateTime? remindAt,
   }) async {
-    final ref = await _getRef();
-    if (ref == null) throw StateError('uid unavailable');
-    final doc = await ref.add({
+    final username = _username;
+    if (username == null) throw StateError('uid unavailable');
+    final result = await _api.post('/users/$username/todos', {
       'title': title,
-      'description': description,
-      'isDone': false,
-      'remindAt':
-          remindAt != null ? Timestamp.fromDate(remindAt) : null,
-      'createdAt': FieldValue.serverTimestamp(),
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
+      'details': description,
+      if (remindAt != null) 'dueAt': remindAt.toUtc().toIso8601String(),
+    }) as Map<String, dynamic>;
+
     if (remindAt != null) {
       await _reminders.scheduleTodoNotification(
-        doc.id,
+        result['id'] as String,
         title,
         description.isEmpty ? null : description,
         remindAt,
@@ -109,15 +115,14 @@ class TodoService {
     DateTime? remindAt,
     bool clearRemindAt = false,
   }) async {
-    final ref = await _getRef();
-    if (ref == null) throw StateError('uid unavailable');
-    await ref.doc(id).update({
+    final username = _username;
+    if (username == null) throw StateError('uid unavailable');
+    await _api.patch('/users/$username/todos/$id', {
       'title': title,
-      'description': description,
-      'remindAt': clearRemindAt
+      'details': description,
+      'dueAt': clearRemindAt
           ? null
-          : (remindAt != null ? Timestamp.fromDate(remindAt) : null),
-      'updatedAt': FieldValue.serverTimestamp(),
+          : remindAt?.toUtc().toIso8601String(),
     });
     if (clearRemindAt) {
       await _reminders.cancelTodoNotification(id);
@@ -132,12 +137,11 @@ class TodoService {
   }
 
   Future<void> toggleDone(String id, bool isDone) async {
-    final ref = await _getRef();
-    if (ref == null) return;
-    await ref.doc(id).update({
-      'isDone': isDone,
-      'doneAt': isDone ? FieldValue.serverTimestamp() : FieldValue.delete(),
-      'updatedAt': FieldValue.serverTimestamp(),
+    final username = _username;
+    if (username == null) return;
+    await _api.patch('/users/$username/todos/$id', {
+      'done': isDone,
+      'doneAt': isDone ? DateTime.now().toUtc().toIso8601String() : null,
     });
     if (isDone) {
       await _reminders.cancelTodoNotification(id);
@@ -145,28 +149,25 @@ class TodoService {
   }
 
   Future<void> deleteTodo(String id) async {
-    final ref = await _getRef();
-    if (ref == null) return;
-    await ref.doc(id).delete();
+    final username = _username;
+    if (username == null) return;
+    await _api.delete('/users/$username/todos/$id');
     await _reminders.cancelTodoNotification(id);
     debugPrint('[TodoService] deleted $id');
   }
 
-  // Löscht alle erledigten Todos, die vor mehr als 24h abgehakt wurden.
   Future<void> cleanupDoneTodos() async {
-    final ref = await _getRef();
-    if (ref == null) return;
-    final cutoff = Timestamp.fromDate(
-      DateTime.now().subtract(const Duration(hours: 24)),
-    );
+    final username = _username;
+    if (username == null) return;
     try {
-      final snap = await ref
-          .where('doneAt', isLessThan: cutoff)
-          .get();
-      for (final doc in snap.docs) {
-        await doc.reference.delete();
-        await _reminders.cancelTodoNotification(doc.id);
-        debugPrint('[TodoService] auto-deleted done todo ${doc.id}');
+      final todos = await _fetchTodos();
+      final cutoff = DateTime.now().subtract(const Duration(hours: 24));
+      for (final todo in todos) {
+        if (todo.isDone && todo.doneAt != null && todo.doneAt!.isBefore(cutoff)) {
+          await _api.delete('/users/$username/todos/${todo.id}');
+          await _reminders.cancelTodoNotification(todo.id);
+          debugPrint('[TodoService] auto-deleted done todo ${todo.id}');
+        }
       }
     } catch (e) {
       debugPrint('[TodoService] cleanup error: $e');
