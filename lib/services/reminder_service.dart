@@ -157,7 +157,7 @@ class ReminderService {
 
   void clearAdminCache() => _adminCache = null;
 
-  // ── Classes ────────────────────────────────────────────────────────────────
+  // ── Classes stream ─────────────────────────────────────────────────────────
 
   Stream<List<ClassRoom>> classesStream() {
     final classId = AuthService.instance.classId;
@@ -189,10 +189,7 @@ class ReminderService {
     return controller.stream;
   }
 
-  Future<ClassRoom?> findClassByCode(String code) async {
-    // Not directly exposed by backend — just try joining by code
-    return null;
-  }
+  Future<ClassRoom?> findClassByCode(String code) async => null;
 
   Future<ClassRoom> createClass(String name, {int? webuntisKlasseId}) async {
     final stableUid = _stableUid;
@@ -228,42 +225,62 @@ class ReminderService {
     String klasseName,
     int webuntisKlasseId,
   ) async {
-    // The backend handles class sync automatically on /auth/login.
-    // Nothing to do here.
     debugPrint('[ReminderService] autoJoin: handled by backend on login');
   }
 
-  // ── Reminders ──────────────────────────────────────────────────────────────
+  // ── Reminders stream ───────────────────────────────────────────────────────
+
+  final Map<String, StreamController<List<Reminder>>> _reminderCtrl = {};
+  final Map<String, Timer> _reminderTimers = {};
+  final Map<String, List<Reminder>> _reminderCache = {};
 
   Stream<List<Reminder>> remindersStream(String classId) {
-    final controller = StreamController<List<Reminder>>();
-    bool active = true;
+    _ensureReminderStream(classId);
+    return _reminderCtrl[classId]!.stream;
+  }
 
-    Future<void> fetch() async {
-      if (!active || controller.isClosed) return;
-      try {
-        final data = await _api.get('/classes/$classId/reminders') as List<dynamic>?;
-        if (!controller.isClosed) {
-          final reminders = (data ?? [])
-              .cast<Map<String, dynamic>>()
-              .map((d) => Reminder.fromJson(d, classId))
-              .toList();
-          controller.add(reminders);
-        }
-      } catch (_) {
-        if (!controller.isClosed) controller.add([]);
-      }
+  void _ensureReminderStream(String classId) {
+    final existing = _reminderCtrl[classId];
+    if (existing != null && !existing.isClosed) return;
+
+    final ctrl = StreamController<List<Reminder>>.broadcast();
+    _reminderCtrl[classId] = ctrl;
+    _reminderTimers[classId]?.cancel();
+    _reminderTimers[classId] = Timer.periodic(
+      const Duration(seconds: 30),
+      (_) => _refreshReminders(classId),
+    );
+
+    // Emit cached list instantly before first network fetch.
+    final cached = _reminderCache[classId];
+    if (cached != null) {
+      Future.microtask(() {
+        if (!ctrl.isClosed) ctrl.add(cached);
+      });
     }
+    _refreshReminders(classId);
+  }
 
-    fetch();
-    final timer = Timer.periodic(const Duration(seconds: 30), (_) => fetch());
+  Future<void> _refreshReminders(String classId) async {
+    final ctrl = _reminderCtrl[classId];
+    if (ctrl == null || ctrl.isClosed) return;
+    try {
+      final data = await _api.get('/classes/$classId/reminders') as List<dynamic>?;
+      final reminders = (data ?? [])
+          .cast<Map<String, dynamic>>()
+          .map((d) => Reminder.fromJson(d, classId))
+          .toList();
+      _reminderCache[classId] = reminders;
+      if (!ctrl.isClosed) ctrl.add(reminders);
+    } catch (_) {
+      if (!ctrl.isClosed) ctrl.add(_reminderCache[classId] ?? []);
+    }
+  }
 
-    controller.onCancel = () {
-      active = false;
-      timer.cancel();
-    };
-
-    return controller.stream;
+  void _pushOptimisticReminders(String classId, List<Reminder> reminders) {
+    _reminderCache[classId] = reminders;
+    final ctrl = _reminderCtrl[classId];
+    if (ctrl != null && !ctrl.isClosed) ctrl.add(reminders);
   }
 
   Future<void> createReminder({
@@ -278,17 +295,33 @@ class ReminderService {
       'remindAt': remindAt.toUtc().toIso8601String(),
     }) as Map<String, dynamic>;
 
+    // Optimistic: add new reminder to cached list immediately.
+    final newReminder = Reminder.fromJson(data, classId);
+    final updated = <Reminder>[newReminder, ...(_reminderCache[classId] ?? <Reminder>[])];
+    _pushOptimisticReminders(classId, updated);
+
     await _scheduleNotification(
       data['id'] as String,
       title.trim(),
       body.trim(),
       remindAt,
     );
+    _refreshReminders(classId);
   }
 
   Future<void> deleteReminder(String classId, String reminderId) async {
+    // Optimistic: remove immediately.
+    final cached = _reminderCache[classId];
+    if (cached != null) {
+      _pushOptimisticReminders(
+        classId,
+        cached.where((r) => r.id != reminderId).toList(),
+      );
+    }
+
     await _api.delete('/classes/$classId/reminders/$reminderId');
     await _cancelNotification(reminderId);
+    _refreshReminders(classId);
   }
 
   Future<void> cleanupExpired(String classId) async {
@@ -354,5 +387,4 @@ class ReminderService {
   Future<void> cancelTodoNotification(String id) async {
     await _cancelNotification('todo:$id');
   }
-
 }

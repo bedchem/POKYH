@@ -54,38 +54,26 @@ ThemeMode _themeModeFrom(String value) {
   }
 }
 
-class PockyhApp extends StatefulWidget {
+// Compute themes once at startup — not on every rebuild.
+final _lightTheme = AppTheme.light();
+final _darkTheme = AppTheme.dark();
+
+class PockyhApp extends StatelessWidget {
   const PockyhApp({super.key});
 
   @override
-  State<PockyhApp> createState() => _PockyhAppState();
-}
-
-class _PockyhAppState extends State<PockyhApp> {
-  @override
-  void initState() {
-    super.initState();
-    AppTheme.themeNotifier.addListener(_onThemeChanged);
-  }
-
-  @override
-  void dispose() {
-    AppTheme.themeNotifier.removeListener(_onThemeChanged);
-    super.dispose();
-  }
-
-  void _onThemeChanged() => setState(() {});
-
-  @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: AppConfig.appName,
-      debugShowCheckedModeBanner: false,
-      theme: AppTheme.light(),
-      darkTheme: AppTheme.dark(),
-      themeMode: AppTheme.themeNotifier.value,
-      navigatorKey: navigatorKey,
-      home: const SplashScreen(),
+    return ValueListenableBuilder<ThemeMode>(
+      valueListenable: AppTheme.themeNotifier,
+      builder: (_, mode, __) => MaterialApp(
+        title: AppConfig.appName,
+        debugShowCheckedModeBanner: false,
+        theme: _lightTheme,
+        darkTheme: _darkTheme,
+        themeMode: mode,
+        navigatorKey: navigatorKey,
+        home: const SplashScreen(),
+      ),
     );
   }
 }

@@ -16,6 +16,9 @@ class ApiClient {
   ApiClient._();
   static ApiClient get instance => _instance;
 
+  // Persistent client — reuses TCP connections (HTTP keep-alive).
+  final _client = http.Client();
+
   Map<String, String> get _headers {
     final token = AuthService.instance.jwtToken;
     return {
@@ -47,16 +50,17 @@ class ApiClient {
   }
 
   Future<http.Response> _send(String method, Uri uri, Object? body) {
+    final headers = _headers;
     final bodyStr = body != null ? jsonEncode(body) : null;
     switch (method) {
       case 'GET':
-        return http.get(uri, headers: _headers).timeout(AppConfig.networkTimeout);
+        return _client.get(uri, headers: headers).timeout(AppConfig.networkTimeout);
       case 'POST':
-        return http.post(uri, headers: _headers, body: bodyStr).timeout(AppConfig.networkTimeout);
+        return _client.post(uri, headers: headers, body: bodyStr).timeout(AppConfig.networkTimeout);
       case 'PATCH':
-        return http.patch(uri, headers: _headers, body: bodyStr).timeout(AppConfig.networkTimeout);
+        return _client.patch(uri, headers: headers, body: bodyStr).timeout(AppConfig.networkTimeout);
       case 'DELETE':
-        return http.delete(uri, headers: _headers).timeout(AppConfig.networkTimeout);
+        return _client.delete(uri, headers: headers).timeout(AppConfig.networkTimeout);
       default:
         throw UnsupportedError('Method $method not supported');
     }
@@ -65,7 +69,7 @@ class ApiClient {
   dynamic _parse(http.Response res) {
     if (res.statusCode == 204) return null;
     if (res.statusCode >= 200 && res.statusCode < 300) {
-      final body = res.body.trim();
+      final body = res.body;
       if (body.isEmpty) return null;
       return jsonDecode(body);
     }

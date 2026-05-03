@@ -172,6 +172,7 @@ class _TodosScreenState extends State<TodosScreen> {
                               ),
                               ...open.map(
                                 (t) => _TodoTile(
+                                  key: ValueKey(t.id),
                                   todo: t,
                                   onTap: () => _openSheet(existing: t),
                                   onToggle: () => TodoService().toggleDone(
@@ -188,6 +189,7 @@ class _TodosScreenState extends State<TodosScreen> {
                               _sectionLabel(context, 'Erledigt'),
                               ...done.map(
                                 (t) => _TodoTile(
+                                  key: ValueKey(t.id),
                                   todo: t,
                                   onTap: () => _openSheet(existing: t),
                                   onToggle: () => TodoService().toggleDone(
@@ -308,6 +310,7 @@ class _TodoTile extends StatelessWidget {
   final VoidCallback onDelete;
 
   const _TodoTile({
+    super.key,
     required this.todo,
     required this.onTap,
     required this.onToggle,
@@ -617,36 +620,38 @@ class _TodoSheetState extends State<_TodoSheet> {
     }
   }
 
-  Future<void> _delete() async {
-    setState(() => _saving = true);
-    await TodoService().deleteTodo(widget.existing!.id);
-    if (mounted) Navigator.pop(context);
+  void _delete() {
+    // Fire-and-forget: optimistic update removes item instantly.
+    TodoService().deleteTodo(widget.existing!.id);
+    Navigator.pop(context);
   }
 
   Future<void> _save() async {
     final title = _titleCtrl.text.trim();
     if (title.isEmpty) return;
+    final desc = _descCtrl.text.trim();
+    if (_isEdit) {
+      final prev = widget.existing!;
+      final clearRemind = prev.remindAt != null && _remindAt == null;
+      // Fire-and-forget for edits: optimistic update is instant.
+      TodoService().updateTodo(
+        prev.id,
+        title: title,
+        description: desc,
+        remindAt: _remindAt,
+        clearRemindAt: clearRemind,
+      );
+      if (mounted) Navigator.pop(context);
+      return;
+    }
+    // For new todos we need the server response (ID), so we await.
     setState(() => _saving = true);
     try {
-      final desc = _descCtrl.text.trim();
-      if (_isEdit) {
-        final prev = widget.existing!;
-        final clearRemind =
-            prev.remindAt != null && _remindAt == null;
-        await TodoService().updateTodo(
-          prev.id,
-          title: title,
-          description: desc,
-          remindAt: _remindAt,
-          clearRemindAt: clearRemind,
-        );
-      } else {
-        await TodoService().addTodo(
-          title: title,
-          description: desc,
-          remindAt: _remindAt,
-        );
-      }
+      await TodoService().addTodo(
+        title: title,
+        description: desc,
+        remindAt: _remindAt,
+      );
       if (mounted) Navigator.pop(context);
     } catch (e) {
       if (!mounted) return;

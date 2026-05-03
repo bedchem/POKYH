@@ -18,9 +18,12 @@ class AuthService {
   String? _classId;
   bool _isAdmin = false;
 
+  // Cached prefs instance — avoids repeated getInstance() on every save.
+  SharedPreferences? _prefs;
+
   String? get jwtToken => _jwtToken;
   String? get stableUid => _stableUid;
-  String? get userId => _stableUid; // backwards compat with FirebaseAuthService
+  String? get userId => _stableUid;
   String? get username => _username;
   int? get webuntisKlasseId => _klasseId;
   String? get webuntisKlasseName => _klasseName;
@@ -28,9 +31,13 @@ class AuthService {
   bool get isAdmin => _isAdmin;
   bool get isSignedIn => _jwtToken != null && _stableUid != null;
 
+  Future<SharedPreferences> _getPrefs() async {
+    return _prefs ??= await SharedPreferences.getInstance();
+  }
+
   Future<String?> resolveStableUid() async {
     if (_stableUid != null) return _stableUid;
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await _getPrefs();
     final uid = prefs.getString('auth_stable_uid');
     if (uid != null && uid.isNotEmpty) {
       _stableUid = uid;
@@ -125,14 +132,12 @@ class AuthService {
       }
     } catch (_) {}
     _clear();
-    final prefs = await SharedPreferences.getInstance();
-    for (final key in _prefKeys) {
-      await prefs.remove(key);
-    }
+    final prefs = await _getPrefs();
+    await Future.wait(_prefKeys.map((k) => prefs.remove(k)));
   }
 
   Future<bool> restoreSession() async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await _getPrefs();
     final jwt = prefs.getString('auth_jwt_token');
     final refresh = prefs.getString('auth_refresh_token');
     if (jwt == null || refresh == null) return false;
@@ -170,14 +175,17 @@ class AuthService {
   ];
 
   Future<void> _saveToPrefs() async {
-    final prefs = await SharedPreferences.getInstance();
-    if (_jwtToken != null) await prefs.setString('auth_jwt_token', _jwtToken!);
-    if (_refreshToken != null) await prefs.setString('auth_refresh_token', _refreshToken!);
-    if (_stableUid != null) await prefs.setString('auth_stable_uid', _stableUid!);
-    if (_username != null) await prefs.setString('auth_username', _username!);
-    if (_klasseId != null) await prefs.setInt('auth_klasse_id', _klasseId!);
-    if (_klasseName != null) await prefs.setString('auth_klasse_name', _klasseName!);
-    if (_classId != null) await prefs.setString('auth_class_id', _classId!);
-    await prefs.setBool('auth_is_admin', _isAdmin);
+    final prefs = await _getPrefs();
+    // Write all keys in parallel.
+    await Future.wait([
+      if (_jwtToken != null) prefs.setString('auth_jwt_token', _jwtToken!),
+      if (_refreshToken != null) prefs.setString('auth_refresh_token', _refreshToken!),
+      if (_stableUid != null) prefs.setString('auth_stable_uid', _stableUid!),
+      if (_username != null) prefs.setString('auth_username', _username!),
+      if (_klasseId != null) prefs.setInt('auth_klasse_id', _klasseId!),
+      if (_klasseName != null) prefs.setString('auth_klasse_name', _klasseName!),
+      if (_classId != null) prefs.setString('auth_class_id', _classId!),
+      prefs.setBool('auth_is_admin', _isAdmin),
+    ]);
   }
 }

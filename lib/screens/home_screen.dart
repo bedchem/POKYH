@@ -327,7 +327,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         children: [
           _buildMainContent(),
           Positioned(
-            top: MediaQuery.of(context).padding.top + 12,
+            top: MediaQuery.paddingOf(context).top + 12,
             right: 16,
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -965,20 +965,19 @@ class _DashboardTabState extends State<_DashboardTab>
         weekStart: displayMonday,
       );
 
-      // Fetch up to 8 more weeks to find future exams
-      final futureExams = <TimetableEntry>[...allWeek.where((e) => e.isExam)];
-
-      for (int weekOffset = 1; weekOffset <= 7; weekOffset++) {
-        try {
-          final weekStart = displayMonday.add(Duration(days: 7 * weekOffset));
-          final weekEntries = await widget.service.getWeekTimetable(
-            weekStart: weekStart,
-          );
-          futureExams.addAll(weekEntries.where((e) => e.isExam));
-        } catch (_) {
-          break;
-        }
+      // Fetch up to 7 more weeks in parallel to find future exams.
+      final futures = <Future<List<TimetableEntry>>>[];
+      for (int i = 1; i <= 7; i++) {
+        final weekStart = displayMonday.add(Duration(days: 7 * i));
+        futures.add(
+          widget.service.getWeekTimetable(weekStart: weekStart).catchError((_) => <TimetableEntry>[]),
+        );
       }
+      final futureWeeks = await Future.wait(futures);
+      final futureExams = <TimetableEntry>[
+        ...allWeek.where((e) => e.isExam),
+        for (final week in futureWeeks) ...week.where((e) => e.isExam),
+      ];
 
       final todayInt = _dateInt(now);
       if (mounted) {
