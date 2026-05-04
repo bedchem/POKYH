@@ -35,8 +35,8 @@ class AppConfig {
   static const String webUntisSchoolNameCookie = '_bGJzLWJyaXhlbg==';
 
   // ── Locale strings (German) ────────────────────────────────────────────────
-  /// Abbreviated weekday names Mon–Fri (index 0 = Monday).
-  static const List<String> dayLabels = ['Mo', 'Di', 'Mi', 'Do', 'Fr'];
+  /// Abbreviated weekday names Mon–Sat (index 0 = Monday).
+  static const List<String> dayLabels = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
 
   /// Abbreviated month names (index 0 = January).
   static const List<String> monthLabels = [

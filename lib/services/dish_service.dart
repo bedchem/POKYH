@@ -11,10 +11,7 @@ import 'webuntis_service.dart';
 
 List<Dish> _parseDishesInBackground(String jsonString) {
   final decoded = jsonDecode(jsonString);
-  if (decoded is Map<String, dynamic>) {
-    return Dish.listFromJson(decoded);
-  }
-  return const [];
+  return Dish.listFromJsonDynamic(decoded);
 }
 
 /// Daten-Strategie:
@@ -71,16 +68,13 @@ class DishService {
   /// Mit [untisService] werden die Gerichte automatisch über den
   /// Schulkalender hinaus zyklisch erweitert.
   Future<List<Dish>?> fetchFromServer({WebUntisService? untisService}) async {
-    final url = AppConfig.mensaApiUrl;
+    final url = '${AppConfig.backendUrl}/dishes';
     debugPrint('[DishService] Fetching: $url');
     try {
       final response = await http
           .get(
             Uri.parse(url),
-            headers: {
-              'Accept': 'application/json',
-              'User-Agent': 'ClassByte/1.0',
-            },
+            headers: {'Accept': 'application/json'},
           )
           .timeout(_serverTimeout);
 

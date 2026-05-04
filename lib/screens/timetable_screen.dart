@@ -560,7 +560,7 @@ class TimetableScreenState extends State<TimetableScreen> {
 
   Widget _buildHeader() {
     final weekStart = _mondayForOffset(_currentOffset);
-    final weekEnd = weekStart.add(const Duration(days: 4));
+    final weekEnd = weekStart.add(const Duration(days: 5));
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
       child: Column(
@@ -741,7 +741,7 @@ class _WeekPage extends StatelessWidget {
     final entries = state._cache[offset]?.entries ?? [];
 
     final allTimes = <int>{};
-    for (int d = 0; d < 5; d++) {
+    for (int d = 0; d < 6; d++) {
       for (final e in state._forDay(offset, d)) {
         allTimes.add(e.startTime);
       }
@@ -797,10 +797,13 @@ class _WeekPage extends StatelessWidget {
           child: Row(
             children: [
               const SizedBox(width: 44),
-              ...List.generate(5, (i) {
+              ...List.generate(6, (i) {
                 final date = state._dayForOffset(offset, i);
                 final isToday = state._isToday(offset, i);
-                final isHoliday = state._isSingleHolidayDay(offset, i);
+                final isSaturdayEmpty =
+                    i == 5 && state._forDay(offset, 5).isEmpty;
+                final isHoliday = !isSaturdayEmpty &&
+                    state._isSingleHolidayDay(offset, i);
                 final isDayOff = state._isDayAllCancelled(offset, i);
                 final isDayRepl =
                     !isDayOff && state._isDayAllReplacement(offset, i);
@@ -832,6 +835,8 @@ class _WeekPage extends StatelessWidget {
                               fontWeight: FontWeight.w600,
                               color: isToday
                                   ? AppTheme.accent
+                                  : isSaturdayEmpty
+                                  ? AppTheme.successMid.withValues(alpha: 0.9)
                                   : isDayOff
                                   ? AppTheme.danger.withValues(alpha: 0.8)
                                   : isDayRepl
@@ -850,6 +855,13 @@ class _WeekPage extends StatelessWidget {
                                     color: AppTheme.accent,
                                     shape: BoxShape.circle,
                                   )
+                                : isSaturdayEmpty
+                                ? BoxDecoration(
+                                    color: AppTheme.successMid.withValues(
+                                      alpha: 0.18,
+                                    ),
+                                    shape: BoxShape.circle,
+                                  )
                                 : null,
                             child: Center(
                               child: Text(
@@ -859,6 +871,8 @@ class _WeekPage extends StatelessWidget {
                                   fontWeight: FontWeight.w700,
                                   color: isToday
                                       ? Colors.white
+                                      : isSaturdayEmpty
+                                      ? AppTheme.successMid
                                       : isDayOff
                                       ? AppTheme.danger
                                       : isDayRepl
@@ -924,7 +938,7 @@ class _WeekPage extends StatelessWidget {
 
     // Check if today is visible in this week
     final hasTodayColumn = List.generate(
-      5,
+      6,
       (i) => state._isToday(offset, i),
     ).any((v) => v);
 
@@ -953,8 +967,11 @@ class _WeekPage extends StatelessWidget {
               ),
             ),
             // Day columns
-            ...List.generate(5, (dayIndex) {
-              final isHoliday = state._isSingleHolidayDay(offset, dayIndex);
+            ...List.generate(6, (dayIndex) {
+              final isSaturdayEmpty =
+                  dayIndex == 5 && state._forDay(offset, 5).isEmpty;
+              final isHoliday = !isSaturdayEmpty &&
+                  state._isSingleHolidayDay(offset, dayIndex);
               final isDayOff = state._isDayAllCancelled(offset, dayIndex);
               final isDayRepl =
                   !isDayOff && state._isDayAllReplacement(offset, dayIndex);
@@ -965,6 +982,15 @@ class _WeekPage extends StatelessWidget {
                     n - 1,
                     (i) => gapAfter(i),
                   ).fold(0.0, (a, b) => a + b);
+
+              if (isSaturdayEmpty) {
+                return Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 2),
+                    child: _WeekendColumn(totalHeight: totalHeight),
+                  ),
+                );
+              }
 
               if (isHoliday) {
                 return Expanded(
@@ -1228,7 +1254,7 @@ class _TimeIndicator extends StatelessWidget {
     }
 
     final todayIndex = List.generate(
-      5,
+      6,
       (i) => state._isToday(offset, i),
     ).indexWhere((v) => v);
 
@@ -1248,9 +1274,9 @@ class _TimeIndicator extends StatelessWidget {
         child: LayoutBuilder(
           builder: (_, constraints) {
             final totalWidth = constraints.maxWidth;
-            // Width available for the 5 day columns (after time-label area)
+            // Width available for the 6 day columns (after time-label area)
             final dayAreaWidth = totalWidth - timeLabelWidth;
-            final colWidth = dayAreaWidth / 5;
+            final colWidth = dayAreaWidth / 6;
 
             return Stack(
               clipBehavior: Clip.none,
@@ -1331,6 +1357,47 @@ class _HolidayColumn extends StatelessWidget {
                   fontWeight: FontWeight.w700,
                   color: AppTheme.orange,
                 ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Weekend Column ────────────────────────────────────────────────────────────
+
+class _WeekendColumn extends StatelessWidget {
+  final double totalHeight;
+  const _WeekendColumn({required this.totalHeight});
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: totalHeight,
+      decoration: BoxDecoration(
+        color: AppTheme.successMid.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppTheme.successMid.withValues(alpha: 0.45)),
+      ),
+      child: Align(
+        alignment: Alignment.topCenter,
+        child: Padding(
+          padding: const EdgeInsets.only(top: 14),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: const [
+              Text('😎', style: TextStyle(fontSize: 20)),
+              SizedBox(height: 4),
+              Text(
+                'Wochen-\nende',
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                  color: AppTheme.successMid,
+                  height: 1.2,
+                ),
+                textAlign: TextAlign.center,
               ),
             ],
           ),

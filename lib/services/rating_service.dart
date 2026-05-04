@@ -78,15 +78,18 @@ class RatingService {
     String dishId,
     double rating, {
     required String username,
+    String? name,
+    String? imageUrl,
   }) async {
     if (!AuthService.instance.isSignedIn) {
       throw Exception('Not authenticated');
     }
     final safeId = _safeId(dishId);
     final stars = rating.round().clamp(1, 5);
-    final data = await _api.post('/dish-ratings/$safeId', {
-      'stars': stars,
-    }) as Map<String, dynamic>;
+    final body = <String, dynamic>{'stars': stars};
+    if (name != null && name.isNotEmpty) body['name'] = name;
+    if (imageUrl != null && imageUrl.isNotEmpty) body['imageUrl'] = imageUrl;
+    final data = await _api.post('/dish-ratings/$safeId', body) as Map<String, dynamic>;
     return DishRating.fromJson(data);
   }
 }

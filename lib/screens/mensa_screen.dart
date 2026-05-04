@@ -672,6 +672,8 @@ class _DishDetailSheetState extends State<_DishDetailSheet> {
         widget.dish.id,
         stars,
         username: username,
+        name: widget.dish.name('de'),
+        imageUrl: widget.dish.imageUrl.isNotEmpty ? widget.dish.imageUrl : null,
       );
       if (!mounted) return;
       setState(() {

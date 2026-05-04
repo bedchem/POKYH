@@ -131,23 +131,34 @@ class Dish {
     );
   }
 
-  static List<Dish> listFromJson(Map<String, dynamic> json) {
-    final menu = json['menu'];
-    if (menu == null || menu is! Map<String, dynamic>) return [];
-    final dishes = menu['dishes'];
-    if (dishes == null || dishes is! List) return [];
+  /// Flexible parser — handles whatever the backend returns:
+  ///   array:                    [{...}, ...]
+  ///   { dishes: [...] }
+  ///   { data: [...] }
+  ///   { menu: { dishes: [...] } }
+  static List<Dish> listFromJsonDynamic(dynamic decoded) {
+    List? raw;
+    if (decoded is List) {
+      raw = decoded;
+    } else if (decoded is Map<String, dynamic>) {
+      raw = decoded['dishes'] as List? ??
+          decoded['data'] as List? ??
+          (decoded['menu'] as Map?)?['dishes'] as List?;
+    }
+    if (raw == null) return const [];
     final result = <Dish>[];
-    for (final dish in dishes) {
-      if (dish is Map<String, dynamic>) {
+    for (final item in raw) {
+      if (item is Map<String, dynamic>) {
         try {
-          result.add(Dish.fromJson(dish));
-        } catch (_) {
-          // Skip malformed entries instead of crashing
-        }
+          result.add(Dish.fromJson(item));
+        } catch (_) {}
       }
     }
     return result;
   }
+
+  static List<Dish> listFromJson(Map<String, dynamic> json) =>
+      listFromJsonDynamic(json);
 
   @override
   bool operator ==(Object other) =>
