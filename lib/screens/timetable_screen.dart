@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import '../config/app_config.dart';
@@ -1201,7 +1202,7 @@ class _WeekPage extends StatelessWidget {
 
 // ── Time Indicator ────────────────────────────────────────────────────────────
 
-class _TimeIndicator extends StatelessWidget {
+class _TimeIndicator extends StatefulWidget {
   final int offset;
   final List<int> sortedTimes;
   final Map<int, int> endTimeForStart;
@@ -1217,14 +1218,35 @@ class _TimeIndicator extends StatelessWidget {
   });
 
   @override
+  State<_TimeIndicator> createState() => _TimeIndicatorState();
+}
+
+class _TimeIndicatorState extends State<_TimeIndicator> {
+  late Timer _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _timer = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer.cancel();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final now = DateTime.now();
-    final nowMins = now.hour * 60 + now.minute;
+    final nowMins = now.hour * 60 + now.minute + now.second / 60.0;
 
-    final firstStartMins = state._toMins(sortedTimes.first);
-    final lastEndMins = state._toMins(
-      endTimeForStart[sortedTimes.last] ??
-          state._addMinutes(sortedTimes.last, 50),
+    final firstStartMins = widget.state._toMins(widget.sortedTimes.first);
+    final lastEndMins = widget.state._toMins(
+      widget.endTimeForStart[widget.sortedTimes.last] ??
+          widget.state._addMinutes(widget.sortedTimes.last, 50),
     );
 
     // Only visible while within today's schedule
@@ -1234,28 +1256,28 @@ class _TimeIndicator extends StatelessWidget {
 
     // Walk through slots to compute y position
     double y = 0;
-    final n = sortedTimes.length;
+    final n = widget.sortedTimes.length;
     for (int i = 0; i < n; i++) {
-      final slotStartMins = state._toMins(sortedTimes[i]);
-      final slotEndMins = state._toMins(
-        endTimeForStart[sortedTimes[i]] ??
-            state._addMinutes(sortedTimes[i], 50),
+      final slotStartMins = widget.state._toMins(widget.sortedTimes[i]);
+      final slotEndMins = widget.state._toMins(
+        widget.endTimeForStart[widget.sortedTimes[i]] ??
+            widget.state._addMinutes(widget.sortedTimes[i], 50),
       );
 
       if (nowMins <= slotEndMins) {
-        final slotDuration = (slotEndMins - slotStartMins).clamp(1, 9999);
-        final elapsed = (nowMins - slotStartMins).clamp(0, slotDuration);
+        final slotDuration = (slotEndMins - slotStartMins).clamp(1.0, 9999.0);
+        final elapsed = (nowMins - slotStartMins).clamp(0.0, slotDuration);
         y += TimetableScreenState._rowMinHeight * (elapsed / slotDuration);
         break;
       } else {
         y += TimetableScreenState._rowMinHeight;
-        if (i < n - 1) y += gapAfter(i);
+        if (i < n - 1) y += widget.gapAfter(i);
       }
     }
 
     final todayIndex = List.generate(
       6,
-      (i) => state._isToday(offset, i),
+      (i) => widget.state._isToday(widget.offset, i),
     ).indexWhere((v) => v);
 
     const double thinLine = 1.5;
