@@ -496,14 +496,14 @@ class _HomeNavLayout {
     required this.labelFontSize,
   });
 
-  // Android: icon-only Material 3 style, bigger icons since no labels.
+  // Android: labels always visible.
   static const android = _HomeNavLayout(
-    barHeight: 32,
-    bottomPadding: 6,
-    contentYOffset: 8,
-    iconSize: 24,
-    iconLabelSpacing: 0,
-    labelFontSize: 9,
+    barHeight: 45,
+    bottomPadding: 8,
+    contentYOffset: 14,
+    iconSize: 20,
+    iconLabelSpacing: 2,
+    labelFontSize: 10,
   );
 
   // iOS: frosted glass with labels always visible.
@@ -659,7 +659,7 @@ class _PokyhBottomNav extends StatelessWidget {
               active: active,
               onTap: () => onTabChanged(i),
               layout: layout,
-              showLabel: false,
+              showLabel: true,
             ),
           );
         }),
@@ -730,8 +730,7 @@ class _NavItemState extends State<_NavItem> {
                 widget.label,
                 style: TextStyle(
                   fontSize: widget.layout.labelFontSize,
-                  fontWeight:
-                      widget.active ? FontWeight.w600 : FontWeight.w400,
+                  fontWeight: widget.active ? FontWeight.w600 : FontWeight.w400,
                   color: widget.active ? _DS.accent : context.appTextTertiary,
                 ),
               ),
@@ -970,7 +969,9 @@ class _DashboardTabState extends State<_DashboardTab>
       for (int i = 1; i <= 7; i++) {
         final weekStart = displayMonday.add(Duration(days: 7 * i));
         futures.add(
-          widget.service.getWeekTimetable(weekStart: weekStart).catchError((_) => <TimetableEntry>[]),
+          widget.service
+              .getWeekTimetable(weekStart: weekStart)
+              .catchError((_) => <TimetableEntry>[]),
         );
       }
       final futureWeeks = await Future.wait(futures);

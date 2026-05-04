@@ -21,8 +21,10 @@ class AppConfig {
   static const String mensaApiUrl = 'https://mensa.plattnericus.dev/mensa.json';
 
   // ── Custom Backend (values from .env) ─────────────────────────────────────
-  static String get backendUrl =>
-      dotenv.env['BACKEND_URL'] ?? 'https://api.pokyh.com';
+  static String get backendUrl {
+    final url = dotenv.env['BACKEND_URL'] ?? 'https://api.pokyh.com';
+    return url.endsWith('/') ? url.substring(0, url.length - 1) : url;
+  }
   static String get backendApiKey =>
       dotenv.env['BACKEND_API_KEY'] ?? '';
   static String get backendServerKey =>

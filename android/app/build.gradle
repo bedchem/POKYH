@@ -7,6 +7,27 @@ plugins {
     id "dev.flutter.flutter-gradle-plugin"
 }
 
+// Read .env from project root
+def envProps = new Properties()
+def envFile = rootProject.file('../../.env')
+if (envFile.exists()) {
+    envFile.eachLine { line ->
+        line = line.trim()
+        if (!line.startsWith('#') && line.contains('=')) {
+            def idx = line.indexOf('=')
+            envProps[line.substring(0, idx).trim()] = line.substring(idx + 1).trim()
+        }
+    }
+}
+
+// Decode base64 keystore from .env into a temp file
+def keystoreFile = new File(buildDir, "keystore_decoded.jks")
+def keystoreBase64 = envProps['KEYSTORE_BASE64']
+if (keystoreBase64) {
+    keystoreFile.parentFile.mkdirs()
+    keystoreFile.bytes = Base64.decoder.decode(keystoreBase64)
+}
+
 android {
     namespace = "dev.plattnericus.project"
     compileSdk = flutter.compileSdkVersion
@@ -22,6 +43,15 @@ android {
         jvmTarget = JavaVersion.VERSION_17.toString()
     }
 
+    signingConfigs {
+        release {
+            storeFile = keystoreFile
+            storePassword = envProps['KEYSTORE_STORE_PASSWORD'] ?: "android"
+            keyAlias = envProps['KEYSTORE_KEY_ALIAS'] ?: "androiddebugkey"
+            keyPassword = envProps['KEYSTORE_KEY_PASSWORD'] ?: "android"
+        }
+    }
+
     defaultConfig {
         applicationId = "dev.plattnericus.project"
         minSdk = flutter.minSdkVersion
@@ -32,7 +62,7 @@ android {
 
     buildTypes {
         release {
-            signingConfig = signingConfigs.debug
+            signingConfig = signingConfigs.release
         }
     }
 }

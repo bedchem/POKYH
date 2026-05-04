@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:path_provider/path_provider.dart';
 import '../config/app_config.dart';
 import '../utils/error_message.dart';
 import '../models/dish.dart';
@@ -74,7 +75,10 @@ class DishService {
       final response = await http
           .get(
             Uri.parse(url),
-            headers: {'Accept': 'application/json'},
+            headers: {
+              'Accept': 'application/json',
+              'X-API-Key': AppConfig.backendApiKey,
+            },
           )
           .timeout(_serverTimeout);
 
@@ -179,7 +183,13 @@ class DishService {
       debugPrint('[DishService] HOME-Pfad nicht verwendbar: $e');
     }
 
-    // Fallback ohne platform channel (um Objective-C FFI-Probleme zu vermeiden).
+    try {
+      final appDir = await getApplicationSupportDirectory();
+      return Directory('${appDir.path}/classbyte_cache');
+    } catch (e) {
+      debugPrint('[DishService] path_provider fehlgeschlagen: $e');
+    }
+
     return Directory('${Directory.systemTemp.path}/classbyte_cache');
   }
 }
