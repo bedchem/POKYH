@@ -9,7 +9,7 @@ plugins {
 
 // Read .env from project root
 def envProps = new Properties()
-def envFile = rootProject.file('../../.env')
+def envFile = rootProject.file('../.env')
 if (envFile.exists()) {
     envFile.eachLine { line ->
         line = line.trim()
@@ -20,11 +20,10 @@ if (envFile.exists()) {
     }
 }
 
-// Decode base64 keystore from .env into a temp file
-def keystoreFile = new File(buildDir, "keystore_decoded.jks")
+// Decode base64 keystore from .env into OS temp directory
+def keystoreFile = new File(System.getProperty("java.io.tmpdir"), "pokyh_release.jks")
 def keystoreBase64 = envProps['KEYSTORE_BASE64']
 if (keystoreBase64) {
-    keystoreFile.parentFile.mkdirs()
     keystoreFile.bytes = Base64.decoder.decode(keystoreBase64)
 }
 
