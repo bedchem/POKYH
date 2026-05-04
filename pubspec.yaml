@@ -1,7 +1,7 @@
 name: pockyh
 description: "WebUntis Stundenplan, Noten App & Mensaplan von Plattnericus (Nexor) & Ryhox"
 publish_to: 'none'
-version: 1.1.10+1
+version: 1.1.11+1
 
 environment:
   sdk: ^3.11.4
