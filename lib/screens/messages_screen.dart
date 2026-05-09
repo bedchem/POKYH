@@ -18,6 +18,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
   List<MessagePreview> _messages = [];
   bool _loading = true;
   String? _error;
+  bool _markingAll = false;
 
   @override
   void initState() {
@@ -53,7 +54,37 @@ class _MessagesScreenState extends State<MessagesScreen> {
     }
   }
 
+  Future<void> _markAllRead() async {
+    final unread = _messages.where((m) => !m.isRead).toList();
+    if (unread.isEmpty || _markingAll) return;
+    setState(() => _markingAll = true);
+    try {
+      await Future.wait(
+        unread.map((m) => widget.service.markMessageAsRead(m.id)),
+      );
+      if (mounted) {
+        setState(() {
+          _messages = _messages.map((m) => m.copyWith(isRead: true)).toList();
+        });
+      }
+    } finally {
+      if (mounted) setState(() => _markingAll = false);
+    }
+  }
+
   void _openMessage(MessagePreview message) async {
+    // Mark as read optimistically before entering the detail screen.
+    if (!message.isRead) {
+      widget.service.markMessageAsRead(message.id);
+      if (mounted) {
+        setState(() {
+          _messages = _messages
+              .map((m) => m.id == message.id ? m.copyWith(isRead: true) : m)
+              .toList();
+        });
+      }
+    }
+
     await Navigator.push(
       context,
       CupertinoPageRoute(
@@ -61,7 +92,6 @@ class _MessagesScreenState extends State<MessagesScreen> {
             MessageDetailScreen(service: widget.service, message: message),
       ),
     );
-    // Refresh to update read status
     if (mounted) {
       setState(() {
         _messages = widget.service.cachedMessages ?? _messages;
@@ -111,10 +141,38 @@ class _MessagesScreenState extends State<MessagesScreen> {
                         ),
                       ),
                     ),
-                    if (!_loading)
+                    if (!_loading) ...[
                       _UnreadBadgeChip(
                         count: _messages.where((m) => !m.isRead).length,
                       ),
+                      if (_messages.any((m) => !m.isRead)) ...[
+                        const SizedBox(width: 8),
+                        GestureDetector(
+                          onTap: _markAllRead,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: AppTheme.accent.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: _markingAll
+                                ? SizedBox(
+                                    width: 14,
+                                    height: 14,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: AppTheme.accent,
+                                    ),
+                                  )
+                                : Icon(
+                                    CupertinoIcons.checkmark_alt_circle_fill,
+                                    size: 16,
+                                    color: AppTheme.accent,
+                                  ),
+                          ),
+                        ),
+                      ],
+                    ],
                   ],
                 ),
               ),

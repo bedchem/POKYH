@@ -118,12 +118,16 @@ class TimetableScreenState extends State<TimetableScreen> {
   void initState() {
     super.initState();
     final now = DateTime.now();
-    // Am Wochenende (Sa/So) direkt nächste Woche anzeigen.
-    final isWeekend = now.weekday >= 6;
-    if (isWeekend) {
+    if (now.weekday == 7) {
+      // Sonntag → nächste Woche, Montag vorselektiert
       _currentOffset = 1;
-      _selectedDay = 0; // Montag
+      _selectedDay = 0;
+    } else if (now.weekday == 6) {
+      // Samstag → diese Woche, kein Tag vorselektiert
+      _currentOffset = 0;
+      _selectedDay = -1;
     } else {
+      // Mo–Fr → dieser Tag selektiert
       _selectedDay = now.weekday - 1;
     }
 
@@ -132,6 +136,7 @@ class TimetableScreenState extends State<TimetableScreen> {
     _ensureLoaded(_currentOffset - 1);
     _ensureLoaded(_currentOffset);
     _ensureLoaded(_currentOffset + 1);
+    _schedulePreload(_currentOffset);
   }
 
   @override
@@ -179,6 +184,22 @@ class TimetableScreenState extends State<TimetableScreen> {
     if (existing != null && existing.state != _LoadState.idle) return;
     _cache[offset] = _WeekData(state: _LoadState.loading);
     _fetchOffset(offset);
+  }
+
+  // Staggered background preload of further weeks so swiping feels instant.
+  // Each ring is delayed to avoid bursting too many parallel API calls.
+  static const int _kPreloadRadius = 4;
+  static const Duration _kPreloadRingDelay = Duration(milliseconds: 150);
+
+  void _schedulePreload(int center) {
+    for (var ring = 2; ring <= _kPreloadRadius; ring++) {
+      final r = ring;
+      Future.delayed(_kPreloadRingDelay * r, () {
+        if (!mounted) return;
+        _ensureLoaded(center - r);
+        _ensureLoaded(center + r);
+      });
+    }
   }
 
   Future<void> _fetchOffset(int offset) async {
@@ -239,7 +260,8 @@ class TimetableScreenState extends State<TimetableScreen> {
     _ensureLoaded(offset - 1);
     _ensureLoaded(offset);
     _ensureLoaded(offset + 1);
-    _cache.removeWhere((k, _) => (k - offset).abs() > 3);
+    _schedulePreload(offset);
+    _cache.removeWhere((k, _) => (k - offset).abs() > _kPreloadRadius + 2);
   }
 
   void _goToToday() {

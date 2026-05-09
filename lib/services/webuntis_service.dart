@@ -522,6 +522,98 @@ class WebUntisService {
     }
   }
 
+  // ── REST timetable (same endpoint as web frontend) ───────────────────────────
+  // Returns date → deduplicated lesson slots, mirroring frontend's
+  // mergeTimetableIntoMap logic (non-cancelled, has-subject, dedup by startMins).
+  final Map<String, Map<int, List<(int, int)>>> _restSlotCache = {};
+
+  Future<Map<int, List<(int, int)>>> getWeekSlotsForAbsences(DateTime weekStart) async {
+    final key = _weekKey(weekStart);
+    if (_restSlotCache.containsKey(key)) return _restSlotCache[key]!;
+
+    final startStr =
+        '${weekStart.year}-${weekStart.month.toString().padLeft(2, '0')}-${weekStart.day.toString().padLeft(2, '0')}';
+    final endDate = weekStart.add(const Duration(days: 5));
+    final endStr =
+        '${endDate.year}-${endDate.month.toString().padLeft(2, '0')}-${endDate.day.toString().padLeft(2, '0')}';
+
+    final url = '$_baseUrl/api/rest/view/v1/timetable/entries'
+        '?start=$startStr&end=$endStr&format=1'
+        '&resourceType=STUDENT&resources=$_studentId'
+        '&periodTypes=&timetableType=MY_TIMETABLE&layout=START_TIME';
+
+    try {
+      final headers = <String, String>{
+        'Cookie': _cookieHeader,
+        'Accept': 'application/json',
+        if (_bearerToken != null) 'Authorization': 'Bearer $_bearerToken',
+      };
+      final response = await _client
+          .get(Uri.parse(url), headers: headers)
+          .timeout(_timeout);
+
+      if (response.statusCode == 401 || response.statusCode == 403 ||
+          response.body.trimLeft().startsWith('<')) {
+        throw WebUntisException('Sitzung abgelaufen', isAuthError: true);
+      }
+      if (response.statusCode != 200) {
+        throw WebUntisException('Fehler beim Laden des Stundenplans');
+      }
+
+      final slots = _parseSlotsFromRestResponse(response.body);
+      _restSlotCache[key] = slots;
+      return slots;
+    } on TimeoutException {
+      throw WebUntisException('Verbindung abgelaufen');
+    } catch (e) {
+      if (e is WebUntisException) rethrow;
+      throw WebUntisException('Netzwerkfehler: ${simplifyErrorMessage(e)}');
+    }
+  }
+
+  // Mirrors frontend's mergeTimetableIntoMap: parses days[].gridEntries,
+  // skips cancelled & no-subject entries, deduplicates by startMins.
+  Map<int, List<(int, int)>> _parseSlotsFromRestResponse(String body) {
+    final rawMap = <int, Map<int, (int, int)>>{};
+    try {
+      final root = jsonDecode(body) as Map<String, dynamic>;
+      final days = root['days'] as List? ?? [];
+      for (final day in days) {
+        final dayMap = day as Map<String, dynamic>;
+        final gridEntries = dayMap['gridEntries'] as List? ?? [];
+        if (gridEntries.isEmpty) continue;
+        final dateStr = (dayMap['date'] as String).replaceAll('-', '');
+        final dateNum = int.parse(dateStr);
+        for (final ge in gridEntries) {
+          final entry = ge as Map<String, dynamic>;
+          if (entry['status'] == 'CANCELLED') continue;
+          // Skip entries without any subject in position2 (mirrors hasSub check)
+          final pos2 = entry['position2'] as List? ?? [];
+          final hasSub = pos2.any((p) {
+            final pm = p as Map<String, dynamic>;
+            return pm['current'] == true || pm['removed'] == true;
+          });
+          if (!hasSub) continue;
+          final duration = entry['duration'] as Map<String, dynamic>?;
+          final startIso = duration?['start'] as String?;
+          final endIso   = duration?['end']   as String?;
+          if (startIso == null || endIso == null) continue;
+          final startTimePart = startIso.split('T').last; // e.g. "08:00:00"
+          final endTimePart   = endIso.split('T').last;
+          final sParts = startTimePart.split(':');
+          final eParts = endTimePart.split(':');
+          final startMins = int.parse(sParts[0]) * 60 + int.parse(sParts[1]);
+          final endMins   = int.parse(eParts[0]) * 60 + int.parse(eParts[1]);
+          rawMap
+              .putIfAbsent(dateNum, () => {})
+              .putIfAbsent(startMins, () => (startMins, endMins));
+        }
+      }
+    } catch (_) {}
+    return rawMap.map((k, v) => MapEntry(k, v.values.toList()));
+  }
+  // ─────────────────────────────────────────────────────────────────────────────
+
   Future<List<TimetableEntry>> getTimetable({DateTime? date}) async {
     final target = date ?? DateTime.now();
     final monday = _getMonday(target);
@@ -1341,10 +1433,12 @@ class WebUntisService {
   /// the session — call this when the user explicitly wants a fresh reload.
   Future<void> clearLocalCaches() async {
     _clearCaches();
+    _readMessageIds = {};
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove(_kGradesCacheKey);
       await prefs.remove(_kGradesCacheTimeKey);
+      await prefs.remove(_readIdsKey);
       final timetableKeys = prefs
           .getKeys()
           .where(
@@ -2212,17 +2306,20 @@ class AbsenceEntry {
         (j['excuseStatusId'] != null && (j['excuseStatusId'] as num) > 0);
 
     int parseHours() {
-      final h = j['hours'] ?? j['lessonCount'] ?? j['periods'];
-      if (h is int) return h;
-      if (h is double) return h.toInt();
-      if (h is String) return int.tryParse(h) ?? 1;
-      final st = j['startTime'] as int? ?? 0;
-      final et = j['endTime'] as int? ?? 0;
+      // Prefer server-provided hours fields (matching frontend priority order).
+      final h = j['hours'] ?? j['lessonHours'] ?? j['lessonCount'] ?? j['periods'];
+      if (h is int && h > 0) return h;
+      if (h is double && h > 0) return h.toInt();
+      if (h is String) { final v = int.tryParse(h) ?? 0; if (v > 0) return v; }
+
+      // Fallback: calculate from start/end time.
+      final st = (j['startTime'] as num?)?.toInt() ?? 0;
+      final et = (j['endTime'] as num?)?.toInt() ?? 0;
       if (st > 0 && et > st) {
-        final stH = st ~/ 100, stM = st % 100;
-        final etH = et ~/ 100, etM = et % 100;
-        final minutes = (etH * 60 + etM) - (stH * 60 + stM);
-        return (minutes / 45).ceil().clamp(1, 20);
+        final stMins = AbsenceEntry._toMinutes(st);
+        final etMins = AbsenceEntry._toMinutes(et);
+        final minutes = etMins - stMins;
+        if (minutes > 0) return (minutes / 50).round().clamp(1, 20);
       }
       return 1;
     }
@@ -2238,8 +2335,8 @@ class AbsenceEntry {
       id: (j['id'] ?? 0) as int,
       startDate: (j['startDate'] ?? j['date'] ?? 0) as int,
       endDate: (j['endDate'] ?? j['startDate'] ?? j['date'] ?? 0) as int,
-      startTime: (j['startTime'] ?? 0) as int,
-      endTime: (j['endTime'] ?? 0) as int,
+      startTime: (j['startTime'] as num?)?.toInt() ?? 0,
+      endTime: (j['endTime'] as num?)?.toInt() ?? 0,
       isExcused: isExcused,
       reasonName: clean(j['reasonName'] ?? j['reason']),
       absenceType: clean(
@@ -2264,6 +2361,16 @@ class AbsenceEntry {
     );
   }
 
+  /// Converts a WebUntis time value to minutes from midnight.
+  /// Handles both HHMM format (e.g. 755 → 07:55 → 475 min) and
+  /// minutes-from-midnight (e.g. 475 → already 475 min).
+  static int _toMinutes(int t) {
+    if (t <= 0) return 0;
+    if (t > 2359) return t;       // too large for HHMM → already minutes
+    if (t % 100 > 59) return t;   // minutes-part > 59 → already minutes
+    return (t ~/ 100) * 60 + (t % 100);
+  }
+
   String get dateFormatted {
     final s = startDate.toString();
     if (s.length != 8) return s;
@@ -2272,10 +2379,13 @@ class AbsenceEntry {
 
   String get timeFormatted {
     if (startTime == 0 && endTime == 0) return '';
-    final sh = (startTime ~/ 100).toString().padLeft(2, '0');
-    final sm = (startTime % 100).toString().padLeft(2, '0');
-    final eh = (endTime ~/ 100).toString().padLeft(2, '0');
-    final em = (endTime % 100).toString().padLeft(2, '0');
+    final sMins = AbsenceEntry._toMinutes(startTime);
+    final eMins = AbsenceEntry._toMinutes(endTime);
+    if (sMins == 0 && eMins == 0) return '';
+    final sh = (sMins ~/ 60).toString().padLeft(2, '0');
+    final sm = (sMins % 60).toString().padLeft(2, '0');
+    final eh = (eMins ~/ 60).toString().padLeft(2, '0');
+    final em = (eMins % 60).toString().padLeft(2, '0');
     return '$sh:$sm – $eh:$em';
   }
 

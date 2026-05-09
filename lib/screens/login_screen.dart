@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io' show Platform;
 import 'dart:typed_data';
+import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
@@ -36,6 +37,7 @@ class _LoginScreenState extends State<LoginScreen>
   final _focusPass = FocusNode();
 
   bool _loading = false;
+  bool _loginInProgress = false;
   bool _obscure = true;
   bool _saveLogin = false;
   String? _error;
@@ -273,6 +275,11 @@ class _LoginScreenState extends State<LoginScreen>
         return;
       }
 
+      // Biometric approved — show loading overlay only if login takes > 1 s.
+      Future.delayed(const Duration(seconds: 1), () {
+        if (mounted && _loading) setState(() => _loginInProgress = true);
+      });
+
       String? password;
       try {
         password = await _credService.getPassword(account.username);
@@ -290,8 +297,13 @@ class _LoginScreenState extends State<LoginScreen>
       bool ok = false;
       try {
         ok = await _service.login(account.username, password);
-      } catch (_) {
-        ok = false;
+      } on WebUntisException catch (e) {
+        // Network/timeout error — keep the saved account, just show the message.
+        if (mounted) setState(() => _error = e.message);
+        return;
+      } catch (e) {
+        if (mounted) setState(() => _error = simplifyErrorMessage(e));
+        return;
       }
 
       if (!mounted) return;
@@ -300,6 +312,7 @@ class _LoginScreenState extends State<LoginScreen>
         _clearFailedAttempts(account.username);
         _afterSuccessfulLogin(account.username);
       } else {
+        // login() returned false = server explicitly rejected credentials.
         await _credService.removeAccount(account.username);
         await _loadSavedAccounts();
         _setError('Passwort ungültig. Bitte manuell anmelden.');
@@ -310,7 +323,7 @@ class _LoginScreenState extends State<LoginScreen>
         'Authentifizierung fehlgeschlagen: ${e.toString().split('\n').first}',
       );
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (mounted) setState(() { _loading = false; _loginInProgress = false; });
     }
   }
 
@@ -363,9 +376,9 @@ class _LoginScreenState extends State<LoginScreen>
       return;
     }
 
-    setState(() {
-      _loading = true;
-      _error = null;
+    setState(() { _loading = true; _error = null; });
+    Future.delayed(const Duration(seconds: 1), () {
+      if (mounted && _loading) setState(() => _loginInProgress = true);
     });
 
     try {
@@ -386,7 +399,7 @@ class _LoginScreenState extends State<LoginScreen>
     } catch (e) {
       if (mounted) _setError(simplifyErrorMessage(e));
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (mounted) setState(() { _loading = false; _loginInProgress = false; });
     }
   }
 
@@ -444,7 +457,7 @@ class _LoginScreenState extends State<LoginScreen>
   }
 
   Color _withAlpha(Color color, double alpha) =>
-      color.withOpacity(alpha.clamp(0.0, 1.0));
+      color.withValues(alpha: alpha.clamp(0.0, 1.0));
 
   void _goToManualLogin() {
     _pageController.nextPage(
@@ -506,6 +519,42 @@ class _LoginScreenState extends State<LoginScreen>
                   ),
                 ),
               ),
+              // Loading overlay — fades in smoothly after 1s
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 300),
+                switchInCurve: Curves.easeOut,
+                switchOutCurve: Curves.easeIn,
+                transitionBuilder: (child, animation) =>
+                    FadeTransition(opacity: animation, child: child),
+                child: _loginInProgress
+                    ? SizedBox.expand(
+                        key: const ValueKey('overlay'),
+                        child: BackdropFilter(
+                          filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+                          child: ColoredBox(
+                            color: const Color(0x33000000),
+                            child: Center(
+                              child: Container(
+                                padding: const EdgeInsets.all(28),
+                                decoration: BoxDecoration(
+                                  color: const Color(0x22FFFFFF),
+                                  borderRadius: BorderRadius.circular(24),
+                                  border: Border.all(
+                                    color: const Color(0x33FFFFFF),
+                                  ),
+                                ),
+                                child: const CupertinoActivityIndicator(
+                                  radius: 16,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      )
+                    : const SizedBox.shrink(key: ValueKey('empty')),
+              ),
+
               // Back button ganz oben im Stack, volle Touch-Fläche
               if (_currentPage == 1)
                 Positioned(

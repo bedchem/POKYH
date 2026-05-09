@@ -3,6 +3,7 @@ import 'dart:io' show Platform;
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../services/api_client.dart';
 import '../services/auth_service.dart';
 import '../services/reminder_service.dart';
 import '../services/webuntis_service.dart';
@@ -1198,6 +1199,21 @@ class _ReminderCard extends StatefulWidget {
     this.currentUsername,
   });
 
+  void _openDetail(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _ReminderDetailSheet(
+        reminder: reminder,
+        myStableUid: currentUserStableUid,
+        isAdmin: isAdmin,
+        onDelete: onDelete,
+      ),
+    );
+  }
+
   @override
   State<_ReminderCard> createState() => _ReminderCardState();
 }
@@ -1279,7 +1295,9 @@ class _ReminderCardState extends State<_ReminderCard> {
         ? (_isIOS ? CupertinoIcons.bell_fill : Icons.notifications_active)
         : (_isIOS ? CupertinoIcons.clock : Icons.access_time_rounded);
 
-    return Container(
+    return GestureDetector(
+      onTap: () => widget._openDetail(context),
+      child: Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: context.appSurface,
@@ -1402,6 +1420,7 @@ class _ReminderCardState extends State<_ReminderCard> {
             ],
           ),
         ],
+      ),
       ),
     );
   }
@@ -2304,6 +2323,422 @@ class _ToastOverlayState extends State<_ToastOverlay>
               color: context.appTextPrimary,
               decoration: TextDecoration.none,
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Reminder Detail Sheet ─────────────────────────────────────────────────────
+
+class _ReminderDetailSheet extends StatefulWidget {
+  final Reminder reminder;
+  final String? myStableUid;
+  final bool isAdmin;
+  final VoidCallback onDelete;
+
+  const _ReminderDetailSheet({
+    required this.reminder,
+    required this.myStableUid,
+    required this.isAdmin,
+    required this.onDelete,
+  });
+
+  @override
+  State<_ReminderDetailSheet> createState() => _ReminderDetailSheetState();
+}
+
+class _ReminderDetailSheetState extends State<_ReminderDetailSheet> {
+  List<ApiComment> _comments = [];
+  bool _commentsLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadComments();
+  }
+
+  Future<void> _loadComments() async {
+    try {
+      final comments = await ApiClient.instance.getReminderComments(
+        widget.reminder.classId,
+        widget.reminder.id,
+      );
+      if (mounted) setState(() { _comments = comments; _commentsLoading = false; });
+    } catch (_) {
+      if (mounted) setState(() => _commentsLoading = false);
+    }
+  }
+
+  String _formatRemindAt(DateTime dt) {
+    final weekdays = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
+    String pad2(int n) => n.toString().padLeft(2, '0');
+    return '${weekdays[dt.weekday - 1]}, ${pad2(dt.day)}.${pad2(dt.month)} · ${pad2(dt.hour)}:${pad2(dt.minute)} Uhr';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final r = widget.reminder;
+    final isDue = r.isDue;
+    final statusColor = isDue ? AppTheme.warning : AppTheme.accent;
+    final isMine = widget.myStableUid != null && r.createdByUid == widget.myStableUid;
+    final canDelete = isMine || widget.isAdmin;
+
+    return DraggableScrollableSheet(
+      initialChildSize: 0.85,
+      maxChildSize: 0.95,
+      minChildSize: 0.4,
+      snap: true,
+      shouldCloseOnMinExtent: true,
+      builder: (_, scrollController) {
+        return Container(
+          decoration: BoxDecoration(
+            color: context.appBg,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: Column(
+            children: [
+              // Handle
+              Padding(
+                padding: const EdgeInsets.only(top: 8, bottom: 4),
+                child: Container(
+                  width: 36,
+                  height: 5,
+                  decoration: BoxDecoration(
+                    color: context.appTextTertiary.withValues(alpha: 0.4),
+                    borderRadius: BorderRadius.circular(3),
+                  ),
+                ),
+              ),
+
+              Expanded(
+                child: SingleChildScrollView(
+                  controller: scrollController,
+                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Header
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              color: statusColor.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Icon(
+                              isDue
+                                  ? (_isIOS ? CupertinoIcons.bell_fill : Icons.notifications_active)
+                                  : (_isIOS ? CupertinoIcons.clock : Icons.access_time_rounded),
+                              size: 20,
+                              color: statusColor,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  r.title,
+                                  style: TextStyle(
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.w700,
+                                    color: context.appTextPrimary,
+                                  ),
+                                ),
+                                const SizedBox(height: 3),
+                                Text(
+                                  _formatRemindAt(r.remindAt),
+                                  style: TextStyle(fontSize: 13, color: statusColor),
+                                ),
+                              ],
+                            ),
+                          ),
+                          if (canDelete)
+                            GestureDetector(
+                              onTap: () {
+                                Navigator.pop(context);
+                                widget.onDelete();
+                              },
+                              child: Padding(
+                                padding: const EdgeInsets.only(left: 8),
+                                child: Icon(
+                                  _isIOS ? CupertinoIcons.trash : Icons.delete_outline,
+                                  size: 20,
+                                  color: AppTheme.danger,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+
+                      if (r.body.isNotEmpty) ...[
+                        const SizedBox(height: 12),
+                        Text(
+                          r.body,
+                          style: TextStyle(
+                            fontSize: 15,
+                            color: context.appTextSecondary,
+                            height: 1.4,
+                          ),
+                        ),
+                      ],
+
+                      const SizedBox(height: 6),
+                      Text(
+                        'von ${r.createdByUsername.isNotEmpty ? r.createdByUsername : r.createdByName}',
+                        style: TextStyle(fontSize: 12, color: context.appTextTertiary),
+                      ),
+
+                      const SizedBox(height: 20),
+                      Divider(height: 1, color: context.appBorder.withValues(alpha: 0.3)),
+                      const SizedBox(height: 20),
+
+                      // Comments
+                      _ReminderCommentSection(
+                        comments: _comments,
+                        loading: _commentsLoading,
+                        myStableUid: widget.myStableUid,
+                        isAdmin: widget.isAdmin,
+                        onAdd: (body) async {
+                          final c = await ApiClient.instance.createReminderComment(
+                            r.classId,
+                            r.id,
+                            body,
+                          );
+                          if (mounted) setState(() => _comments = [..._comments, c]);
+                        },
+                        onDelete: (commentId) async {
+                          await ApiClient.instance.deleteReminderComment(
+                            r.classId,
+                            r.id,
+                            commentId,
+                          );
+                          if (mounted) setState(() => _comments = _comments.where((c) => c.id != commentId).toList());
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+// ── Reminder Comment Section ──────────────────────────────────────────────────
+
+class _ReminderCommentSection extends StatefulWidget {
+  final List<ApiComment> comments;
+  final bool loading;
+  final String? myStableUid;
+  final bool isAdmin;
+  final Future<void> Function(String body) onAdd;
+  final Future<void> Function(String commentId) onDelete;
+
+  const _ReminderCommentSection({
+    required this.comments,
+    required this.loading,
+    required this.myStableUid,
+    required this.isAdmin,
+    required this.onAdd,
+    required this.onDelete,
+  });
+
+  @override
+  State<_ReminderCommentSection> createState() => _ReminderCommentSectionState();
+}
+
+class _ReminderCommentSectionState extends State<_ReminderCommentSection> {
+  final _ctrl = TextEditingController();
+  bool _sending = false;
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  String _formatTime(DateTime dt) {
+    final diff = DateTime.now().difference(dt);
+    if (diff.inMinutes < 1) return 'Gerade eben';
+    if (diff.inMinutes < 60) return 'vor ${diff.inMinutes} Min.';
+    if (diff.inHours < 24) return 'vor ${diff.inHours} Std.';
+    final d = dt.day.toString().padLeft(2, '0');
+    final m = dt.month.toString().padLeft(2, '0');
+    return '$d.$m.${dt.year}';
+  }
+
+  Future<void> _submit() async {
+    final text = _ctrl.text.trim();
+    if (text.isEmpty || _sending) return;
+    setState(() => _sending = true);
+    try {
+      await widget.onAdd(text);
+      _ctrl.clear();
+    } catch (_) {
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onTap: () => FocusScope.of(context).unfocus(),
+      child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Kommentare',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w700,
+            color: context.appTextPrimary,
+          ),
+        ),
+        const SizedBox(height: 12),
+
+        if (widget.loading)
+          Center(child: CupertinoActivityIndicator(radius: 10))
+        else if (widget.comments.isEmpty)
+          Text(
+            'Noch keine Kommentare.',
+            style: TextStyle(fontSize: 13, color: context.appTextTertiary),
+          )
+        else
+          ...widget.comments.map((c) {
+            final isMine = c.stableUid == widget.myStableUid;
+            final canDelete = isMine || widget.isAdmin;
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _ReminderCommentAvatar(username: c.username),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Text(
+                              c.username,
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: context.appTextPrimary,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              _formatTime(c.createdAt),
+                              style: TextStyle(fontSize: 11, color: context.appTextTertiary),
+                            ),
+                            if (canDelete) ...[
+                              const Spacer(),
+                              GestureDetector(
+                                onTap: () => widget.onDelete(c.id),
+                                child: Icon(
+                                  _isIOS ? CupertinoIcons.trash : Icons.delete_outline,
+                                  size: 14,
+                                  color: context.appTextTertiary,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          c.body,
+                          style: TextStyle(fontSize: 14, color: context.appTextSecondary, height: 1.4),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+
+        const SizedBox(height: 16),
+
+        // Input row
+        Row(
+          children: [
+            Expanded(
+              child: CupertinoTextField(
+                controller: _ctrl,
+                placeholder: 'Kommentar schreiben…',
+                placeholderStyle: TextStyle(fontSize: 14, color: context.appTextTertiary),
+                style: TextStyle(fontSize: 14, color: context.appTextPrimary),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+                decoration: BoxDecoration(
+                  color: context.appSurface,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                onSubmitted: (_) => _submit(),
+              ),
+            ),
+            const SizedBox(width: 10),
+            GestureDetector(
+              onTap: _submit,
+              child: Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: AppTheme.accent,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: _sending
+                    ? const Padding(
+                        padding: EdgeInsets.all(10),
+                        child: CupertinoActivityIndicator(color: Colors.white, radius: 10),
+                      )
+                    : const Icon(CupertinoIcons.arrow_up, size: 20, color: Colors.white),
+              ),
+            ),
+          ],
+        ),
+      ],
+      ),
+    );
+  }
+}
+
+class _ReminderCommentAvatar extends StatelessWidget {
+  final String username;
+  const _ReminderCommentAvatar({required this.username});
+
+  @override
+  Widget build(BuildContext context) {
+    final hash = username.codeUnits.fold(0, (h, c) => (h * 31 + c) & 0xFFFFFFFF);
+    final hue = (hash % 360).toDouble();
+    final color = HSLColor.fromAHSL(1.0, hue, 0.45, 0.50).toColor();
+    return Container(
+      width: 32,
+      height: 32,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: color.withValues(alpha: 0.15),
+      ),
+      child: Center(
+        child: Text(
+          username.isNotEmpty ? username[0].toUpperCase() : '?',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+            color: color,
           ),
         ),
       ),

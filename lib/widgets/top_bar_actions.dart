@@ -38,9 +38,7 @@ class _TopBarActionsState extends State<TopBarActions> {
           : MaterialPageRoute(
               builder: (_) => MessagesScreen(service: widget.service)),
     );
-    if (mounted) {
-      setState(() => _unread = widget.service.unreadMessageCount);
-    }
+    if (mounted) setState(() => _unread = widget.service.unreadMessageCount);
   }
 
   void _openProfile() {
@@ -49,14 +47,14 @@ class _TopBarActionsState extends State<TopBarActions> {
       Platform.isIOS
           ? CupertinoPageRoute(
               builder: (_) => ProfileScreen(
-                    service: widget.service,
-                    onLogout: widget.onLogout ?? () {},
-                  ))
+                service: widget.service,
+                onLogout: widget.onLogout ?? () {},
+              ))
           : MaterialPageRoute(
               builder: (_) => ProfileScreen(
-                    service: widget.service,
-                    onLogout: widget.onLogout ?? () {},
-                  )),
+                service: widget.service,
+                onLogout: widget.onLogout ?? () {},
+              )),
     );
   }
 
@@ -67,52 +65,44 @@ class _TopBarActionsState extends State<TopBarActions> {
       children: [
         GestureDetector(
           onTap: _openMessages,
-          child: _BellIcon(unread: _unread),
+          child: _MessageIcon(unread: _unread),
         ),
         const SizedBox(width: 10),
         GestureDetector(
           onTap: _openProfile,
-          child: _AvatarIcon(service: widget.service),
+          child: _ProfileAvatar(service: widget.service),
         ),
       ],
     );
   }
 }
 
-// ── Bell ──────────────────────────────────────────────────────────────────────
+// ── Message Icon ──────────────────────────────────────────────────────────────
 
-class _BellIcon extends StatelessWidget {
+class _MessageIcon extends StatelessWidget {
   final int unread;
-  const _BellIcon({required this.unread});
+  const _MessageIcon({required this.unread});
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: 34,
-      height: 34,
+      width: 36,
+      height: 36,
       child: Stack(
         clipBehavior: Clip.none,
         children: [
           Container(
-            width: 34,
-            height: 34,
+            width: 36,
+            height: 36,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: context.appSurface,
-              border:
-                  Border.all(color: context.appBorder.withValues(alpha: 0.4)),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.15),
-                  blurRadius: 6,
-                  offset: const Offset(0, 2),
-                ),
-              ],
+              border: Border.all(color: context.appBorder, width: 1.5),
             ),
             child: Center(
               child: Icon(
-                CupertinoIcons.bell_fill,
-                size: 15,
+                CupertinoIcons.chat_bubble_fill,
+                size: 16,
                 color: context.appTextSecondary,
               ),
             ),
@@ -122,10 +112,8 @@ class _BellIcon extends StatelessWidget {
               top: -3,
               right: -3,
               child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                constraints:
-                    const BoxConstraints(minWidth: 16, minHeight: 16),
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
                 decoration: BoxDecoration(
                   color: AppTheme.danger,
                   borderRadius: BorderRadius.circular(8),
@@ -149,17 +137,17 @@ class _BellIcon extends StatelessWidget {
   }
 }
 
-// ── Avatar ────────────────────────────────────────────────────────────────────
+// ── Profile Avatar ────────────────────────────────────────────────────────────
 
-class _AvatarIcon extends StatefulWidget {
+class _ProfileAvatar extends StatefulWidget {
   final WebUntisService service;
-  const _AvatarIcon({required this.service});
+  const _ProfileAvatar({required this.service});
 
   @override
-  State<_AvatarIcon> createState() => _AvatarIconState();
+  State<_ProfileAvatar> createState() => _ProfileAvatarState();
 }
 
-class _AvatarIconState extends State<_AvatarIcon> {
+class _ProfileAvatarState extends State<_ProfileAvatar> {
   @override
   void initState() {
     super.initState();
@@ -174,19 +162,12 @@ class _AvatarIconState extends State<_AvatarIcon> {
   Widget build(BuildContext context) {
     final bytes = widget.service.profileImageBytes;
     return Container(
-      width: 34,
-      height: 34,
+      width: 36,
+      height: 36,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         color: context.appSurface,
-        border: Border.all(color: context.appBorder.withValues(alpha: 0.4)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.15),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        border: Border.all(color: context.appBorder, width: 1.5),
       ),
       clipBehavior: Clip.antiAlias,
       child: bytes != null
@@ -197,7 +178,6 @@ class _AvatarIconState extends State<_AvatarIcon> {
   }
 
   Widget _fallback() => Center(
-        child: Icon(CupertinoIcons.person_fill,
-            size: 16, color: context.appTextSecondary),
+        child: Icon(CupertinoIcons.person_fill, size: 16, color: context.appTextSecondary),
       );
 }

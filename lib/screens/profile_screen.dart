@@ -19,10 +19,12 @@ bool get _isIOS => Platform.isIOS;
 class ProfileScreen extends StatefulWidget {
   final WebUntisService service;
   final VoidCallback onLogout;
+  final VoidCallback? onCacheCleared;
   const ProfileScreen({
     super.key,
     required this.service,
     required this.onLogout,
+    this.onCacheCleared,
   });
 
   @override
@@ -152,6 +154,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       imageCache.clear();
       imageCache.clearLiveImages();
       if (!mounted) return;
+      widget.onCacheCleared?.call();
       _showToast('Cache geleert');
     } catch (_) {
       if (mounted) _showToast('Fehler beim Leeren');

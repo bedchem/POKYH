@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/update_service.dart';
 import '../services/notification_service.dart';
+import '../services/auth_service.dart';
 import '../services/webuntis_service.dart';
 import '../services/dish_service.dart';
 import '../theme/app_theme.dart';
@@ -33,7 +34,8 @@ class _DS {
 
 class HomeScreen extends StatefulWidget {
   final WebUntisService service;
-  const HomeScreen({super.key, required this.service});
+  final bool fromRestore;
+  const HomeScreen({super.key, required this.service, this.fromRestore = false});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -61,6 +63,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Future.delayed(const Duration(milliseconds: 900), _checkForUpdate);
       _fetchUnreadCount();
+      if (widget.fromRestore) _initRestoreSession();
     });
     _screens = [
       _DashboardTab(
@@ -214,6 +217,20 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     } catch (_) {}
   }
 
+  // Called once after session restore — kicks off backend auth and data prefetch
+  // in the background so the first render is instant.
+  void _initRestoreSession() {
+    final service = widget.service;
+    final username = service.username;
+    if (username == null) return;
+    AuthService.instance
+        .signIn(username, klasseId: service.klasseId, klasseName: service.klasseName)
+        .catchError((e) => debugPrint('[HomeScreen] Backend auth failed: $e'));
+    service.fetchProfileImage().ignore();
+    service.getAllGrades().ignore();
+    service.getAbsences().ignore();
+  }
+
   Future<void> _handleSessionExpired() async {
     NotificationService().stopPolling();
     widget.service.clearSession();
@@ -313,8 +330,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     Navigator.push(
       context,
       CupertinoPageRoute(
-        builder: (_) =>
-            ProfileScreen(service: widget.service, onLogout: _logout),
+        builder: (_) => ProfileScreen(
+          service: widget.service,
+          onLogout: _logout,
+          onCacheCleared: () {
+            if (mounted) _fetchUnreadCount();
+          },
+        ),
       ),
     );
   }

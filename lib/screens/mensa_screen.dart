@@ -8,6 +8,7 @@ import '../services/dish_service.dart';
 import '../services/webuntis_service.dart';
 import '../services/rating_service.dart';
 import '../services/auth_service.dart';
+import '../services/api_client.dart';
 import '../theme/app_theme.dart';
 
 class MensaScreenController extends ChangeNotifier {
@@ -58,40 +59,33 @@ class _MensaScreenState extends State<MensaScreen> {
     super.dispose();
   }
 
-  Future<void> _load() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
+  Future<void> _load({bool forceRefresh = false}) async {
+    setState(() { _loading = true; _error = null; });
 
-    final server = await _service.fetchFromServer(untisService: widget.service);
-    if (!mounted) return;
-
-    if (server != null) {
-      setState(() {
-        _dishes = server;
-        _loading = false;
-      });
-      _schedulePrefetch(server);
-      return;
+    if (!forceRefresh) {
+      // Show cache immediately if available, then refresh in background.
+      final cached = await _service.loadFromCache();
+      if (cached != null && cached.isNotEmpty && mounted) {
+        setState(() { _dishes = cached; _loading = false; });
+        _schedulePrefetch(cached);
+        _refreshFromServer();
+        return;
+      }
     }
 
-    final cached = await _service.loadFromCache(untisService: widget.service);
+    // No cache or forced refresh — fetch from server directly.
+    await _refreshFromServer(showError: true);
+  }
+
+  Future<void> _refreshFromServer({bool showError = false}) async {
+    final dishes = await _service.fetchFromServer();
     if (!mounted) return;
-
-    if (cached != null && cached.isNotEmpty) {
-      setState(() {
-        _dishes = cached;
-        _loading = false;
-      });
-      _schedulePrefetch(cached);
-      return;
+    if (dishes != null && dishes.isNotEmpty) {
+      setState(() { _dishes = dishes; _loading = false; _error = null; });
+      _schedulePrefetch(dishes);
+    } else if (showError) {
+      setState(() { _loading = false; _error = 'Keine Verbindung zum Server'; });
     }
-
-    setState(() {
-      _loading = false;
-      _error = 'Keine Verbindung zum Server';
-    });
   }
 
   void _schedulePrefetch(List<Dish> dishes) {
@@ -140,7 +134,7 @@ class _MensaScreenState extends State<MensaScreen> {
       child: RefreshIndicator(
         color: AppTheme.accent,
         backgroundColor: context.appSurface,
-        onRefresh: _load,
+        onRefresh: () => _load(forceRefresh: true),
         child: CustomScrollView(
           controller: _scrollController,
           cacheExtent: 1400,
@@ -637,10 +631,23 @@ class _DishDetailSheetState extends State<_DishDetailSheet> {
   double? _hoverRating;
   bool _wasDragging = false;
 
+  List<ApiComment> _comments = [];
+  bool _commentsLoading = true;
+
   @override
   void initState() {
     super.initState();
     _loadRating();
+    _loadComments();
+  }
+
+  Future<void> _loadComments() async {
+    try {
+      final comments = await ApiClient.instance.getDishComments(widget.dish.id);
+      if (mounted) setState(() { _comments = comments; _commentsLoading = false; });
+    } catch (_) {
+      if (mounted) setState(() => _commentsLoading = false);
+    }
   }
 
   Future<void> _loadRating() async {
@@ -1190,6 +1197,23 @@ class _DishDetailSheetState extends State<_DishDetailSheet> {
                           ),
                         ),
                       ],
+
+                      // ── Comments ──
+                      const SizedBox(height: 20),
+                      _CommentSection(
+                        comments: _comments,
+                        loading: _commentsLoading,
+                        myStableUid: AuthService.instance.stableUid,
+                        isAdmin: AuthService.instance.isAdmin,
+                        onAdd: (body) async {
+                          final comment = await ApiClient.instance.createDishComment(dish.id, body);
+                          if (mounted) setState(() => _comments = [..._comments, comment]);
+                        },
+                        onDelete: (commentId) async {
+                          await ApiClient.instance.deleteDishComment(dish.id, commentId);
+                          if (mounted) setState(() => _comments = _comments.where((c) => c.id != commentId).toList());
+                        },
+                      ),
                     ],
                   ),
                 ),
@@ -1626,6 +1650,229 @@ class _DetailTag extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ── Comment Section ───────────────────────────────────────────────────────────
+
+class _CommentSection extends StatefulWidget {
+  final List<ApiComment> comments;
+  final bool loading;
+  final String? myStableUid;
+  final bool isAdmin;
+  final Future<void> Function(String body) onAdd;
+  final Future<void> Function(String commentId) onDelete;
+
+  const _CommentSection({
+    required this.comments,
+    required this.loading,
+    required this.myStableUid,
+    required this.isAdmin,
+    required this.onAdd,
+    required this.onDelete,
+  });
+
+  @override
+  State<_CommentSection> createState() => _CommentSectionState();
+}
+
+class _CommentSectionState extends State<_CommentSection> {
+  final _ctrl = TextEditingController();
+  bool _sending = false;
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  String _formatTime(DateTime dt) {
+    final diff = DateTime.now().difference(dt);
+    if (diff.inMinutes < 1) return 'Gerade eben';
+    if (diff.inMinutes < 60) return 'vor ${diff.inMinutes} Min.';
+    if (diff.inHours < 24) return 'vor ${diff.inHours} Std.';
+    final d = dt.day.toString().padLeft(2, '0');
+    final m = dt.month.toString().padLeft(2, '0');
+    return '$d.$m.${dt.year}';
+  }
+
+  Future<void> _submit() async {
+    final text = _ctrl.text.trim();
+    if (text.isEmpty || _sending) return;
+    setState(() => _sending = true);
+    try {
+      await widget.onAdd(text);
+      _ctrl.clear();
+    } catch (_) {
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onTap: () => FocusScope.of(context).unfocus(),
+      child: Container(
+      decoration: BoxDecoration(
+        color: context.appSurface,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 14, 14, 10),
+            child: Text(
+              'Kommentare',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: context.appTextPrimary,
+              ),
+            ),
+          ),
+
+          if (widget.loading)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: Center(child: CupertinoActivityIndicator(radius: 10)),
+            )
+          else if (widget.comments.isEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
+              child: Text(
+                'Noch keine Kommentare.',
+                style: TextStyle(fontSize: 13, color: context.appTextTertiary),
+              ),
+            )
+          else
+            ...widget.comments.map((c) {
+              final isMine = c.stableUid == widget.myStableUid;
+              final canDelete = isMine || widget.isAdmin;
+              return Padding(
+                padding: const EdgeInsets.fromLTRB(14, 0, 14, 10),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _CommentAvatar(username: c.username),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Text(
+                                c.username,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: context.appTextPrimary,
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                _formatTime(c.createdAt),
+                                style: TextStyle(fontSize: 11, color: context.appTextTertiary),
+                              ),
+                              if (canDelete) ...[
+                                const Spacer(),
+                                GestureDetector(
+                                  onTap: () => widget.onDelete(c.id),
+                                  child: Icon(CupertinoIcons.trash, size: 13, color: context.appTextTertiary),
+                                ),
+                              ],
+                            ],
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            c.body,
+                            style: TextStyle(fontSize: 13, color: context.appTextSecondary),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
+
+          // Input
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 4, 14, 14),
+            child: Row(
+              children: [
+                Expanded(
+                  child: CupertinoTextField(
+                    controller: _ctrl,
+                    placeholder: 'Kommentar schreiben…',
+                    placeholderStyle: TextStyle(fontSize: 13, color: context.appTextTertiary),
+                    style: TextStyle(fontSize: 13, color: context.appTextPrimary),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+                    decoration: BoxDecoration(
+                      color: context.appCard,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    onSubmitted: (_) => _submit(),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                GestureDetector(
+                  onTap: _submit,
+                  child: Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: AppTheme.accent,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: _sending
+                        ? const Padding(
+                            padding: EdgeInsets.all(9),
+                            child: CupertinoActivityIndicator(color: Colors.white, radius: 9),
+                          )
+                        : const Icon(CupertinoIcons.arrow_up, size: 18, color: Colors.white),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+      ),
+    );
+  }
+}
+
+class _CommentAvatar extends StatelessWidget {
+  final String username;
+  const _CommentAvatar({required this.username});
+
+  @override
+  Widget build(BuildContext context) {
+    final hash = username.codeUnits.fold(0, (h, c) => (h * 31 + c) & 0xFFFFFFFF);
+    final hue = (hash % 360).toDouble();
+    final color = HSLColor.fromAHSL(1.0, hue, 0.45, 0.50).toColor();
+    return Container(
+      width: 28,
+      height: 28,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: color.withValues(alpha: 0.2),
+      ),
+      child: Center(
+        child: Text(
+          username.isNotEmpty ? username[0].toUpperCase() : '?',
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w700,
+            color: color,
+          ),
+        ),
       ),
     );
   }

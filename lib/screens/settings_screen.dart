@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../config/app_config.dart';
 import '../l10n/app_localizations.dart';
 import '../services/dish_service.dart';
@@ -216,8 +217,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   void _showCacheCleared(BuildContext context) async {
-    // Menu-Cache löschen
     await DishService().clearCache();
+    // Also clear locally stored read message IDs.
+    final prefs = await SharedPreferences.getInstance();
+    for (final k in prefs.getKeys().where((k) => k.startsWith('message_read_ids_')).toList()) {
+      await prefs.remove(k);
+    }
 
     if (!context.mounted) return;
     final l = AppLocalizations.of(context);

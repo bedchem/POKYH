@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math' show Random;
 import 'package:crypto/crypto.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
@@ -125,10 +126,9 @@ class SecureCredentialService {
     final existing = await _storage.read(key: _keySalt);
     if (existing != null && existing.isNotEmpty) return existing;
 
-    // Generate a random 32-byte salt stored in secure storage
-    final salt = DateTime.now().microsecondsSinceEpoch.toString() +
-        Object().hashCode.toString();
-    final newSalt = sha256.convert(utf8.encode(salt)).toString();
+    // Generate a cryptographically random 32-byte salt.
+    final rng = Random.secure();
+    final newSalt = List.generate(32, (_) => rng.nextInt(256).toRadixString(16).padLeft(2, '0')).join();
     await _storage.write(key: _keySalt, value: newSalt);
     return newSalt;
   }

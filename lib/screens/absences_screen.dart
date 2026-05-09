@@ -8,6 +8,18 @@ import '../utils/error_message.dart';
 import '../widgets/top_bar_actions.dart';
 import 'login_screen.dart';
 
+// ── Format helpers ────────────────────────────────────────────────────────────
+
+String _fmtExact(int m) {
+  final h = m ~/ 60;
+  final rem = m % 60;
+  return rem == 0 ? '${h}h' : '${h}h ${rem}m';
+}
+
+String _fmtRounded(int m) => '${(m / 60).round()}h';
+
+String _fmt(int m, {required bool exact}) => exact ? _fmtExact(m) : _fmtRounded(m);
+
 class AbsencesScreen extends StatefulWidget {
   final WebUntisService service;
   const AbsencesScreen({super.key, required this.service});
@@ -20,6 +32,7 @@ class _AbsencesScreenState extends State<AbsencesScreen> {
   List<AbsenceEntry> _absences = [];
   bool _loading = true;
   String? _error;
+  bool _exact = false;
 
   @override
   void initState() {
@@ -43,14 +56,8 @@ class _AbsencesScreenState extends State<AbsencesScreen> {
       _error = null;
     });
     try {
-      final absences = await widget.service.getAbsences(
-        forceRefresh: forceRefresh,
-      );
-      if (mounted)
-        setState(() {
-          _absences = absences;
-          _loading = false;
-        });
+      final absences = await widget.service.getAbsences(forceRefresh: forceRefresh);
+      if (mounted) setState(() { _absences = absences; _loading = false; });
     } on WebUntisException catch (e) {
       if (!mounted) return;
       if (e.isAuthError) {
@@ -60,16 +67,9 @@ class _AbsencesScreenState extends State<AbsencesScreen> {
         );
         return;
       }
-      setState(() {
-        _error = e.message;
-        _loading = false;
-      });
+      setState(() { _error = e.message; _loading = false; });
     } catch (e) {
-      if (mounted)
-        setState(() {
-          _error = simplifyErrorMessage(e);
-          _loading = false;
-        });
+      if (mounted) setState(() { _error = simplifyErrorMessage(e); _loading = false; });
     }
   }
 
@@ -80,19 +80,21 @@ class _AbsencesScreenState extends State<AbsencesScreen> {
     } catch (_) {}
   }
 
-  int get _totalHours => _absences.fold(0, (s, a) => s + a.hours);
-  int get _excusedHours =>
-      _absences.where((a) => a.isExcused).fold(0, (s, a) => s + a.hours);
-  int get _unexcusedHours => _totalHours - _excusedHours;
+  // ── Totals (directly from API-provided hours field) ────────────────────────
+
+  int _mins(AbsenceEntry a) => a.hours * 60;
+
+  int get _totalMinutes => _absences.fold(0, (s, a) => s + _mins(a));
+  int get _excusedMinutes =>
+      _absences.where((a) => a.isExcused).fold(0, (s, a) => s + _mins(a));
+  int get _unexcusedMinutes => _totalMinutes - _excusedMinutes;
 
   double get _absenceRate {
-    if (_totalHours == 0) return 0;
     final now = DateTime.now();
     final startYear = now.month >= 9 ? now.year : now.year - 1;
-    final elapsed = now.difference(DateTime(startYear, 9, 1)).inDays;
-    final estimatedTotal = (elapsed * 5 / 7 * 0.85).round() * 7;
-    if (estimatedTotal <= 0) return 0;
-    return (_totalHours / estimatedTotal * 100).clamp(0, 100);
+    final elapsedDays = now.difference(DateTime(startYear, 9, 1)).inDays;
+    final possible = ((elapsedDays * 5 / 7).floor() * 8 * 60).clamp(1, 999999).toInt();
+    return (_totalMinutes / possible * 100).clamp(0.0, 100.0);
   }
 
   Map<String, List<AbsenceEntry>> get _grouped {
@@ -100,238 +102,238 @@ class _AbsencesScreenState extends State<AbsencesScreen> {
     for (final a in _absences) {
       final dt = a.startDateTime;
       result
-          .putIfAbsent(
-            '${AppConfig.monthLabels[dt.month - 1]} ${dt.year}',
-            () => [],
-          )
+          .putIfAbsent('${AppConfig.monthLabels[dt.month - 1]} ${dt.year}', () => [])
           .add(a);
     }
     return result;
   }
+
+  // ── Build ──────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: context.appBg,
       body: SafeArea(
-        child: RefreshIndicator(
-          onRefresh: () => _load(forceRefresh: true),
-          color: AppTheme.accent,
-          child: CustomScrollView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            slivers: [
-              // ── Header ──────────────────────────────────────────────────
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
-                  child: Row(
-                    children: [
-                      GestureDetector(
-                        onTap: () => Navigator.pop(context),
-                        child: Container(
-                          width: 36,
-                          height: 36,
-                          decoration: BoxDecoration(
-                            color: context.appSurface,
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(
-                              color: context.appBorder.withValues(alpha: 0.4),
-                            ),
-                          ),
-                          child: Icon(
-                            Platform.isIOS
-                                ? CupertinoIcons.chevron_left
-                                : Icons.arrow_back,
-                            size: 16,
-                            color: context.appTextSecondary,
+        child: Column(
+          children: [
+            // ── Sticky Header ──────────────────────────────────────────────
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 14, 20, 10),
+              child: Row(
+                children: [
+                  GestureDetector(
+                    onTap: () => Navigator.pop(context),
+                    child: Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: context.appSurface,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: context.appBorder.withValues(alpha: 0.4),
+                        ),
+                      ),
+                      child: Icon(
+                        Platform.isIOS
+                            ? CupertinoIcons.chevron_left
+                            : Icons.arrow_back,
+                        size: 16,
+                        color: context.appTextSecondary,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Text(
+                      'Abwesenheiten',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w700,
+                        color: context.appTextPrimary,
+                        letterSpacing: -0.5,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  TopBarActions(service: widget.service),
+                ],
+              ),
+            ),
+
+            // ── Scrollable Body ────────────────────────────────────────────
+            Expanded(
+              child: RefreshIndicator(
+                onRefresh: () => _load(forceRefresh: true),
+                color: AppTheme.accent,
+                child: CustomScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  slivers: [
+                    // ── Overview Card ────────────────────────────────────
+                    if (!_loading && _error == null)
+                      SliverToBoxAdapter(
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+                          child: _OverviewCard(
+                            totalMinutes: _totalMinutes,
+                            excusedMinutes: _excusedMinutes,
+                            unexcusedMinutes: _unexcusedMinutes,
+                            absenceRate: _absenceRate,
+                            exact: _exact,
+                            onToggle: () => setState(() => _exact = !_exact),
                           ),
                         ),
                       ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Abwesenheiten',
-                              style: TextStyle(
-                                fontSize: 26,
-                                fontWeight: FontWeight.w700,
-                                color: context.appTextPrimary,
-                                letterSpacing: -0.6,
-                              ),
-                            ),
-                            if (!_loading && _error == null)
+
+                    const SliverToBoxAdapter(child: SizedBox(height: 10)),
+
+                    // ── Content ──────────────────────────────────────────
+                    if (_loading)
+                      SliverFillRemaining(
+                        hasScrollBody: false,
+                        child: Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const CupertinoActivityIndicator(radius: 14),
+                              const SizedBox(height: 14),
                               Text(
-                                'Schuljahr ${AppConfig.currentSchoolYear}',
+                                'Abwesenheiten werden geladen…',
                                 style: TextStyle(
-                                  fontSize: 13,
-                                  color: context.appTextTertiary,
-                                  letterSpacing: -0.1,
+                                  color: context.appTextSecondary,
+                                  fontSize: 14,
                                 ),
                               ),
-                          ],
-                        ),
-                      ),
-                      TopBarActions(service: widget.service),
-                    ],
-                  ),
-                ),
-              ),
-
-              // ── Overview Card ────────────────────────────────────────────
-              if (!_loading && _error == null)
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
-                    child: _OverviewCard(
-                      totalHours: _totalHours,
-                      excusedHours: _excusedHours,
-                      unexcusedHours: _unexcusedHours,
-                      absenceRate: _absenceRate,
-                    ),
-                  ),
-                ),
-
-              const SliverToBoxAdapter(child: SizedBox(height: 10)),
-
-              // ── Content ──────────────────────────────────────────────────
-              if (_loading)
-                SliverFillRemaining(
-                  hasScrollBody: false,
-                  child: Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const CupertinoActivityIndicator(radius: 14),
-                        const SizedBox(height: 14),
-                        Text(
-                          'Abwesenheiten werden geladen…',
-                          style: TextStyle(
-                            color: context.appTextSecondary,
-                            fontSize: 14,
+                            ],
                           ),
                         ),
-                      ],
-                    ),
-                  ),
-                )
-              else if (_error != null)
-                SliverFillRemaining(
-                  hasScrollBody: false,
-                  child: Center(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 40),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Container(
-                            width: 56,
-                            height: 56,
-                            decoration: BoxDecoration(
-                              color: AppTheme.danger.withValues(alpha: 0.1),
-                              shape: BoxShape.circle,
-                            ),
-                            child: Icon(
-                              CupertinoIcons.exclamationmark_triangle_fill,
-                              color: AppTheme.danger,
-                              size: 24,
+                      )
+                    else if (_error != null)
+                      SliverFillRemaining(
+                        hasScrollBody: false,
+                        child: Center(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 40),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Container(
+                                  width: 56,
+                                  height: 56,
+                                  decoration: BoxDecoration(
+                                    color: AppTheme.danger.withValues(alpha: 0.1),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(
+                                    CupertinoIcons.exclamationmark_triangle_fill,
+                                    color: AppTheme.danger,
+                                    size: 24,
+                                  ),
+                                ),
+                                const SizedBox(height: 14),
+                                Text(
+                                  _error!,
+                                  style: TextStyle(
+                                    color: context.appTextSecondary,
+                                    fontSize: 14,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                                const SizedBox(height: 18),
+                                GestureDetector(
+                                  onTap: _load,
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 24,
+                                      vertical: 12,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: AppTheme.accent,
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: const Text(
+                                      'Erneut versuchen',
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                          const SizedBox(height: 14),
-                          Text(
-                            _error!,
-                            style: TextStyle(
-                              color: context.appTextSecondary,
-                              fontSize: 14,
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                          const SizedBox(height: 18),
-                          GestureDetector(
-                            onTap: _load,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 24,
-                                vertical: 12,
+                        ),
+                      )
+                    else if (_absences.isEmpty)
+                      SliverFillRemaining(
+                        hasScrollBody: false,
+                        child: Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(
+                                width: 64,
+                                height: 64,
+                                decoration: BoxDecoration(
+                                  color: AppTheme.tint.withValues(alpha: 0.1),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Icon(
+                                  CupertinoIcons.checkmark_seal_fill,
+                                  size: 28,
+                                  color: AppTheme.tint,
+                                ),
                               ),
-                              decoration: BoxDecoration(
-                                color: AppTheme.accent,
-                                borderRadius: BorderRadius.circular(12),
+                              const SizedBox(height: 14),
+                              Text(
+                                'Keine Abwesenheiten',
+                                style: TextStyle(
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.w600,
+                                  color: context.appTextPrimary,
+                                ),
                               ),
-                              child: const Text(
-                                'Erneut versuchen',
+                              const SizedBox(height: 6),
+                              Text(
+                                'Du hattest in diesem Schuljahr keine\neingetragenen Abwesenheiten.',
+                                textAlign: TextAlign.center,
                                 style: TextStyle(
                                   fontSize: 14,
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.white,
+                                  color: context.appTextSecondary,
+                                  height: 1.5,
                                 ),
                               ),
-                            ),
+                            ],
                           ),
-                        ],
+                        ),
+                      )
+                    else
+                      SliverPadding(
+                        padding: const EdgeInsets.fromLTRB(20, 4, 20, 40),
+                        sliver: SliverList(
+                          delegate: SliverChildBuilderDelegate(
+                            (_, i) {
+                              final months = _grouped.keys.toList();
+                              final entries = _grouped[months[i]]!;
+                              return _MonthSection(
+                                month: months[i],
+                                entries: entries,
+                                exact: _exact,
+                              );
+                            },
+                            childCount: _grouped.length,
+                          ),
+                        ),
                       ),
-                    ),
-                  ),
-                )
-              else if (_absences.isEmpty)
-                SliverFillRemaining(
-                  hasScrollBody: false,
-                  child: Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          width: 64,
-                          height: 64,
-                          decoration: BoxDecoration(
-                            color: AppTheme.tint.withValues(alpha: 0.1),
-                            shape: BoxShape.circle,
-                          ),
-                          child: Icon(
-                            CupertinoIcons.checkmark_seal_fill,
-                            size: 28,
-                            color: AppTheme.tint,
-                          ),
-                        ),
-                        const SizedBox(height: 14),
-                        Text(
-                          'Keine Abwesenheiten',
-                          style: TextStyle(
-                            fontSize: 17,
-                            fontWeight: FontWeight.w600,
-                            color: context.appTextPrimary,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          'Du hattest in diesem Schuljahr keine\neingetragenen Abwesenheiten.',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: context.appTextSecondary,
-                            height: 1.5,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                )
-              else
-                SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(20, 4, 20, 40),
-                  sliver: SliverList(
-                    delegate: SliverChildBuilderDelegate((_, i) {
-                      final months = _grouped.keys.toList();
-                      return _MonthSection(
-                        month: months[i],
-                        entries: _grouped[months[i]]!,
-                      );
-                    }, childCount: _grouped.length),
-                  ),
+                  ],
                 ),
-            ],
-          ),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -341,30 +343,27 @@ class _AbsencesScreenState extends State<AbsencesScreen> {
 // ── Overview Card ─────────────────────────────────────────────────────────────
 
 class _OverviewCard extends StatelessWidget {
-  final int totalHours;
-  final int excusedHours;
-  final int unexcusedHours;
+  final int totalMinutes;
+  final int excusedMinutes;
+  final int unexcusedMinutes;
   final double absenceRate;
+  final bool exact;
+  final VoidCallback onToggle;
 
   const _OverviewCard({
-    required this.totalHours,
-    required this.excusedHours,
-    required this.unexcusedHours,
+    required this.totalMinutes,
+    required this.excusedMinutes,
+    required this.unexcusedMinutes,
     required this.absenceRate,
+    required this.exact,
+    required this.onToggle,
   });
 
-  Color _rateColor(double rate) => rate > 20
-      ? AppTheme.danger
-      : rate > 10
-      ? AppTheme.warning
-      : AppTheme.tint;
+  Color _rateColor(double rate) =>
+      rate >= 15 ? AppTheme.danger : rate >= 5 ? AppTheme.warning : AppTheme.tint;
 
   @override
   Widget build(BuildContext context) {
-    final excusedFraction = totalHours > 0 ? excusedHours / totalHours : 0.0;
-    final unexcusedFraction = totalHours > 0
-        ? unexcusedHours / totalHours
-        : 0.0;
     final rateFraction = (absenceRate / 100).clamp(0.0, 1.0);
     final rateColor = _rateColor(absenceRate);
 
@@ -376,56 +375,89 @@ class _OverviewCard extends StatelessWidget {
       ),
       child: Column(
         children: [
-          // ── Top: ring + numbers ──────────────────────────────────────
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
-            child: Row(
+            padding: const EdgeInsets.fromLTRB(20, 16, 16, 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _NumberRow(
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: _NumberRow(
                         label: 'Fehlstunden gesamt',
-                        value: '$totalHours',
+                        value: _fmt(totalMinutes, exact: exact),
                         color: context.appTextPrimary,
                         large: true,
                       ),
-                      const SizedBox(height: 14),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _MiniStat(
-                              label: 'Entschuldigt',
-                              value: '$excusedHours',
-                              color: AppTheme.tint,
-                              icon: CupertinoIcons.checkmark_circle_fill,
+                    ),
+                    const SizedBox(width: 10),
+                    GestureDetector(
+                      onTap: onToggle,
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 180),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: exact ? AppTheme.tint : Colors.transparent,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: AppTheme.tint, width: 1.5),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              exact
+                                  ? CupertinoIcons.timer_fill
+                                  : CupertinoIcons.clock,
+                              size: 12,
+                              color: exact ? Colors.white : AppTheme.tint,
                             ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: _MiniStat(
-                              label: 'Unentschuldigt',
-                              value: '$unexcusedHours',
-                              color: unexcusedHours > 0
-                                  ? AppTheme.danger
-                                  : context.appTextTertiary,
-                              icon: CupertinoIcons.xmark_circle_fill,
+                            const SizedBox(width: 5),
+                            Text(
+                              exact ? 'Exakt' : 'Gerundet',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: exact ? Colors.white : AppTheme.tint,
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _MiniStat(
+                        label: 'Entschuldigt',
+                        value: _fmt(excusedMinutes, exact: exact),
+                        color: AppTheme.tint,
+                        icon: CupertinoIcons.checkmark_circle_fill,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _MiniStat(
+                        label: 'Unentschuldigt',
+                        value: _fmt(unexcusedMinutes, exact: exact),
+                        color: unexcusedMinutes > 0
+                            ? AppTheme.danger
+                            : context.appTextTertiary,
+                        icon: CupertinoIcons.xmark_circle_fill,
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
           ),
 
-          // ── Divider ──────────────────────────────────────────────────
           Divider(height: 1, color: context.appSeparator.withValues(alpha: 0.25)),
 
-          // ── Bottom: Fehlquote bar (full school year = 100 %) ─────────
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 14, 20, 16),
             child: Column(
@@ -453,7 +485,6 @@ class _OverviewCard extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 9),
-                // Single bar: filled portion = absenceRate % of full school year
                 ClipRRect(
                   borderRadius: BorderRadius.circular(6),
                   child: SizedBox(
@@ -483,18 +514,10 @@ class _OverviewCard extends StatelessWidget {
                 Wrap(
                   spacing: 10,
                   runSpacing: 6,
-                  alignment: WrapAlignment.start,
-                  crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
-                    _BarLegend(color: AppTheme.tint, label: '< 10 % Normal'),
-                    _BarLegend(
-                      color: AppTheme.warning,
-                      label: '10–20 % Erhöht',
-                    ),
-                    _BarLegend(
-                      color: AppTheme.danger,
-                      label: '> 20 % Kritisch',
-                    ),
+                    _BarLegend(color: AppTheme.tint, label: '< 5 % Normal'),
+                    _BarLegend(color: AppTheme.warning, label: '5–15 % Erhöht'),
+                    _BarLegend(color: AppTheme.danger, label: '> 15 % Kritisch'),
                   ],
                 ),
               ],
@@ -511,7 +534,6 @@ class _NumberRow extends StatelessWidget {
   final String value;
   final Color color;
   final bool large;
-
   const _NumberRow({
     required this.label,
     required this.value,
@@ -535,10 +557,7 @@ class _NumberRow extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 2),
-        Text(
-          label,
-          style: TextStyle(fontSize: 12, color: context.appTextTertiary),
-        ),
+        Text(label, style: TextStyle(fontSize: 12, color: context.appTextTertiary)),
       ],
     );
   }
@@ -549,7 +568,6 @@ class _MiniStat extends StatelessWidget {
   final String value;
   final Color color;
   final IconData icon;
-
   const _MiniStat({
     required this.label,
     required this.value,
@@ -607,16 +625,11 @@ class _BarLegend extends StatelessWidget {
         Container(
           width: 8,
           height: 8,
-          decoration: BoxDecoration(
-            color: color,
-            borderRadius: BorderRadius.circular(2),
-          ),
+          decoration:
+              BoxDecoration(color: color, borderRadius: BorderRadius.circular(2)),
         ),
         const SizedBox(width: 4),
-        Text(
-          label,
-          style: TextStyle(fontSize: 10, color: context.appTextTertiary),
-        ),
+        Text(label, style: TextStyle(fontSize: 10, color: context.appTextTertiary)),
       ],
     );
   }
@@ -627,19 +640,24 @@ class _BarLegend extends StatelessWidget {
 class _MonthSection extends StatelessWidget {
   final String month;
   final List<AbsenceEntry> entries;
+  final bool exact;
 
-  const _MonthSection({required this.month, required this.entries});
+  const _MonthSection({
+    required this.month,
+    required this.entries,
+    required this.exact,
+  });
+
+  int _mins(AbsenceEntry a) => a.hours * 60;
 
   @override
   Widget build(BuildContext context) {
-    final monthHours = entries.fold(0, (s, a) => s + a.hours);
-
+    final monthMinutes = entries.fold(0, (s, a) => s + _mins(a));
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Month header
           Padding(
             padding: const EdgeInsets.fromLTRB(0, 14, 0, 10),
             child: Row(
@@ -662,20 +680,22 @@ class _MonthSection extends StatelessWidget {
                 ),
                 const SizedBox(width: 8),
                 _MonthChip(
-                  label: '$monthHours Std.',
+                  label: _fmt(monthMinutes, exact: exact),
                   color: context.appTextTertiary,
                 ),
               ],
             ),
           ),
-
-          // Absence cards
           ...entries.asMap().entries.map(
             (e) => Padding(
               padding: EdgeInsets.only(
                 bottom: e.key < entries.length - 1 ? 8 : 0,
               ),
-              child: _AbsenceCard(entry: e.value),
+              child: _AbsenceCard(
+                entry: e.value,
+                minutes: _mins(e.value),
+                exact: exact,
+              ),
             ),
           ),
         ],
@@ -699,11 +719,7 @@ class _MonthChip extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w600,
-          color: color,
-        ),
+        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: color),
       ),
     );
   }
@@ -713,7 +729,14 @@ class _MonthChip extends StatelessWidget {
 
 class _AbsenceCard extends StatelessWidget {
   final AbsenceEntry entry;
-  const _AbsenceCard({required this.entry});
+  final int minutes;
+  final bool exact;
+
+  const _AbsenceCard({
+    required this.entry,
+    required this.minutes,
+    required this.exact,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -727,11 +750,10 @@ class _AbsenceCard extends StatelessWidget {
         border: Border.all(color: context.appBorder.withValues(alpha: 0.3)),
       ),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+        padding: const EdgeInsets.all(14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Row 1: date + status tag + hours
             Row(
               children: [
                 Expanded(
@@ -745,12 +767,8 @@ class _AbsenceCard extends StatelessWidget {
                     ),
                   ),
                 ),
-                // Status tag
                 Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 3,
-                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
                     color: accent.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(20),
@@ -778,18 +796,14 @@ class _AbsenceCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 8),
-                // Hours badge
                 Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 3,
-                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
                     color: context.appCard,
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
-                    '${entry.hours} Std.',
+                    _fmt(minutes, exact: exact),
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
@@ -800,29 +814,29 @@ class _AbsenceCard extends StatelessWidget {
               ],
             ),
 
-            // Row 2: time (if available)
-            if (entry.timeFormatted.isNotEmpty) ...[
+            if (entry.timeFormatted.isNotEmpty ||
+                entry.subjectName != null ||
+                entry.teacherName != null) ...[
               const SizedBox(height: 8),
               Row(
                 children: [
-                  Icon(
-                    CupertinoIcons.clock,
-                    size: 12,
-                    color: context.appTextTertiary,
-                  ),
+                  Icon(CupertinoIcons.clock, size: 12, color: context.appTextTertiary),
                   const SizedBox(width: 5),
-                  Text(
-                    entry.timeFormatted,
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: context.appTextSecondary,
+                  Expanded(
+                    child: Text(
+                      [
+                        if (entry.timeFormatted.isNotEmpty) entry.timeFormatted,
+                        if (entry.subjectName != null) entry.subjectName!,
+                        if (entry.teacherName != null) entry.teacherName!,
+                      ].join(' · '),
+                      style: TextStyle(fontSize: 13, color: context.appTextSecondary),
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
                 ],
               ),
             ],
 
-            // Row 3: details (reason, type, note)
             if (_hasDetails) ...[
               const SizedBox(height: 10),
               Container(
@@ -848,20 +862,18 @@ class _AbsenceCard extends StatelessWidget {
 
   List<Widget> _buildDetails(BuildContext context) {
     final items = <_Detail>[];
-    if (entry.reasonName != null)
+    if (entry.reasonName != null) {
       items.add(_Detail(CupertinoIcons.tag, 'Grund', entry.reasonName!));
-    if (entry.absenceType != null)
+    }
+    if (entry.absenceType != null) {
       items.add(_Detail(CupertinoIcons.doc_text, 'Art', entry.absenceType!));
-    if (entry.note != null)
+    }
+    if (entry.note != null) {
       items.add(_Detail(CupertinoIcons.pencil, 'Notiz', entry.note!));
-    if (entry.excuseNote != null)
-      items.add(
-        _Detail(
-          CupertinoIcons.checkmark_shield,
-          'Entschuldigung',
-          entry.excuseNote!,
-        ),
-      );
+    }
+    if (entry.excuseNote != null) {
+      items.add(_Detail(CupertinoIcons.checkmark_shield, 'Entschuldigung', entry.excuseNote!));
+    }
 
     return items.asMap().entries.map((e) {
       final isLast = e.key == items.length - 1;
@@ -872,14 +884,16 @@ class _AbsenceCard extends StatelessWidget {
           children: [
             Padding(
               padding: const EdgeInsets.only(top: 2),
-              child: Icon(e.value.icon, size: 14, color: context.appTextTertiary),
+              child:
+                  Icon(e.value.icon, size: 14, color: context.appTextTertiary),
             ),
             const SizedBox(width: 6),
             SizedBox(
               width: 78,
               child: Text(
                 e.value.label,
-                style: TextStyle(fontSize: 12, color: context.appTextSecondary),
+                style:
+                    TextStyle(fontSize: 12, color: context.appTextSecondary),
               ),
             ),
             const SizedBox(width: 4),

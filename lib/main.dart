@@ -6,11 +6,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'config/app_config.dart';
 import 'services/webuntis_service.dart';
 import 'services/notification_service.dart';
-import 'services/auth_service.dart';
 import 'services/reminder_service.dart';
 import 'screens/login_screen.dart';
 import 'screens/home_screen.dart';
-import 'screens/messages_screen.dart';
 import 'theme/app_theme.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
@@ -30,17 +28,20 @@ void main() async {
 
   final prefs = results[0] as SharedPreferences;
   final info = results[1] as PackageInfo;
-
   appVersion = info.version;
 
   final saved = prefs.getString('themeMode') ?? 'system';
   AppTheme.themeNotifier.value = _themeModeFrom(saved);
 
-  // Initialize notification service (FCM permissions + listeners)
   await NotificationService().initialize();
   await ReminderService().initialize();
 
-  runApp(const PockyhApp());
+  // Restore session before runApp — the OS LaunchScreen covers this async work.
+  // The first rendered Flutter frame shows the correct screen with no loading needed.
+  final service = WebUntisService();
+  final sessionRestored = await service.restoreSession();
+
+  runApp(PockyhApp(service: service, sessionRestored: sessionRestored));
 }
 
 ThemeMode _themeModeFrom(String value) {
@@ -59,7 +60,14 @@ final _lightTheme = AppTheme.light();
 final _darkTheme = AppTheme.dark();
 
 class PockyhApp extends StatelessWidget {
-  const PockyhApp({super.key});
+  final WebUntisService service;
+  final bool sessionRestored;
+
+  const PockyhApp({
+    super.key,
+    required this.service,
+    required this.sessionRestored,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -72,246 +80,10 @@ class PockyhApp extends StatelessWidget {
         darkTheme: _darkTheme,
         themeMode: mode,
         navigatorKey: navigatorKey,
-        home: const SplashScreen(),
+        home: sessionRestored
+            ? HomeScreen(service: service, fromRestore: true)
+            : const LoginScreen(),
       ),
-    );
-  }
-}
-
-class SplashScreen extends StatefulWidget {
-  const SplashScreen({super.key});
-
-  @override
-  State<SplashScreen> createState() => _SplashScreenState();
-}
-
-class _SplashScreenState extends State<SplashScreen>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _anim;
-  late final Animation<double> _fade;
-
-  @override
-  void initState() {
-    super.initState();
-    _anim = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 600),
-    );
-    _fade = CurvedAnimation(parent: _anim, curve: Curves.easeOut);
-    _anim.forward();
-    _tryRestoreSession();
-  }
-
-  @override
-  void dispose() {
-    _anim.dispose();
-    super.dispose();
-  }
-
-  static void _showNewMessageBanner(
-    BuildContext context,
-    int count,
-    String? subject,
-    WebUntisService service,
-  ) {
-    final messenger = ScaffoldMessenger.maybeOf(context);
-    if (messenger == null) return;
-
-    final text = count == 1
-        ? 'Neue Mitteilung: ${subject ?? ''}'
-        : '$count neue Mitteilungen';
-
-    messenger.showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            const Icon(CupertinoIcons.bell_fill, color: Colors.white, size: 18),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                text,
-                style: const TextStyle(fontWeight: FontWeight.w600),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ],
-        ),
-        backgroundColor: AppTheme.accent,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-        duration: const Duration(seconds: 4),
-        action: SnackBarAction(
-          label: 'Anzeigen',
-          textColor: Colors.white,
-          onPressed: () {
-            navigatorKey.currentState?.push(
-              CupertinoPageRoute(
-                builder: (_) => MessagesScreen(service: service),
-              ),
-            );
-          },
-        ),
-      ),
-    );
-  }
-
-  /// Prefetch all commonly-used data in parallel so screens open instantly.
-  static void _prefetchAll(WebUntisService service) {
-    service.getAllGrades().ignore();
-    service.getAbsences().ignore();
-    service.getMessages().ignore();
-  }
-
-  Future<void> _tryRestoreSession() async {
-    final service = WebUntisService();
-    final restored = await service.restoreSession();
-
-    if (!mounted) return;
-
-    final target = restored ? AuthGate(service: service) : const LoginScreen();
-
-    Navigator.pushReplacement(
-      context,
-      PageRouteBuilder(
-        pageBuilder: (_, _, _) => target,
-        transitionsBuilder: (_, a, _, child) =>
-            FadeTransition(opacity: a, child: child),
-        transitionDuration: const Duration(milliseconds: 300),
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: context.appBg,
-      body: Center(
-        child: FadeTransition(
-          opacity: _fade,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 80,
-                height: 80,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [AppTheme.accent, AppTheme.accentSoft],
-                  ),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(20),
-                  child: Image.asset(
-                    'assets/icons/POKYH_icon.png',
-                    width: 48,
-                    height: 48,
-                    fit: BoxFit.contain,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
-              Text(
-                AppConfig.appName,
-                style: TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.w700,
-                  color: context.appTextPrimary,
-                  letterSpacing: -0.5,
-                ),
-              ),
-              const SizedBox(height: 32),
-              const CupertinoActivityIndicator(radius: 12),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class AuthGate extends StatefulWidget {
-  final WebUntisService service;
-  const AuthGate({super.key, required this.service});
-
-  @override
-  State<AuthGate> createState() => _AuthGateState();
-}
-
-class _AuthGateState extends State<AuthGate> {
-  @override
-  void initState() {
-    super.initState();
-    _check();
-  }
-
-  Future<void> _check() async {
-    final valid = await widget.service.validateSession();
-    if (!mounted) return;
-    if (!valid) {
-      await widget.service.clearSession();
-      Navigator.pushReplacement(
-        context,
-        PageRouteBuilder(
-          pageBuilder: (_, _, _) => const LoginScreen(),
-          transitionsBuilder: (_, a, _, child) =>
-              FadeTransition(opacity: a, child: child),
-          transitionDuration: const Duration(milliseconds: 300),
-        ),
-      );
-      return;
-    }
-
-    await _initializeSession();
-  }
-
-  Future<void> _initializeSession() async {
-    _SplashScreenState._prefetchAll(widget.service);
-    widget.service.fetchProfileImage().ignore();
-    if (widget.service.username != null) {
-      AuthService.instance
-          .signIn(
-            widget.service.username!,
-            klasseId: widget.service.klasseId,
-            klasseName: widget.service.klasseName,
-          )
-          .catchError((e) => debugPrint('[Restore] Backend auth failed: $e'));
-    }
-    final notifService = NotificationService();
-    notifService.startPolling(widget.service);
-    notifService.onNewMessages = (count, subject) {
-      final ctx = navigatorKey.currentContext;
-      if (ctx != null) {
-        _SplashScreenState._showNewMessageBanner(
-          ctx,
-          count,
-          subject,
-          widget.service,
-        );
-      }
-    };
-
-    if (!mounted) return;
-    Navigator.pushReplacement(
-      context,
-      PageRouteBuilder(
-        pageBuilder: (_, _, _) => HomeScreen(service: widget.service),
-        transitionsBuilder: (_, a, _, child) =>
-            FadeTransition(opacity: a, child: child),
-        transitionDuration: const Duration(milliseconds: 300),
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: context.appBg,
-      body: const Center(child: CupertinoActivityIndicator()),
     );
   }
 }

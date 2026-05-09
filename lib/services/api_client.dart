@@ -11,6 +11,35 @@ class ApiException implements Exception {
   String toString() => 'ApiException($statusCode): $message';
 }
 
+class ApiComment {
+  final String id;
+  final String stableUid;
+  final String username;
+  final String body;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+
+  const ApiComment({
+    required this.id,
+    required this.stableUid,
+    required this.username,
+    required this.body,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+
+  factory ApiComment.fromJson(Map<String, dynamic> j) {
+    return ApiComment(
+      id: j['id'] as String,
+      stableUid: j['stableUid'] as String? ?? '',
+      username: j['username'] as String? ?? 'Unbekannt',
+      body: j['body'] as String? ?? '',
+      createdAt: DateTime.tryParse(j['createdAt'] as String? ?? '') ?? DateTime.now(),
+      updatedAt: DateTime.tryParse(j['updatedAt'] as String? ?? '') ?? DateTime.now(),
+    );
+  }
+}
+
 class ApiClient {
   static final ApiClient _instance = ApiClient._();
   ApiClient._();
@@ -64,6 +93,39 @@ class ApiClient {
       default:
         throw UnsupportedError('Method $method not supported');
     }
+  }
+
+  // ── Comments ──────────────────────────────────────────────────────────────
+
+  Future<List<ApiComment>> getReminderComments(String classId, String reminderId) async {
+    final data = await get('/classes/$classId/reminders/$reminderId/comments') as List<dynamic>;
+    return data.cast<Map<String, dynamic>>().map(ApiComment.fromJson).toList();
+  }
+
+  Future<ApiComment> createReminderComment(String classId, String reminderId, String body) async {
+    final data = await post('/classes/$classId/reminders/$reminderId/comments', {'body': body}) as Map<String, dynamic>;
+    return ApiComment.fromJson(data);
+  }
+
+  Future<void> deleteReminderComment(String classId, String reminderId, String commentId) async {
+    await delete('/classes/$classId/reminders/$reminderId/comments/$commentId');
+  }
+
+  Future<List<ApiComment>> getDishComments(String dishId) async {
+    final encoded = Uri.encodeComponent(dishId);
+    final data = await get('/dish-comments/$encoded') as List<dynamic>;
+    return data.cast<Map<String, dynamic>>().map(ApiComment.fromJson).toList();
+  }
+
+  Future<ApiComment> createDishComment(String dishId, String body) async {
+    final encoded = Uri.encodeComponent(dishId);
+    final data = await post('/dish-comments/$encoded', {'body': body}) as Map<String, dynamic>;
+    return ApiComment.fromJson(data);
+  }
+
+  Future<void> deleteDishComment(String dishId, String commentId) async {
+    final encoded = Uri.encodeComponent(dishId);
+    await delete('/dish-comments/$encoded/$commentId');
   }
 
   dynamic _parse(http.Response res) {
