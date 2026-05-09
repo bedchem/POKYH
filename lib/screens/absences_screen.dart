@@ -80,9 +80,9 @@ class _AbsencesScreenState extends State<AbsencesScreen> {
     } catch (_) {}
   }
 
-  // ── Totals (directly from API-provided hours field) ────────────────────────
+  // ── Totals ────────────────────────────────────────────────────────────────
 
-  int _mins(AbsenceEntry a) => a.hours * 60;
+  int _mins(AbsenceEntry a) => a.calculatedMinutes ?? (a.hours * 60);
 
   int get _totalMinutes => _absences.fold(0, (s, a) => s + _mins(a));
   int get _excusedMinutes =>
@@ -648,7 +648,7 @@ class _MonthSection extends StatelessWidget {
     required this.exact,
   });
 
-  int _mins(AbsenceEntry a) => a.hours * 60;
+  int _mins(AbsenceEntry a) => a.calculatedMinutes ?? (a.hours * 60);
 
   @override
   Widget build(BuildContext context) {

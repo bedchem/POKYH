@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' show max, min;
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -591,7 +592,9 @@ class WebUntisService {
           final pos2 = entry['position2'] as List? ?? [];
           final hasSub = pos2.any((p) {
             final pm = p as Map<String, dynamic>;
-            return pm['current'] == true || pm['removed'] == true;
+            // JS-truthy check: any non-null, non-false value (incl. strings like "MAT")
+            final c = pm['current'], r = pm['removed'];
+            return (c != null && c != false) || (r != null && r != false);
           });
           if (!hasSub) continue;
           final duration = entry['duration'] as Map<String, dynamic>?;
@@ -735,6 +738,93 @@ class WebUntisService {
 
   // ── ABSENCES ─────────────────────────────────────────────────────────────
 
+  // Fetches timetable slots for all weeks overlapping the given absences and
+  // returns new entries with calculatedMinutes set. Fails gracefully.
+  Future<List<AbsenceEntry>> _enrichWithTimetableMinutes(List<AbsenceEntry> entries) async {
+    if (entries.isEmpty) return entries;
+    try {
+      final weeks = _getAbsenceWeeks(entries);
+      final results = await Future.wait(
+        weeks.map((w) => getWeekSlotsForAbsences(w).catchError((_) => <int, List<(int, int)>>{})),
+      );
+      // Merge all weeks into one dateNum → slots map.
+      final dateMap = <int, List<(int, int)>>{};
+      for (final weekMap in results) {
+        for (final e in weekMap.entries) {
+          dateMap.putIfAbsent(e.key, () => []).addAll(e.value);
+        }
+      }
+      return entries.map((e) {
+        final mins = _calcAbsenceMinutes(e, dateMap);
+        return mins > 0 ? e.withCalculatedMinutes(mins) : e;
+      }).toList();
+    } catch (_) {
+      return entries;
+    }
+  }
+
+  // Returns all Mondays of weeks that overlap with any absence entry.
+  List<DateTime> _getAbsenceWeeks(List<AbsenceEntry> entries) {
+    final mondays = <String, DateTime>{};
+    DateTime mondayOf(DateTime d) {
+      final diff = d.weekday - DateTime.monday;
+      return DateTime(d.year, d.month, d.day - diff);
+    }
+    String key(DateTime d) =>
+        '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+    for (final e in entries) {
+      final s = e.startDate.toString();
+      final en = e.endDate.toString();
+      var d = DateTime(int.parse(s.substring(0, 4)), int.parse(s.substring(4, 6)), int.parse(s.substring(6, 8)));
+      final end = DateTime(int.parse(en.substring(0, 4)), int.parse(en.substring(4, 6)), int.parse(en.substring(6, 8)));
+      while (!d.isAfter(end)) {
+        final mon = mondayOf(d);
+        mondays[key(mon)] = mon;
+        d = d.add(const Duration(days: 1));
+      }
+    }
+    return mondays.values.toList();
+  }
+
+  // For each day covered by the absence, finds every timetable lesson that
+  // overlaps (even partially) with the absence time window and counts the
+  // FULL lesson duration. This way a 5-minute tardiness still counts as the
+  // whole lesson period, not just 5 minutes.
+  int _calcAbsenceMinutes(AbsenceEntry entry, Map<int, List<(int, int)>> dateMap) {
+    var total = 0;
+    final s = entry.startDate.toString();
+    final en = entry.endDate.toString();
+    var d = DateTime(int.parse(s.substring(0, 4)), int.parse(s.substring(4, 6)), int.parse(s.substring(6, 8)));
+    final end = DateTime(int.parse(en.substring(0, 4)), int.parse(en.substring(4, 6)), int.parse(en.substring(6, 8)));
+    final isMultiDay = entry.startDate != entry.endDate;
+    final absStartMin = AbsenceEntry._toMinutes(entry.startTime);
+    final absEndMin = AbsenceEntry._toMinutes(entry.endTime);
+
+    while (!d.isAfter(end)) {
+      if (d.weekday != DateTime.saturday && d.weekday != DateTime.sunday) {
+        final dateNum = d.year * 10000 + d.month * 100 + d.day;
+        final slots = dateMap[dateNum] ?? [];
+
+        for (final slot in slots) {
+          // Clip counted duration to the absence window — mirrors frontend exactly.
+          var countStart = slot.$1;
+          var countEnd   = slot.$2;
+          if (isMultiDay) {
+            if (absStartMin > 0 && dateNum == entry.startDate) countStart = max(countStart, absStartMin);
+            if (absEndMin   > 0 && dateNum == entry.endDate)   countEnd   = min(countEnd,   absEndMin);
+          } else {
+            if (absStartMin > 0) countStart = max(countStart, absStartMin);
+            if (absEndMin   > 0) countEnd   = min(countEnd,   absEndMin);
+          }
+          if (countEnd > countStart) total += countEnd - countStart;
+        }
+      }
+      d = d.add(const Duration(days: 1));
+    }
+    return total;
+  }
+
   Future<List<AbsenceEntry>> getAbsences({bool forceRefresh = false}) async {
     if (_studentId == null) {
       throw WebUntisException('Nicht angemeldet', isAuthError: true);
@@ -787,12 +877,15 @@ class WebUntisService {
               as List? ??
           [];
 
-      final entries = raw
+      final rawEntries = raw
           .whereType<Map<String, dynamic>>()
           .map(AbsenceEntry.fromJson)
           .toList();
 
-      entries.sort((a, b) => b.startDate.compareTo(a.startDate));
+      rawEntries.sort((a, b) => b.startDate.compareTo(a.startDate));
+
+      // Enrich entries with exact lesson minutes from the timetable.
+      final entries = await _enrichWithTimetableMinutes(rawEntries);
 
       _absencesCache = _CachedData(entries);
       return entries;
@@ -2281,6 +2374,7 @@ class AbsenceEntry {
   final String? note; // student note / Bemerkung
   final String? excuseNote; // excuse text from teacher
   final int hours;
+  final int? calculatedMinutes;
 
   const AbsenceEntry({
     required this.id,
@@ -2296,7 +2390,25 @@ class AbsenceEntry {
     this.note,
     this.excuseNote,
     required this.hours,
+    this.calculatedMinutes,
   });
+
+  AbsenceEntry withCalculatedMinutes(int mins) => AbsenceEntry(
+    id: id,
+    startDate: startDate,
+    endDate: endDate,
+    startTime: startTime,
+    endTime: endTime,
+    isExcused: isExcused,
+    reasonName: reasonName,
+    absenceType: absenceType,
+    subjectName: subjectName,
+    teacherName: teacherName,
+    note: note,
+    excuseNote: excuseNote,
+    hours: hours,
+    calculatedMinutes: mins,
+  );
 
   factory AbsenceEntry.fromJson(Map<String, dynamic> j) {
     final excuseStatus = j['excuseStatus']?.toString() ?? '';
