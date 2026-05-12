@@ -39,7 +39,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   // Einstellungen
   String _themeMode = 'system';
-  String _language = 'de';
 
   @override
   void initState() {
@@ -51,7 +50,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
       _themeMode = prefs.getString('themeMode') ?? 'system';
-      _language = prefs.getString('language') ?? 'de';
     });
   }
 
@@ -507,100 +505,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   // ──────────────────────────────────────────────────────────────────────────
-  // Sprach‑Auswahl – plattformadaptiv
-  // ──────────────────────────────────────────────────────────────────────────
-  void _showLanguagePicker() {
-    if (_isIOS) {
-      showCupertinoModalPopup(
-        context: context,
-        builder: (ctx) => CupertinoActionSheet(
-          title: const Text('Sprache (Mensa‑Menü)'),
-          actions: [
-            _cupertinoLangAction(ctx, 'de', 'Deutsch'),
-            _cupertinoLangAction(ctx, 'it', 'Italiano'),
-            _cupertinoLangAction(ctx, 'en', 'English'),
-          ],
-          cancelButton: CupertinoActionSheetAction(
-            isDefaultAction: true,
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Abbrechen'),
-          ),
-        ),
-      );
-    } else {
-      showModalBottomSheet(
-        context: context,
-        backgroundColor: context.appSurface,
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-        ),
-        builder: (ctx) => SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Text(
-                  'Sprache (Mensa‑Menü)',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: context.appTextPrimary,
-                  ),
-                ),
-              ),
-              _materialLangAction(ctx, 'de', 'Deutsch'),
-              _materialLangAction(ctx, 'it', 'Italiano'),
-              _materialLangAction(ctx, 'en', 'English'),
-              const SizedBox(height: 8),
-            ],
-          ),
-        ),
-      );
-    }
-  }
-
-  CupertinoActionSheetAction _cupertinoLangAction(
-    BuildContext ctx,
-    String code,
-    String label,
-  ) {
-    return CupertinoActionSheetAction(
-      onPressed: () {
-        setState(() => _language = code);
-        _save('language', code);
-        Navigator.pop(ctx);
-      },
-      child: Text(
-        label,
-        style: TextStyle(
-          color: _language == code ? AppTheme.accent : context.appTextPrimary,
-        ),
-      ),
-    );
-  }
-
-  Widget _materialLangAction(BuildContext ctx, String code, String label) {
-    final selected = _language == code;
-    return ListTile(
-      title: Text(
-        label,
-        style: TextStyle(
-          color: selected ? AppTheme.accent : context.appTextPrimary,
-        ),
-      ),
-      trailing: selected
-          ? Icon(Icons.check, color: AppTheme.accent, size: 20)
-          : null,
-      onTap: () {
-        setState(() => _language = code);
-        _save('language', code);
-        Navigator.pop(ctx);
-      },
-    );
-  }
-
-  // ──────────────────────────────────────────────────────────────────────────
   // Hilfsfunktionen für Anzeigetexte
   // ──────────────────────────────────────────────────────────────────────────
   String _themeLabel() {
@@ -611,17 +515,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
         return 'Dunkel';
       default:
         return 'System';
-    }
-  }
-
-  String _languageLabel() {
-    switch (_language) {
-      case 'de':
-        return 'Deutsch';
-      case 'it':
-        return 'Italiano';
-      default:
-        return 'English';
     }
   }
 
@@ -677,7 +570,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               ? CupertinoIcons.chevron_left
                               : Icons.arrow_back,
                           size: 16,
-                          color: context.appTextSecondary,
+                          color: AppTheme.accent,
                         ),
                       ),
                     ),
@@ -830,13 +723,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       title: 'Erscheinungsbild',
                       subtitle: _themeLabel(),
                       onTap: _showThemePicker,
-                    ),
-                    const SizedBox(height: 10),
-                    _ActionTile(
-                      icon: _isIOS ? CupertinoIcons.globe : Icons.language,
-                      title: 'Sprache (Mensa)',
-                      subtitle: _languageLabel(),
-                      onTap: _showLanguagePicker,
                     ),
                   ],
                 ),

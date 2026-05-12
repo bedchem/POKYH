@@ -581,55 +581,191 @@ class TimetableScreenState extends State<TimetableScreen> {
     );
   }
 
+  // ── Week stats for the current offset ─────────────────────────────────────
+
+  ({int todayStd, int entfaelle, int pruefungen, int vertretungen}) _weekStats(int offset) {
+    final entries = _cache[offset]?.entries ?? [];
+    final now = DateTime.now();
+    final todayInt = int.parse(
+      '${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}',
+    );
+    final todayActive = entries.where((e) => e.date == todayInt && !e.isCancelled).toList();
+    final todayStd = todayActive.length;
+    final entfaelle = entries.where((e) => e.isCancelled).length;
+    final pruefungen = entries.where((e) => e.isExam && !e.isCancelled).length;
+    final vertretungen = entries.where((e) => (e.isSubstitution || e.isAdditional) && !e.isCancelled).length;
+    return (todayStd: todayStd, entfaelle: entfaelle, pruefungen: pruefungen, vertretungen: vertretungen);
+  }
+
   Widget _buildHeader() {
     final weekStart = _mondayForOffset(_currentOffset);
     final weekEnd = weekStart.add(const Duration(days: 5));
+    final stats = _weekStats(_currentOffset);
+    final isThisWeek = _isThisWeek(_currentOffset);
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Text(
+            'Stundenplan',
+            style: TextStyle(
+              fontSize: 28,
+              fontWeight: FontWeight.w700,
+              color: context.appTextPrimary,
+              letterSpacing: -0.5,
+            ),
+          ),
+          const SizedBox(height: 2),
           Row(
             children: [
               Text(
-                'Stundenplan',
+                '${weekStart.day}. ${_months[weekStart.month - 1]} – '
+                '${weekEnd.day}. ${_months[weekEnd.month - 1]}',
                 style: TextStyle(
-                  fontSize: 34,
-                  fontWeight: FontWeight.w700,
-                  color: context.appTextPrimary,
-                  letterSpacing: -0.5,
+                  fontSize: 13,
+                  color: context.appTextSecondary,
+                ),
+              ),
+              const SizedBox(width: 8),
+              GestureDetector(
+                onTap: isThisWeek ? null : _goToToday,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: AppTheme.accent.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(6),
+                    border: isThisWeek
+                        ? null
+                        : Border.all(color: AppTheme.accent.withValues(alpha: 0.25)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (!isThisWeek && _currentOffset > 0) ...[
+                        const Icon(CupertinoIcons.arrow_left, size: 9, color: AppTheme.accent),
+                        const SizedBox(width: 3),
+                      ],
+                      Text(
+                        isThisWeek ? 'Diese Woche' : 'Heute',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: AppTheme.accent,
+                        ),
+                      ),
+                      if (!isThisWeek && _currentOffset < 0) ...[
+                        const SizedBox(width: 3),
+                        const Icon(CupertinoIcons.arrow_right, size: 9, color: AppTheme.accent),
+                      ],
+                    ],
+                  ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           Row(
             children: [
-              Expanded(
-                child: Text(
-                  '${weekStart.day}. ${_months[weekStart.month - 1]} – '
-                  '${weekEnd.day}. ${_months[weekEnd.month - 1]} ${weekEnd.year}',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w500,
-                    color: context.appTextSecondary,
-                  ),
-                ),
+              _WeekStatChip(
+                label: 'Heute',
+                value: '${stats.todayStd}',
+                unit: 'Std',
+                color: context.appTextPrimary,
               ),
-              const SizedBox(width: 16),
-              Text(
-                'KW ${_weekNumber(weekStart)}',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: context.appTextTertiary,
-                ),
+              const SizedBox(width: 8),
+              _WeekStatChip(
+                label: 'Entfälle',
+                value: '${stats.entfaelle}',
+                color: stats.entfaelle > 0 ? AppTheme.danger : context.appTextSecondary,
+              ),
+              const SizedBox(width: 8),
+              _WeekStatChip(
+                label: 'Prüfungen',
+                value: '${stats.pruefungen}',
+                color: stats.pruefungen > 0 ? AppTheme.warning : context.appTextSecondary,
+              ),
+              const SizedBox(width: 8),
+              _WeekStatChip(
+                label: 'Vertretung',
+                value: '${stats.vertretungen}',
+                color: stats.vertretungen > 0 ? AppTheme.orange : context.appTextSecondary,
               ),
             ],
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ── Week Stat Chip ─────────────────────────────────────────────────────────────
+
+class _WeekStatChip extends StatelessWidget {
+  final String label;
+  final String value;
+  final String? unit;
+  final Color color;
+  const _WeekStatChip({
+    required this.label,
+    required this.value,
+    required this.color,
+    this.unit,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+        decoration: BoxDecoration(
+          color: context.appSurface,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: context.appBorder.withValues(alpha: 0.7)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 9,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0.3,
+                color: context.appTextTertiary,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 3),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.baseline,
+              textBaseline: TextBaseline.alphabetic,
+              children: [
+                Text(
+                  value,
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: color,
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                    letterSpacing: -0.5,
+                  ),
+                ),
+                if (unit != null) ...[
+                  const SizedBox(width: 2),
+                  Text(
+                    unit!,
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: context.appTextTertiary,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1208,6 +1344,7 @@ class _WeekPage extends StatelessWidget {
       subjectName: first.subjectName,
       subjectLong: first.subjectLong,
       teacherName: first.teacherName,
+      teacherLongName: first.teacherLongName,
       roomName: first.roomName,
       cellState: first.cellState,
       lessonText: first.lessonText,
@@ -1218,6 +1355,7 @@ class _WeekPage extends StatelessWidget {
       originalSubjectName: first.originalSubjectName,
       originalSubjectLong: first.originalSubjectLong,
       originalTeacherName: first.originalTeacherName,
+      originalTeacherLongName: first.originalTeacherLongName,
     );
   }
 }
@@ -1592,38 +1730,51 @@ class _MergedCell extends StatelessWidget {
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final baseCellColor = isDark ? context.appCardAlt : context.appCard;
-    final cellBg = Color.alphaBlend(
+    final cardBg = Color.alphaBlend(
       Colors.white.withValues(alpha: isDark ? 0.08 : 0.16),
       baseCellColor,
     );
 
+    final bool isCancelledOnly = entry.isCancelled && primary.replacement == null;
+    final bool isReplacement =
+        primary.kind == _SlotKind.replacement ||
+        (entry.isSubstitution && !entry.isCancelled) ||
+        entry.isAdditional;
+
     final bool isSpecial =
         entry.isExam ||
         entry.isCancelled ||
-        primary.kind == _SlotKind.replacement ||
-        primary.kind == _SlotKind.event ||
-        entry.isSubstitution ||
-        entry.isAdditional;
+        isReplacement ||
+        primary.kind == _SlotKind.event;
 
     Color? highlightColor;
-    if (entry.isCancelled) {
+    Color cellBg;
+    if (isCancelledOnly) {
       highlightColor = AppTheme.danger;
+      cellBg = AppTheme.danger.withValues(alpha: isDark ? 0.12 : 0.06);
+    } else if (entry.isCancelled) {
+      // Cancelled with replacement → orange
+      highlightColor = AppTheme.orange;
+      cellBg = AppTheme.orange.withValues(alpha: isDark ? 0.14 : 0.09);
     } else if (entry.isExam) {
       highlightColor = AppTheme.warning;
-    } else if (primary.kind == _SlotKind.replacement ||
-        entry.isSubstitution ||
-        entry.isAdditional) {
+      cellBg = AppTheme.warning.withValues(alpha: isDark ? 0.16 : 0.11);
+    } else if (isReplacement) {
       highlightColor = (entry.isAdditional && !entry.isSubstitution)
           ? AppTheme.accent
           : AppTheme.orange;
+      cellBg = highlightColor!.withValues(alpha: isDark ? 0.14 : 0.09);
     } else if (primary.kind == _SlotKind.event || entry.lessonText.isNotEmpty) {
       highlightColor = AppTheme.tint;
+      cellBg = AppTheme.tint.withValues(alpha: isDark ? 0.14 : 0.09);
+    } else {
+      cellBg = cardBg;
     }
 
     final borderColor = isSpecial
-        ? (highlightColor ?? AppTheme.accent).withValues(alpha: 0.78)
+        ? (highlightColor ?? AppTheme.accent).withValues(alpha: isDark ? 0.55 : 0.36)
         : context.appBorder.withValues(alpha: 0.35);
-    final borderWidth = isSpecial ? 1.6 : 1.1;
+    final borderWidth = isSpecial ? 1.3 : 1.1;
 
     // Jede Cell ist tappable, sofern ein Eintrag existiert
     final isTappable = !primary.isEmpty;
@@ -1636,7 +1787,7 @@ class _MergedCell extends StatelessWidget {
           color: isPast
               ? Color.alphaBlend(Colors.black.withValues(alpha: 0.18), cellBg)
               : cellBg,
-          borderRadius: BorderRadius.circular(6),
+          borderRadius: BorderRadius.circular(9),
           border: Border.all(
             color: isPast
                 ? borderColor.withValues(alpha: borderColor.a * 0.55)
@@ -1645,7 +1796,7 @@ class _MergedCell extends StatelessWidget {
           ),
         ),
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(5),
+          borderRadius: BorderRadius.circular(8),
           child: Opacity(
             opacity: isPast ? 0.55 : 1.0,
             child: Row(
@@ -1861,38 +2012,67 @@ class _SlotContent extends StatelessWidget {
                   if ((isPureSubstitution ||
                           isPureAdditional ||
                           (!hideInlineOriginalSubject &&
-                              entry.teacherName.isNotEmpty &&
+                              (entry.teacherName.isNotEmpty || entry.originalTeacherName.isNotEmpty) &&
                               (!hasReplacement || isCancelledReplacement))) &&
-                      entry.teacherName.isNotEmpty) ...[
-                    Text(
-                      entry.teacherName,
-                      style: TextStyle(
-                        fontSize: 10,
-                        color: isExam
-                            ? examTextTertiary
-                            : (isPureSubstitution
-                                  ? AppTheme.orange.withValues(alpha: 0.72)
-                                  : isPureAdditional
-                                  ? AppTheme.accent.withValues(alpha: 0.82)
-                                  : isCancelledReplacement
-                                  ? AppTheme.danger.withValues(alpha: 0.82)
-                                  : isReplaced
-                                  ? AppTheme.danger.withValues(alpha: 0.78)
-                                  : context.appTextSecondary),
-                        decoration: isPureSubstitution
-                            ? null
-                            : isPureAdditional
-                            ? null
-                            : isReplaced
-                            ? TextDecoration.lineThrough
-                            : null,
-                        decorationColor: AppTheme.danger.withValues(
-                          alpha: 0.65,
+                      (entry.teacherName.isNotEmpty || entry.originalTeacherName.isNotEmpty)) ...[
+                    // Substitution: show absent teacher (red strike) then new (orange)
+                    if (isPureSubstitution &&
+                        entry.originalTeacherName.isNotEmpty &&
+                        entry.originalTeacherName != entry.teacherName) ...[
+                      Text(
+                        entry.originalTeacherName,
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: AppTheme.danger.withValues(alpha: 0.7),
+                          decoration: TextDecoration.lineThrough,
+                          decorationColor: AppTheme.danger.withValues(alpha: 0.75),
+                          decorationThickness: 1.5,
                         ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
+                      if (entry.teacherName.isNotEmpty)
+                        Text(
+                          '» ${entry.teacherName}',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                            color: AppTheme.orange.withValues(alpha: 0.85),
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                    ] else ...[
+                      Text(
+                        entry.teacherName.isNotEmpty
+                            ? entry.teacherName
+                            : entry.originalTeacherName,
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: isExam
+                              ? examTextTertiary
+                              : (isPureSubstitution
+                                    ? AppTheme.orange.withValues(alpha: 0.72)
+                                    : isPureAdditional
+                                    ? AppTheme.accent.withValues(alpha: 0.82)
+                                    : isCancelledReplacement
+                                    ? AppTheme.danger.withValues(alpha: 0.82)
+                                    : isReplaced
+                                    ? AppTheme.danger.withValues(alpha: 0.78)
+                                    : context.appTextSecondary),
+                          decoration: isPureSubstitution
+                              ? null
+                              : isPureAdditional
+                              ? null
+                              : isReplaced
+                              ? TextDecoration.lineThrough
+                              : null,
+                          decorationColor: AppTheme.danger.withValues(alpha: 0.65),
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
                   ],
                   if ((isPureSubstitution ||
                           isPureAdditional ||
@@ -2167,19 +2347,63 @@ class _DetailSheet extends StatelessWidget {
             value: '${entry.startFormatted} – ${entry.endFormatted}',
           ),
           // When hasInlineOriginal the teacher/room belong to the NEW
-          // subject and are shown inside the Zusatzstunde card below.
-          if (entry.teacherName.isNotEmpty && !hasInlineOriginal) ...[
+          // subject and are shown inside the Vertretung card below.
+          if (!hasInlineOriginal && (entry.teacherName.isNotEmpty || entry.originalTeacherName.isNotEmpty)) ...[
             const SizedBox(height: 10),
-            _InfoRow(
-              icon: CupertinoIcons.person,
-              label: entry.isSubstitution && !entry.isAdditional
-                  ? 'Vertretung'
-                  : 'Lehrer',
-              value: entry.teacherName,
-              valueColor: entry.isSubstitution && !entry.isAdditional
-                  ? AppTheme.orange.withValues(alpha: 0.85)
-                  : null,
-            ),
+            if (entry.originalTeacherName.isNotEmpty && entry.teacherName.isNotEmpty &&
+                entry.originalTeacherName != entry.teacherName) ...[
+              // Teacher changed: show old (strikethrough) → new
+              Row(
+                children: [
+                  Icon(CupertinoIcons.person, size: 14, color: context.appTextTertiary),
+                  const SizedBox(width: 8),
+                  Text('Lehrer  ', style: TextStyle(fontSize: 13, color: context.appTextTertiary)),
+                  Expanded(
+                    child: Wrap(
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      spacing: 6,
+                      children: [
+                        Text(
+                          entry.originalTeacherLongName.isNotEmpty
+                              ? entry.originalTeacherLongName
+                              : entry.originalTeacherName,
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                            color: AppTheme.danger.withValues(alpha: 0.7),
+                            decoration: TextDecoration.lineThrough,
+                            decorationColor: AppTheme.danger.withValues(alpha: 0.8),
+                            decorationThickness: 1.8,
+                          ),
+                        ),
+                        Icon(CupertinoIcons.arrow_right, size: 11, color: AppTheme.orange),
+                        Text(
+                          entry.teacherLongName.isNotEmpty
+                              ? entry.teacherLongName
+                              : entry.teacherName,
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: AppTheme.orange,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ] else ...[
+              _InfoRow(
+                icon: CupertinoIcons.person,
+                label: entry.isSubstitution && !entry.isAdditional ? 'Vertretung' : 'Lehrer',
+                value: entry.teacherName.isNotEmpty
+                    ? (entry.teacherLongName.isNotEmpty ? entry.teacherLongName : entry.teacherName)
+                    : (entry.originalTeacherLongName.isNotEmpty ? entry.originalTeacherLongName : entry.originalTeacherName),
+                valueColor: entry.isSubstitution && !entry.isAdditional
+                    ? AppTheme.orange.withValues(alpha: 0.85)
+                    : null,
+              ),
+            ],
           ],
           if (entry.roomName.isNotEmpty && !hasInlineOriginal) ...[
             const SizedBox(height: 10),
@@ -2382,7 +2606,9 @@ class _DetailSheet extends StatelessWidget {
                     _InfoRow(
                       icon: CupertinoIcons.person,
                       label: 'Lehrer',
-                      value: replacement!.teacherName,
+                      value: replacement!.teacherLongName.isNotEmpty
+                          ? replacement!.teacherLongName
+                          : replacement!.teacherName,
                       small: true,
                     ),
                   ],
@@ -2486,7 +2712,9 @@ class _DetailSheet extends StatelessWidget {
                     _InfoRow(
                       icon: CupertinoIcons.person,
                       label: 'Lehrer',
-                      value: entry.teacherName,
+                      value: entry.teacherLongName.isNotEmpty
+                          ? entry.teacherLongName
+                          : entry.teacherName,
                       small: true,
                     ),
                   ],

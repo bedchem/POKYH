@@ -122,7 +122,7 @@ class _GradesScreenState extends State<GradesScreen> {
                               ? CupertinoIcons.chevron_left
                               : Icons.arrow_back,
                           size: 16,
-                          color: context.appTextSecondary,
+                          color: AppTheme.accent,
                         ),
                       ),
                     ),
@@ -640,9 +640,7 @@ class _SubjectCardState extends State<_SubjectCard>
   bool _expanded = false;
 
   Color _gradeColor(double v) {
-    if (v >= 9) return AppTheme.success;
-    if (v >= 6.5) return AppTheme.successMid;
-    if (v >= 6) return AppTheme.warning;
+    if (v >= 6) return AppTheme.tint;
     if (v >= 4) return AppTheme.orange;
     return AppTheme.danger;
   }
@@ -916,9 +914,7 @@ class _SubjectDetailSheetState extends State<_SubjectDetailSheet> {
   }
 
   Color _gradeColor(double v) {
-    if (v >= 9) return AppTheme.success;
-    if (v >= 6.5) return AppTheme.successMid;
-    if (v >= 6) return AppTheme.warning;
+    if (v >= 6) return AppTheme.tint;
     if (v >= 4) return AppTheme.orange;
     return AppTheme.danger;
   }

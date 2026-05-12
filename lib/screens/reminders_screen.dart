@@ -645,7 +645,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
                               ? CupertinoIcons.chevron_left
                               : Icons.arrow_back,
                           size: 16,
-                          color: context.appTextSecondary,
+                          color: AppTheme.accent,
                         ),
                       ),
                     ),

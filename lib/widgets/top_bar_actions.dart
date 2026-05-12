@@ -103,7 +103,7 @@ class _MessageIcon extends StatelessWidget {
               child: Icon(
                 CupertinoIcons.chat_bubble_fill,
                 size: 16,
-                color: context.appTextSecondary,
+                color: AppTheme.accent,
               ),
             ),
           ),
@@ -178,6 +178,6 @@ class _ProfileAvatarState extends State<_ProfileAvatar> {
   }
 
   Widget _fallback() => Center(
-        child: Icon(CupertinoIcons.person_fill, size: 16, color: context.appTextSecondary),
+        child: Icon(CupertinoIcons.person_fill, size: 16, color: AppTheme.accent),
       );
 }

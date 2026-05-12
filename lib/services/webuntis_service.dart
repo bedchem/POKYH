@@ -467,12 +467,20 @@ class WebUntisService {
         '${start.year}-${start.month.toString().padLeft(2, '0')}-${start.day.toString().padLeft(2, '0')}';
 
     try {
+      final endDate = start.add(const Duration(days: 6));
+      final endDateStr =
+          '${endDate.year}-${endDate.month.toString().padLeft(2, '0')}-${endDate.day.toString().padLeft(2, '0')}';
+
       final response = await _client
           .get(
             Uri.parse(
-              '$_baseUrl/api/public/timetable/weekly/data?elementType=5&elementId=$_studentId&date=$dateStr&formatId=1',
+              '$_baseUrl/api/rest/view/v1/timetable/entries?start=$dateStr&end=$endDateStr&format=1&resourceType=STUDENT&resources=$_studentId&periodTypes=&timetableType=MY_TIMETABLE&layout=START_TIME',
             ),
-            headers: {'Cookie': _cookieHeader},
+            headers: {
+              'Cookie': _cookieHeader,
+              'Accept': 'application/json',
+              if (_bearerToken != null) 'Authorization': 'Bearer $_bearerToken',
+            },
           )
           .timeout(_timeout);
 
@@ -485,27 +493,27 @@ class WebUntisService {
       }
 
       final data = _parseJsonResponse(response.body);
-      final resultData = data['data']?['result']?['data'];
-      if (resultData == null) {
+      final days = data['days'] as List? ?? [];
+      if (days.isEmpty && data['days'] == null) {
         _cacheTimetable(start, []);
         return [];
       }
 
-      final elements = resultData['elements'] as List? ?? [];
-      final elementMap = <String, Map<String, dynamic>>{};
-      for (final e in elements) {
-        final type = e['type'];
-        final id = e['id'];
-        elementMap['$type-$id'] = Map<String, dynamic>.from(e);
-      }
-
-      final periodsMap =
-          resultData['elementPeriods'] as Map<String, dynamic>? ?? {};
-      final periods = periodsMap['$_studentId'] as List? ?? [];
-
       final entries = <TimetableEntry>[];
-      for (final p in periods) {
-        entries.add(TimetableEntry.fromWeeklyApi(p, elementMap));
+      for (final day in days) {
+        final dayDateStr =
+            (day['date'] as String? ?? '').replaceAll('-', '');
+        final dateNum = int.tryParse(dayDateStr) ?? 0;
+        if (dateNum == 0) continue;
+        final gridEntries = day['gridEntries'] as List? ?? [];
+        for (final ge in gridEntries) {
+          entries.add(
+            TimetableEntry.fromRestApi(
+              ge as Map<String, dynamic>,
+              dateNum,
+            ),
+          );
+        }
       }
 
       entries.sort((a, b) {
@@ -1646,6 +1654,12 @@ class TimetableEntry {
   /// Original teacher name before substitution (from element state=='ABSENT').
   final String originalTeacherName;
 
+  /// Full/long teacher name (from element longName/displayname).
+  final String teacherLongName;
+
+  /// Original teacher long name before substitution.
+  final String originalTeacherLongName;
+
   TimetableEntry({
     required this.id,
     required this.lessonId,
@@ -1665,6 +1679,8 @@ class TimetableEntry {
     this.originalSubjectName = '',
     this.originalSubjectLong = '',
     this.originalTeacherName = '',
+    this.teacherLongName = '',
+    this.originalTeacherLongName = '',
   });
 
   factory TimetableEntry.fromWeeklyApi(
@@ -1676,10 +1692,12 @@ class TimetableEntry {
     String subjectName = '';
     String subjectLong = '';
     String teacherName = '';
+    String teacherLongName = '';
     String roomName = '';
     String originalSubjectName = '';
     String originalSubjectLong = '';
     String originalTeacherName = '';
+    String originalTeacherLongName = '';
 
     for (final el in elements) {
       final type = el['type'];
@@ -1724,20 +1742,26 @@ class TimetableEntry {
             final src = lookup ?? orgLookup;
             if (src != null) {
               final name = src['name'] ?? '';
+              final longName = src['longName'] ?? src['displayname'] ?? name;
               if (originalTeacherName.isNotEmpty) {
                 originalTeacherName += ', $name';
+                originalTeacherLongName += ', $longName';
               } else {
                 originalTeacherName = name;
+                originalTeacherLongName = longName;
               }
             }
           } else {
             final src = lookup ?? orgLookup;
             if (src != null) {
               final name = src['name'] ?? '';
+              final longName = src['longName'] ?? src['displayname'] ?? name;
               if (teacherName.isNotEmpty) {
                 teacherName += ', $name';
+                teacherLongName += ', $longName';
               } else {
                 teacherName = name;
+                teacherLongName = longName;
               }
             }
           }
@@ -1770,6 +1794,7 @@ class TimetableEntry {
       subjectName: subjectName,
       subjectLong: subjectLong,
       teacherName: teacherName,
+      teacherLongName: teacherLongName,
       roomName: roomName,
       cellState: j['cellState']?.toString() ?? '',
       lessonText: j['lessonText']?.toString() ?? '',
@@ -1782,6 +1807,86 @@ class TimetableEntry {
           j['cellState'] == 'SUBSTITUTION' || (isMap['substitution'] == true),
       isAdditional:
           j['cellState'] == 'ADDITIONAL' || (isMap['additional'] == true),
+      originalSubjectName: originalSubjectName,
+      originalSubjectLong: originalSubjectLong,
+      originalTeacherName: originalTeacherName,
+      originalTeacherLongName: originalTeacherLongName,
+    );
+  }
+
+  factory TimetableEntry.fromRestApi(Map<String, dynamic> ge, int date) {
+    List<Map<String, dynamic>> _pos(String key) =>
+        (ge[key] as List? ?? []).whereType<Map<String, dynamic>>().toList();
+
+    String _dn(Map<String, dynamic>? e) =>
+        e?['displayName']?.toString() ?? '';
+    String _ln(Map<String, dynamic>? e) {
+      final ln = e?['longName']?.toString() ?? '';
+      return ln.isNotEmpty ? ln : _dn(e);
+    }
+    String _sn(Map<String, dynamic>? e) =>
+        e?['shortName']?.toString() ?? '';
+
+    final pos1 = _pos('position1');
+    final pos2 = _pos('position2');
+    final pos3 = _pos('position3');
+
+    final activeTeachers     = pos1.where((p) => p['current'] != null).map((p) => _dn(p['current'] as Map<String, dynamic>?)).where((s) => s.isNotEmpty).toList();
+    final activeTeachersLong = pos1.where((p) => p['current'] != null).map((p) => _ln(p['current'] as Map<String, dynamic>?)).where((s) => s.isNotEmpty).toList();
+    final removedTeachers    = pos1.where((p) => p['removed'] != null).map((p) => _dn(p['removed'] as Map<String, dynamic>?)).where((s) => s.isNotEmpty).toList();
+    final removedTeachersLong= pos1.where((p) => p['removed'] != null).map((p) => _ln(p['removed'] as Map<String, dynamic>?)).where((s) => s.isNotEmpty).toList();
+
+    final activeSub  = pos2.where((p) => p['current'] != null).map((p) => p['current'] as Map<String, dynamic>).firstOrNull;
+    final removedSub = pos2.where((p) => p['removed'] != null).map((p) => p['removed'] as Map<String, dynamic>).firstOrNull;
+
+    final activeRooms = pos3.where((p) => p['current'] != null).map((p) => _dn(p['current'] as Map<String, dynamic>?)).where((s) => s.isNotEmpty).toList();
+
+    final durationMap = ge['duration'] as Map<String, dynamic>? ?? {};
+    int _parseTime(String? isoStr) {
+      if (isoStr == null) return 0;
+      final tPart = isoStr.contains('T') ? isoStr.split('T')[1] : isoStr;
+      final parts = tPart.split(':');
+      if (parts.length < 2) return 0;
+      return (int.tryParse(parts[0]) ?? 0) * 100 + (int.tryParse(parts[1]) ?? 0);
+    }
+    final startTime = _parseTime(durationMap['start']?.toString());
+    final endTime   = _parseTime(durationMap['end']?.toString());
+
+    final ids = (ge['ids'] as List? ?? []).whereType<int>().toList();
+    final id  = ids.isNotEmpty ? ids.first : 0;
+
+    final type   = ge['type']?.toString() ?? '';
+    final status = ge['status']?.toString() ?? '';
+    final isCancelled    = status == 'CANCELLED';
+    final isChanged      = status == 'CHANGED';
+    final isSubstitution = isChanged && removedTeachers.isNotEmpty;
+
+    final lessonText = ge['lessonText']?.toString() ?? '';
+    final lessonInfo = ge['lessonInfo']?.toString() ?? '';
+
+    return TimetableEntry(
+      id:            id,
+      lessonId:      id,
+      date:          date,
+      startTime:     startTime,
+      endTime:       endTime,
+      subjectName:   _sn(activeSub) .isNotEmpty ? _sn(activeSub)  : _sn(removedSub),
+      subjectLong:   (activeSub?['longName']?.toString() ?? '').isNotEmpty
+                         ? activeSub!['longName']!.toString()
+                         : (removedSub?['longName']?.toString() ?? ''),
+      teacherName:      activeTeachers.join(', '),
+      teacherLongName:  activeTeachersLong.join(', '),
+      roomName:         activeRooms.join(', '),
+      cellState:        isCancelled ? 'CANCEL' : isChanged ? 'SUBSTITUTION' : 'STANDARD',
+      lessonText:       lessonInfo.isNotEmpty ? lessonInfo : lessonText,
+      isCancelled:      isCancelled,
+      isExam:           type == 'EXAM',
+      isSubstitution:   isSubstitution,
+      isAdditional:     type == 'ADDITIONAL',
+      originalSubjectName: _sn(removedSub),
+      originalSubjectLong: removedSub?['longName']?.toString() ?? '',
+      originalTeacherName: removedTeachers.join(', '),
+      originalTeacherLongName: removedTeachersLong.join(', '),
     );
   }
 
@@ -1820,6 +1925,8 @@ class TimetableEntry {
     'originalSubjectName': originalSubjectName,
     'originalSubjectLong': originalSubjectLong,
     'originalTeacherName': originalTeacherName,
+    'teacherLongName': teacherLongName,
+    'originalTeacherLongName': originalTeacherLongName,
   };
 
   factory TimetableEntry.fromJson(Map<String, dynamic> j) => TimetableEntry(
@@ -1831,6 +1938,7 @@ class TimetableEntry {
     subjectName: j['subjectName'] as String? ?? '',
     subjectLong: j['subjectLong'] as String? ?? '',
     teacherName: j['teacherName'] as String? ?? '',
+    teacherLongName: j['teacherLongName'] as String? ?? '',
     roomName: j['roomName'] as String? ?? '',
     cellState: j['cellState'] as String? ?? '',
     lessonText: j['lessonText'] as String? ?? '',
@@ -1841,6 +1949,7 @@ class TimetableEntry {
     originalSubjectName: j['originalSubjectName'] as String? ?? '',
     originalSubjectLong: j['originalSubjectLong'] as String? ?? '',
     originalTeacherName: j['originalTeacherName'] as String? ?? '',
+    originalTeacherLongName: j['originalTeacherLongName'] as String? ?? '',
   );
 }
 

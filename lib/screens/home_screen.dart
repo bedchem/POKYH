@@ -18,17 +18,12 @@ import 'messages_screen.dart';
 import 'hub_screen.dart';
 
 class _DS {
-  static const bg = Color(0xFF0D0D0D);
-  static const surface = Color(0xFF141414);
-  static const border = Color(0xFF2A2A2A);
-  static const accent = Color(0xFF6C6CFF);
-  static const accentGreen = Color(0xFF34C759);
-  static const accentYellow = Color(0xFFFFCC00);
-  static const accentOrange = Color(0xFFFF9500);
-  static const accentRed = Color(0xFFFF3B30);
-  static const textPrimary = Color(0xFFFFFFFF);
-  static const textSecondary = Color(0xFF8A8A8A);
-  static const textTertiary = Color(0xFF5E5E5E);
+  static const accent = Color(0xFF6366F1);
+  static const accentGreen = Color(0xFF10B981);
+  static const accentYellow = Color(0xFFF59E0B);
+  static const accentOrange = Color(0xFFF97316);
+  static const accentRed = Color(0xFFEF4444);
+  static const textTertiary = Color(0xFF52525F);
   static const radius = 14.0;
 }
 
@@ -1254,6 +1249,7 @@ class _DashboardTabState extends State<_DashboardTab>
           todayLessons: _today.length,
           loadingTimetable: _loadingTimetable,
           errorTimetable: _errorTimetable,
+          gradeAverage: _weekAverage,
           onMensaTap: widget.onMensaTap,
           onRetry: _load,
         );
@@ -1458,10 +1454,11 @@ class _TodaySectionCard extends StatelessWidget {
   final int todayLessons;
   final bool loadingTimetable;
   final String? errorTimetable;
+  final double? gradeAverage;
   final VoidCallback onMensaTap;
   final VoidCallback onRetry;
 
-  static const _kOrange = Color(0xFFFF6B35);
+  static const _kOrange = Color(0xFFF97316);
 
   const _TodaySectionCard({
     required this.isWeekend,
@@ -1473,6 +1470,7 @@ class _TodaySectionCard extends StatelessWidget {
     required this.todayLessons,
     required this.loadingTimetable,
     required this.errorTimetable,
+    this.gradeAverage,
     required this.onMensaTap,
     required this.onRetry,
   });
@@ -1488,9 +1486,6 @@ class _TodaySectionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final now = DateTime.now();
     final surface = context.appSurface;
-    final textPrimary = context.appTextPrimary;
-    final textSecondary = context.appTextSecondary;
-    final textTertiary = context.appTextTertiary;
     const months = [
       'Jan',
       'Feb',
@@ -1598,172 +1593,145 @@ class _TodaySectionCard extends StatelessWidget {
         else
           Row(
             children: [
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: context.appSurface,
-                    borderRadius: BorderRadius.circular(_DS.radius),
-                    border: Border.all(
-                      color: const Color.fromARGB(
-                        255,
-                        119,
-                        119,
-                        119,
-                      ).withValues(alpha: 0.18),
-                      width: 0.8,
-                    ),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Container(
-                            width: 22,
-                            height: 22,
-                            decoration: BoxDecoration(
-                              color: _DS.accent.withValues(alpha: 0.14),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: const Center(
-                              child: Icon(
-                                CupertinoIcons.flag_fill,
-                                size: 11,
-                                color: _DS.accent,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            'Schulende',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w500,
-                              color: textSecondary,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-                      if (loadingTimetable)
-                        const CupertinoActivityIndicator(radius: 8)
-                      else ...[
-                        Text(
-                          isWeekend ? '—' : schoolEnd ?? '—',
-                          style: TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.w700,
-                            color: minsUntilEnd != null
-                                ? _DS.accent
-                                : textTertiary,
-                            fontFeatures: const [FontFeature.tabularFigures()],
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          isWeekend
-                              ? 'Wochenende'
-                              : minsUntilEnd != null
-                              ? 'noch ${_fmtDuration(minsUntilEnd!)}'
-                              : schoolEnd == null
-                              ? 'Kein Unterricht'
-                              : 'vorbei',
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: context.appTextSecondary,
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
+              _StatMiniCard(
+                icon: CupertinoIcons.flag_fill,
+                iconColor: _DS.accent,
+                label: 'Schulende',
+                loading: loadingTimetable,
+                value: isWeekend ? '—' : schoolEnd ?? '—',
+                sub: isWeekend
+                    ? 'Wochenende'
+                    : minsUntilEnd != null
+                    ? 'noch ${_fmtDuration(minsUntilEnd!)}'
+                    : schoolEnd == null
+                    ? 'kein Unterricht'
+                    : 'vorbei',
+                valueColor: minsUntilEnd != null ? _DS.accent : null,
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: context.appSurface,
-                    borderRadius: BorderRadius.circular(_DS.radius),
-                    border: Border.all(
-                      color: const Color.fromARGB(
-                        255,
-                        119,
-                        119,
-                        119,
-                      ).withValues(alpha: 0.18),
-                      width: 0.8,
-                    ),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Container(
-                            width: 22,
-                            height: 22,
-                            decoration: BoxDecoration(
-                              color: _DS.accentYellow.withValues(alpha: 0.14),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: const Center(
-                              child: Icon(
-                                CupertinoIcons.book_fill,
-                                size: 11,
-                                color: _DS.accentYellow,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            'Stunden heute',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w500,
-                              color: textSecondary,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-                      if (loadingTimetable)
-                        const CupertinoActivityIndicator(radius: 8)
-                      else ...[
-                        Text(
-                          isWeekend ? '—' : '$todayLessons',
-                          style: TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.w700,
-                            color: isWeekend
-                                ? context.appTextTertiary
-                                : todayLessons > 0
-                                ? context.appTextPrimary
-                                : context.appTextTertiary,
-                            fontFeatures: const [FontFeature.tabularFigures()],
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          isWeekend
-                              ? 'Wochenende'
-                              : todayLessons == 0
-                              ? 'Kein Unterricht'
-                              : 'Stunden',
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: context.appTextSecondary,
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
+              const SizedBox(width: 8),
+              _StatMiniCard(
+                icon: CupertinoIcons.chart_bar_fill,
+                iconColor: _avgColor(gradeAverage),
+                label: 'Schnitt',
+                loading: false,
+                value: gradeAverage != null
+                    ? gradeAverage!.toStringAsFixed(1)
+                    : '—',
+                sub: gradeAverage != null ? 'Notenschnitt' : 'Kein Schnitt',
+                valueColor: _avgColor(gradeAverage),
+              ),
+              const SizedBox(width: 8),
+              _StatMiniCard(
+                icon: CupertinoIcons.book_fill,
+                iconColor: _DS.accentYellow,
+                label: 'Stunden',
+                loading: loadingTimetable,
+                value: isWeekend ? '—' : '$todayLessons',
+                sub: isWeekend
+                    ? 'Wochenende'
+                    : todayLessons == 0
+                    ? 'kein Unterricht'
+                    : 'heute',
+                valueColor: null,
               ),
             ],
           ),
       ],
+    );
+  }
+
+  static Color _avgColor(double? avg) {
+    if (avg == null) return _DS.textTertiary;
+    if (avg >= 6.5) return _DS.accentGreen;
+    if (avg >= 6.0) return _DS.accentOrange;
+    return _DS.accentRed;
+  }
+}
+
+class _StatMiniCard extends StatelessWidget {
+  final IconData icon;
+  final Color iconColor;
+  final String label;
+  final bool loading;
+  final String value;
+  final String sub;
+  final Color? valueColor;
+  const _StatMiniCard({
+    required this.icon,
+    required this.iconColor,
+    required this.label,
+    required this.loading,
+    required this.value,
+    required this.sub,
+    this.valueColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(10, 12, 10, 12),
+        decoration: BoxDecoration(
+          color: context.appSurface,
+          borderRadius: BorderRadius.circular(_DS.radius),
+          border: Border.all(color: context.appBorder.withValues(alpha: 0.6)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 20,
+                  height: 20,
+                  decoration: BoxDecoration(
+                    color: iconColor.withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Center(child: Icon(icon, size: 10, color: iconColor)),
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w500,
+                      color: context.appTextSecondary,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            if (loading)
+              const CupertinoActivityIndicator(radius: 7)
+            else ...[
+              Text(
+                value,
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                  color: valueColor ?? context.appTextPrimary,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                ),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                sub,
+                style: TextStyle(
+                  fontSize: 9,
+                  color: context.appTextSecondary,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ],
+        ),
+      ),
     );
   }
 }

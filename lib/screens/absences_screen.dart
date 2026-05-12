@@ -139,7 +139,7 @@ class _AbsencesScreenState extends State<AbsencesScreen> {
                             ? CupertinoIcons.chevron_left
                             : Icons.arrow_back,
                         size: 16,
-                        color: context.appTextSecondary,
+                        color: AppTheme.accent,
                       ),
                     ),
                   ),
@@ -373,154 +373,141 @@ class _OverviewCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: context.appBorder.withValues(alpha: 0.35)),
       ),
+      padding: const EdgeInsets.all(20),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 16, 16, 16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      child: _NumberRow(
-                        label: 'Fehlstunden gesamt',
-                        value: _fmt(totalMinutes, exact: exact),
-                        color: context.appTextPrimary,
-                        large: true,
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    GestureDetector(
-                      onTap: onToggle,
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 180),
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: exact ? AppTheme.tint : Colors.transparent,
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(color: AppTheme.tint, width: 1.5),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              exact
-                                  ? CupertinoIcons.timer_fill
-                                  : CupertinoIcons.clock,
-                              size: 12,
-                              color: exact ? Colors.white : AppTheme.tint,
-                            ),
-                            const SizedBox(width: 5),
-                            Text(
-                              exact ? 'Exakt' : 'Gerundet',
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                                color: exact ? Colors.white : AppTheme.tint,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 14),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _MiniStat(
-                        label: 'Entschuldigt',
-                        value: _fmt(excusedMinutes, exact: exact),
-                        color: AppTheme.tint,
-                        icon: CupertinoIcons.checkmark_circle_fill,
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: _MiniStat(
-                        label: 'Unentschuldigt',
-                        value: _fmt(unexcusedMinutes, exact: exact),
-                        color: unexcusedMinutes > 0
-                            ? AppTheme.danger
-                            : context.appTextTertiary,
-                        icon: CupertinoIcons.xmark_circle_fill,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-
-          Divider(height: 1, color: context.appSeparator.withValues(alpha: 0.25)),
-
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 14, 20, 16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
                     Text(
-                      'Fehlquote',
+                      'Fehlstunden gesamt',
                       style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500,
+                        fontSize: 11,
                         color: context.appTextSecondary,
                       ),
                     ),
-                    const Spacer(),
+                    const SizedBox(height: 2),
                     Text(
-                      '${absenceRate.toStringAsFixed(1)} % vom Schuljahr',
+                      _fmt(totalMinutes, exact: exact),
                       style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: rateColor,
+                        fontSize: 34,
+                        fontWeight: FontWeight.w700,
+                        color: context.appTextPrimary,
+                        letterSpacing: -1,
+                        height: 1.1,
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 9),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(6),
-                  child: SizedBox(
-                    height: 10,
-                    child: LayoutBuilder(
-                      builder: (_, constraints) {
-                        final w = constraints.maxWidth;
-                        final fillW = (w * rateFraction).clamp(0.0, w);
-                        return Stack(
-                          children: [
-                            Container(width: w, color: context.appCard),
-                            if (fillW > 0)
-                              Container(
-                                width: fillW,
-                                decoration: BoxDecoration(
-                                  color: rateColor,
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                              ),
-                          ],
-                        );
-                      },
-                    ),
+              ),
+              GestureDetector(
+                onTap: onToggle,
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: exact ? AppTheme.tint : Colors.transparent,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: AppTheme.tint, width: 1.5),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        exact
+                            ? CupertinoIcons.timer_fill
+                            : CupertinoIcons.clock,
+                        size: 12,
+                        color: exact ? Colors.white : AppTheme.tint,
+                      ),
+                      const SizedBox(width: 5),
+                      Text(
+                        exact ? 'Exakt' : 'Gerundet',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: exact ? Colors.white : AppTheme.tint,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 10,
-                  runSpacing: 6,
-                  children: [
-                    _BarLegend(color: AppTheme.tint, label: '< 5 % Normal'),
-                    _BarLegend(color: AppTheme.warning, label: '5–15 % Erhöht'),
-                    _BarLegend(color: AppTheme.danger, label: '> 15 % Kritisch'),
-                  ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              _InlineStat(
+                label: 'Entschuldigt',
+                value: _fmt(excusedMinutes, exact: exact),
+                color: AppTheme.tint,
+              ),
+              const Spacer(),
+              _InlineStat(
+                label: 'Unentschuldigt',
+                value: _fmt(unexcusedMinutes, exact: exact),
+                color: unexcusedMinutes > 0
+                    ? AppTheme.danger
+                    : context.appTextTertiary,
+                alignEnd: true,
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 16),
+
+          Row(
+            children: [
+              Text(
+                'Fehlquote',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                  color: context.appTextSecondary,
                 ),
-              ],
+              ),
+              const Spacer(),
+              Text(
+                '${absenceRate.toStringAsFixed(1)} %',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: rateColor,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(6),
+            child: SizedBox(
+              height: 8,
+              child: LayoutBuilder(
+                builder: (_, constraints) {
+                  final w = constraints.maxWidth;
+                  final fillW = (w * rateFraction).clamp(0.0, w);
+                  return Stack(
+                    children: [
+                      Container(width: w, color: context.appCard),
+                      if (fillW > 0)
+                        Container(
+                          width: fillW,
+                          decoration: BoxDecoration(
+                            color: rateColor,
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                        ),
+                    ],
+                  );
+                },
+              ),
             ),
           ),
         ],
@@ -529,107 +516,38 @@ class _OverviewCard extends StatelessWidget {
   }
 }
 
-class _NumberRow extends StatelessWidget {
+class _InlineStat extends StatelessWidget {
   final String label;
   final String value;
   final Color color;
-  final bool large;
-  const _NumberRow({
+  final bool alignEnd;
+  const _InlineStat({
     required this.label,
     required this.value,
     required this.color,
-    this.large = false,
+    this.alignEnd = false,
   });
 
   @override
   Widget build(BuildContext context) {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment:
+          alignEnd ? CrossAxisAlignment.end : CrossAxisAlignment.start,
       children: [
         Text(
           value,
           style: TextStyle(
-            fontSize: large ? 38 : 24,
+            fontSize: 22,
             fontWeight: FontWeight.w700,
             color: color,
-            letterSpacing: -1,
-            height: 1.0,
+            letterSpacing: -0.5,
+            height: 1.1,
           ),
         ),
-        const SizedBox(height: 2),
-        Text(label, style: TextStyle(fontSize: 12, color: context.appTextTertiary)),
-      ],
-    );
-  }
-}
-
-class _MiniStat extends StatelessWidget {
-  final String label;
-  final String value;
-  final Color color;
-  final IconData icon;
-  const _MiniStat({
-    required this.label,
-    required this.value,
-    required this.color,
-    required this.icon,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, size: 13, color: color),
-          const SizedBox(width: 5),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                value,
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                  color: color,
-                  letterSpacing: -0.5,
-                  height: 1.0,
-                ),
-              ),
-              Text(
-                label,
-                style: TextStyle(fontSize: 10, color: context.appTextTertiary),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _BarLegend extends StatelessWidget {
-  final Color color;
-  final String label;
-  const _BarLegend({required this.color, required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 8,
-          height: 8,
-          decoration:
-              BoxDecoration(color: color, borderRadius: BorderRadius.circular(2)),
+        Text(
+          label,
+          style: TextStyle(fontSize: 10, color: context.appTextSecondary),
         ),
-        const SizedBox(width: 4),
-        Text(label, style: TextStyle(fontSize: 10, color: context.appTextTertiary)),
       ],
     );
   }
@@ -663,12 +581,11 @@ class _MonthSection extends StatelessWidget {
             child: Row(
               children: [
                 Text(
-                  month.toUpperCase(),
+                  month,
                   style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: context.appTextTertiary,
-                    letterSpacing: 1.2,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: context.appTextPrimary,
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -681,7 +598,7 @@ class _MonthSection extends StatelessWidget {
                 const SizedBox(width: 8),
                 _MonthChip(
                   label: _fmt(monthMinutes, exact: exact),
-                  color: context.appTextTertiary,
+                  color: context.appTextSecondary,
                 ),
               ],
             ),
@@ -741,7 +658,10 @@ class _AbsenceCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isExcused = entry.isExcused;
-    final accent = isExcused ? AppTheme.tint : AppTheme.danger;
+    final iconColor = isExcused ? AppTheme.tint : AppTheme.danger;
+    final hasSecondary = entry.timeFormatted.isNotEmpty ||
+        entry.subjectName != null ||
+        entry.teacherName != null;
 
     return Container(
       decoration: BoxDecoration(
@@ -749,174 +669,99 @@ class _AbsenceCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: context.appBorder.withValues(alpha: 0.3)),
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    entry.dateFormatted,
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                      color: context.appTextPrimary,
-                      letterSpacing: -0.3,
-                    ),
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: accent.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        isExcused
-                            ? CupertinoIcons.checkmark_circle_fill
-                            : CupertinoIcons.xmark_circle_fill,
-                        size: 10,
-                        color: accent,
+      padding: const EdgeInsets.all(14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      entry.dateFormatted,
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: context.appTextPrimary,
+                        letterSpacing: -0.3,
                       ),
-                      const SizedBox(width: 4),
+                    ),
+                    if (hasSecondary) ...[
+                      const SizedBox(height: 2),
                       Text(
-                        isExcused ? 'Entschuldigt' : 'Unentschuldigt',
+                        [
+                          if (entry.timeFormatted.isNotEmpty) entry.timeFormatted,
+                          if (entry.subjectName != null) entry.subjectName!,
+                          if (entry.teacherName != null) entry.teacherName!,
+                        ].join(' · '),
                         style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: accent,
+                          fontSize: 12,
+                          color: context.appTextSecondary,
                         ),
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ],
-                  ),
+                  ],
                 ),
-                const SizedBox(width: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: context.appCard,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
+              ),
+              const SizedBox(width: 10),
+              Row(
+                children: [
+                  Text(
                     _fmt(minutes, exact: exact),
                     style: TextStyle(
-                      fontSize: 12,
+                      fontSize: 14,
                       fontWeight: FontWeight.w600,
                       color: context.appTextSecondary,
                     ),
                   ),
-                ),
-              ],
-            ),
-
-            if (entry.timeFormatted.isNotEmpty ||
-                entry.subjectName != null ||
-                entry.teacherName != null) ...[
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Icon(CupertinoIcons.clock, size: 12, color: context.appTextTertiary),
-                  const SizedBox(width: 5),
-                  Expanded(
-                    child: Text(
-                      [
-                        if (entry.timeFormatted.isNotEmpty) entry.timeFormatted,
-                        if (entry.subjectName != null) entry.subjectName!,
-                        if (entry.teacherName != null) entry.teacherName!,
-                      ].join(' · '),
-                      style: TextStyle(fontSize: 13, color: context.appTextSecondary),
-                      overflow: TextOverflow.ellipsis,
-                    ),
+                  const SizedBox(width: 6),
+                  Icon(
+                    isExcused
+                        ? CupertinoIcons.checkmark_circle_fill
+                        : CupertinoIcons.xmark_circle_fill,
+                    size: 18,
+                    color: iconColor,
                   ),
                 ],
               ),
             ],
+          ),
 
-            if (_hasDetails) ...[
-              const SizedBox(height: 10),
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: context.appCard,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Column(children: _buildDetails(context)),
+          if (entry.reasonName != null) ...[
+            const SizedBox(height: 8),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: context.appCard,
+                borderRadius: BorderRadius.circular(8),
               ),
-            ],
+              child: Text(
+                entry.reasonName!,
+                style: TextStyle(fontSize: 12, color: context.appTextSecondary),
+              ),
+            ),
+          ] else if (entry.note != null) ...[
+            const SizedBox(height: 8),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: context.appCard,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                entry.note!,
+                style: TextStyle(fontSize: 12, color: context.appTextSecondary),
+              ),
+            ),
           ],
-        ),
+        ],
       ),
     );
   }
-
-  bool get _hasDetails =>
-      entry.reasonName != null ||
-      entry.absenceType != null ||
-      entry.note != null ||
-      entry.excuseNote != null;
-
-  List<Widget> _buildDetails(BuildContext context) {
-    final items = <_Detail>[];
-    if (entry.reasonName != null) {
-      items.add(_Detail(CupertinoIcons.tag, 'Grund', entry.reasonName!));
-    }
-    if (entry.absenceType != null) {
-      items.add(_Detail(CupertinoIcons.doc_text, 'Art', entry.absenceType!));
-    }
-    if (entry.note != null) {
-      items.add(_Detail(CupertinoIcons.pencil, 'Notiz', entry.note!));
-    }
-    if (entry.excuseNote != null) {
-      items.add(_Detail(CupertinoIcons.checkmark_shield, 'Entschuldigung', entry.excuseNote!));
-    }
-
-    return items.asMap().entries.map((e) {
-      final isLast = e.key == items.length - 1;
-      return Padding(
-        padding: EdgeInsets.only(bottom: isLast ? 0 : 6),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.only(top: 2),
-              child:
-                  Icon(e.value.icon, size: 14, color: context.appTextTertiary),
-            ),
-            const SizedBox(width: 6),
-            SizedBox(
-              width: 78,
-              child: Text(
-                e.value.label,
-                style:
-                    TextStyle(fontSize: 12, color: context.appTextSecondary),
-              ),
-            ),
-            const SizedBox(width: 4),
-            Expanded(
-              child: Text(
-                e.value.value,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                  color: context.appTextPrimary,
-                ),
-              ),
-            ),
-          ],
-        ),
-      );
-    }).toList();
-  }
-}
-
-class _Detail {
-  final IconData icon;
-  final String label;
-  final String value;
-  const _Detail(this.icon, this.label, this.value);
 }
