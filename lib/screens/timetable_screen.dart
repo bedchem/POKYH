@@ -2427,6 +2427,10 @@ class _DetailSheet extends StatelessWidget {
                           ? replacement!.originalTeacherLongName
                           : replacement!.originalTeacherName.isNotEmpty
                           ? replacement!.originalTeacherName
+                          : entry.originalTeacherLongName.isNotEmpty
+                          ? entry.originalTeacherLongName
+                          : entry.originalTeacherName.isNotEmpty
+                          ? entry.originalTeacherName
                           : entry.teacherLongName.isNotEmpty
                           ? entry.teacherLongName
                           : entry.teacherName,
@@ -2448,9 +2452,13 @@ class _DetailSheet extends StatelessWidget {
               _InfoRow(
                 icon: CupertinoIcons.person,
                 label: entry.isSubstitution && !entry.isAdditional ? 'Vertretung' : 'Lehrer',
-                value: entry.teacherName.isNotEmpty
-                    ? (entry.teacherLongName.isNotEmpty ? entry.teacherLongName : entry.teacherName)
-                    : (entry.originalTeacherLongName.isNotEmpty ? entry.originalTeacherLongName : entry.originalTeacherName),
+                value: entry.teacherLongName.isNotEmpty
+                    ? entry.teacherLongName
+                    : entry.originalTeacherLongName.isNotEmpty
+                    ? entry.originalTeacherLongName
+                    : entry.teacherName.isNotEmpty
+                    ? entry.teacherName
+                    : entry.originalTeacherName,
                 valueColor: entry.isSubstitution && !entry.isAdditional
                     ? AppTheme.orange.withValues(alpha: 0.85)
                     : null,
