@@ -1912,6 +1912,14 @@ class _SlotContent extends StatelessWidget {
         entry.isSubstitution && !entry.isAdditional && !hasReplacement;
     final bool isPureAdditional =
         entry.isAdditional && !entry.isSubstitution && !hasReplacement;
+    // For isCancelledReplacement the old API often omits teacher in the CANCEL
+    // entry; fall back to the SUBSTITUTION entry's originalTeacherName.
+    final bool hasAnyTeacher =
+        entry.teacherName.isNotEmpty ||
+        entry.originalTeacherName.isNotEmpty ||
+        (isCancelledReplacement &&
+            (replacement!.originalTeacherName.isNotEmpty ||
+             replacement.teacherName.isNotEmpty));
 
     return ClipRect(
       child: Padding(
@@ -1999,7 +2007,7 @@ class _SlotContent extends StatelessWidget {
                                 : context.appTextPrimary),
                       decoration: hideInlineOriginalSubject
                           ? TextDecoration.lineThrough
-                          : isReplaced
+                          : (isReplaced || isCancelledReplacement)
                           ? TextDecoration.lineThrough
                           : null,
                       decorationColor: AppTheme.danger.withValues(alpha: 0.75),
@@ -2012,9 +2020,9 @@ class _SlotContent extends StatelessWidget {
                   if ((isPureSubstitution ||
                           isPureAdditional ||
                           (!hideInlineOriginalSubject &&
-                              (entry.teacherName.isNotEmpty || entry.originalTeacherName.isNotEmpty) &&
+                              hasAnyTeacher &&
                               (!hasReplacement || isCancelledReplacement))) &&
-                      (entry.teacherName.isNotEmpty || entry.originalTeacherName.isNotEmpty)) ...[
+                      hasAnyTeacher) ...[
                     // Substitution: show absent teacher (red strike) then new (orange)
                     if (isPureSubstitution &&
                         entry.originalTeacherName.isNotEmpty &&
@@ -2046,7 +2054,11 @@ class _SlotContent extends StatelessWidget {
                       Text(
                         entry.teacherName.isNotEmpty
                             ? entry.teacherName
-                            : entry.originalTeacherName,
+                            : entry.originalTeacherName.isNotEmpty
+                            ? entry.originalTeacherName
+                            : (isCancelledReplacement
+                                ? replacement.originalTeacherName
+                                : ''),
                         style: TextStyle(
                           fontSize: 10,
                           color: isExam
@@ -2064,7 +2076,7 @@ class _SlotContent extends StatelessWidget {
                               ? null
                               : isPureAdditional
                               ? null
-                              : isReplaced
+                              : (isReplaced || isCancelledReplacement)
                               ? TextDecoration.lineThrough
                               : null,
                           decorationColor: AppTheme.danger.withValues(alpha: 0.65),
@@ -2072,6 +2084,17 @@ class _SlotContent extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
+                      if (isCancelledReplacement && replacement.teacherName.isNotEmpty)
+                        Text(
+                          '» ${replacement.teacherName}',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                            color: AppTheme.orange.withValues(alpha: 0.85),
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                     ],
                   ],
                   if ((isPureSubstitution ||
@@ -2388,6 +2411,35 @@ class _DetailSheet extends StatelessWidget {
                           ),
                         ),
                       ],
+                    ),
+                  ),
+                ],
+              ),
+            ] else if (entry.isCancelled && replacement != null) ...[
+              Row(
+                children: [
+                  Icon(CupertinoIcons.person, size: 14, color: context.appTextTertiary),
+                  const SizedBox(width: 8),
+                  Text('Lehrer  ', style: TextStyle(fontSize: 13, color: context.appTextTertiary)),
+                  Expanded(
+                    child: Text(
+                      replacement!.originalTeacherLongName.isNotEmpty
+                          ? replacement!.originalTeacherLongName
+                          : replacement!.originalTeacherName.isNotEmpty
+                          ? replacement!.originalTeacherName
+                          : entry.teacherLongName.isNotEmpty
+                          ? entry.teacherLongName
+                          : entry.teacherName,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                        color: AppTheme.danger.withValues(alpha: 0.7),
+                        decoration: TextDecoration.lineThrough,
+                        decorationColor: AppTheme.danger.withValues(alpha: 0.8),
+                        decorationThickness: 1.8,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
                 ],

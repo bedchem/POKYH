@@ -1756,6 +1756,22 @@ class TimetableEntry {
                 teacherLongName = longName;
               }
             }
+            // For SUBSTITUTED teachers, orgId points to the absent/original teacher
+            if (isSubstituted && orgId != null && orgLookup != null) {
+              final absentName = orgLookup['name'] as String? ?? '';
+              final absentLong = (orgLookup['longName'] as String?) ??
+                  (orgLookup['displayname'] as String?) ??
+                  absentName;
+              if (absentName.isNotEmpty) {
+                if (originalTeacherName.isNotEmpty) {
+                  originalTeacherName += ', $absentName';
+                  originalTeacherLongName += ', $absentLong';
+                } else {
+                  originalTeacherName = absentName;
+                  originalTeacherLongName = absentLong;
+                }
+              }
+            }
           }
           break;
         case 4: // ROOM
