@@ -360,7 +360,7 @@ class TimetableScreenState extends State<TimetableScreen> {
     final endM = _toMins(endTime);
     final startM = _toMins(nextStart);
     for (final b in _breakWindows) {
-      if (endM < _toMins(b.end) && startM > _toMins(b.start)) return true;
+      if (endM < _toMins(b.end) && startM >= _toMins(b.start)) return true;
     }
     return false;
   }
@@ -377,7 +377,7 @@ class TimetableScreenState extends State<TimetableScreen> {
       final t2 = sortedTimes[i + 1];
       final endT1 = endTimeForStart[t1] ?? _addMinutes(t1, 50);
       final gap = _toMins(t2) - _toMins(endT1);
-      if (gap >= 30 && _toMins(endT1) >= 660 && _toMins(t2) <= 840) {
+      if (gap >= 30 && _toMins(endT1) >= 660 && _toMins(t2) <= 1020) {
         if (gap > bestGap) {
           bestGap = gap;
           bestIndex = i;

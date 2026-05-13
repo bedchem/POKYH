@@ -72,7 +72,8 @@ class ApiClient {
         final retry = await _send(method, uri, body);
         return _parse(retry);
       }
-      throw ApiException(401, 'Session abgelaufen');
+      // Token ungültig — Fehler werfen, aber NICHT ausloggen
+      throw ApiException(401, 'Keine Berechtigung');
     }
 
     return _parse(response);

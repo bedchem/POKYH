@@ -17,6 +17,7 @@ class AuthService {
   String? _klasseName;
   String? _classId;
   bool _isAdmin = false;
+  bool _isUntisUser = true;
 
   // Cached prefs instance — avoids repeated getInstance() on every save.
   SharedPreferences? _prefs;
@@ -29,6 +30,7 @@ class AuthService {
   String? get webuntisKlasseName => _klasseName;
   String? get classId => _classId;
   bool get isAdmin => _isAdmin;
+  bool get isUntisUser => _isUntisUser;
   bool get isSignedIn => _jwtToken != null && _stableUid != null;
 
   Future<SharedPreferences> _getPrefs() async {
@@ -44,6 +46,46 @@ class AuthService {
       return uid;
     }
     return null;
+  }
+
+  /// Login with a POKYH-only account (no WebUntis session required).
+  Future<void> signInWithPassword(String username, String password) async {
+    debugPrint('[AuthService] POKYH-Konto Login für "$username"...');
+
+    final url = Uri.parse('${AppConfig.backendUrl}/auth/login');
+    final response = await http.post(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-Key': AppConfig.backendApiKey,
+        // No X-Server-Key → backend uses local password auth
+      },
+      body: jsonEncode({
+        'username': username.toLowerCase().trim(),
+        'password': password,
+      }),
+    ).timeout(AppConfig.networkTimeout);
+
+    if (response.statusCode != 200) {
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      throw Exception(data['error'] ?? 'Anmeldung fehlgeschlagen');
+    }
+
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    _jwtToken = data['token'] as String;
+    _refreshToken = data['refreshToken'] as String;
+
+    final user = data['user'] as Map<String, dynamic>;
+    _stableUid = user['stableUid'] as String;
+    _username = user['username'] as String;
+    _isUntisUser = false;
+    _klasseId = 0;
+    _klasseName = '';
+    _classId = null;
+    _isAdmin = user['isAdmin'] as bool? ?? false;
+
+    await _saveToPrefs();
+    debugPrint('[AuthService] POKYH-Konto angemeldet: stableUid=$_stableUid');
   }
 
   Future<void> signInAnonymously(
@@ -89,6 +131,7 @@ class AuthService {
     _klasseName = user['webuntisKlasseName'] as String?;
     _classId = user['classId'] as String?;
     _isAdmin = user['isAdmin'] as bool? ?? false;
+    _isUntisUser = true;
 
     await _saveToPrefs();
     debugPrint('[AuthService] Angemeldet: stableUid=$_stableUid classId=$_classId isAdmin=$_isAdmin');
@@ -149,6 +192,7 @@ class AuthService {
     _klasseName = prefs.getString('auth_klasse_name');
     _classId = prefs.getString('auth_class_id');
     _isAdmin = prefs.getBool('auth_is_admin') ?? false;
+    _isUntisUser = prefs.getBool('auth_is_untis_user') ?? true;
     return _stableUid != null;
   }
 
@@ -161,6 +205,7 @@ class AuthService {
     _klasseName = null;
     _classId = null;
     _isAdmin = false;
+    _isUntisUser = true;
   }
 
   static const _prefKeys = [
@@ -172,6 +217,7 @@ class AuthService {
     'auth_klasse_name',
     'auth_class_id',
     'auth_is_admin',
+    'auth_is_untis_user',
   ];
 
   Future<void> _saveToPrefs() async {
@@ -186,6 +232,7 @@ class AuthService {
       if (_klasseName != null) prefs.setString('auth_klasse_name', _klasseName!),
       if (_classId != null) prefs.setString('auth_class_id', _classId!),
       prefs.setBool('auth_is_admin', _isAdmin),
+      prefs.setBool('auth_is_untis_user', _isUntisUser),
     ]);
   }
 }

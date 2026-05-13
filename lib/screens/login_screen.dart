@@ -382,10 +382,18 @@ class _LoginScreenState extends State<LoginScreen>
     });
 
     try {
-      final ok = await _service.login(username, password);
+      // 1. WebUntis-Login versuchen
+      bool untisOk = false;
+      Object? untisError;
+      try {
+        untisOk = await _service.login(username, password);
+      } catch (e) {
+        untisError = e;
+      }
+
       if (!mounted) return;
 
-      if (ok) {
+      if (untisOk) {
         if (_saveLogin) {
           await _credService.saveCredentials(
             username: username,
@@ -393,6 +401,26 @@ class _LoginScreenState extends State<LoginScreen>
           );
         }
         _afterSuccessfulLogin(username);
+        return;
+      }
+
+      // 2. Fallback: POKYH-Konto probieren
+      try {
+        await AuthService.instance.signInWithPassword(username, password);
+        if (!mounted) return;
+        if (_saveLogin) {
+          await _credService.saveCredentials(
+            username: username,
+            password: password,
+          );
+        }
+        _navigateHome();
+        return;
+      } catch (_) {}
+
+      // Beide fehlgeschlagen — WebUntis-Fehler anzeigen
+      if (untisError != null) {
+        _setError(simplifyErrorMessage(untisError));
       } else {
         _setError('Falscher Benutzername oder Passwort.');
       }

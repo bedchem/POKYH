@@ -6,7 +6,7 @@ String simplifyErrorMessage(Object? error) {
   if (error is ApiException) {
     switch (error.statusCode) {
       case 401:
-        return 'Session abgelaufen. Bitte neu anmelden.';
+        return 'Keine Berechtigung (${error.message})';
       case 403:
         return 'Kein Zugriff (${error.message})';
       case 404:
