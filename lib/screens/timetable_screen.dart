@@ -518,18 +518,21 @@ class TimetableScreenState extends State<TimetableScreen> {
     }
 
     final isNow = _isToday(offset, dayIndex) && _isCurrentLesson(display, now);
-    final isPast = !isNow && (() {
-      final day = _dayForOffset(offset, dayIndex);
-      final today = DateTime(now.year, now.month, now.day);
-      final lessonDay = DateTime(day.year, day.month, day.day);
-      if (lessonDay.isBefore(today)) return true;
-      if (lessonDay.isAtSameMomentAs(today)) {
-        final nowMins = now.hour * 60 + now.minute;
-        final endMins = (display.endTime ~/ 100) * 60 + (display.endTime % 100);
-        return nowMins >= endMins;
-      }
-      return false;
-    })();
+    final isPast =
+        !isNow &&
+        (() {
+          final day = _dayForOffset(offset, dayIndex);
+          final today = DateTime(now.year, now.month, now.day);
+          final lessonDay = DateTime(day.year, day.month, day.day);
+          if (lessonDay.isBefore(today)) return true;
+          if (lessonDay.isAtSameMomentAs(today)) {
+            final nowMins = now.hour * 60 + now.minute;
+            final endMins =
+                (display.endTime ~/ 100) * 60 + (display.endTime % 100);
+            return nowMins >= endMins;
+          }
+          return false;
+        })();
     final homework = homeworkByLesson[display.lessonId] ?? [];
     return _SlotInfo(
       display: display,
@@ -630,18 +633,29 @@ class TimetableScreenState extends State<TimetableScreen> {
 
   // ── Week stats for the current offset ─────────────────────────────────────
 
-  ({int todayStd, int entfaelle, int pruefungen, int vertretungen}) _weekStats(int offset) {
+  ({int todayStd, int entfaelle, int pruefungen, int vertretungen}) _weekStats(
+    int offset,
+  ) {
     final entries = _cache[offset]?.entries ?? [];
     final now = DateTime.now();
     final todayInt = int.parse(
       '${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}',
     );
-    final todayActive = entries.where((e) => e.date == todayInt && !e.isCancelled).toList();
+    final todayActive = entries
+        .where((e) => e.date == todayInt && !e.isCancelled)
+        .toList();
     final todayStd = todayActive.length;
     final entfaelle = entries.where((e) => e.isCancelled).length;
     final pruefungen = entries.where((e) => e.isExam && !e.isCancelled).length;
-    final vertretungen = entries.where((e) => (e.isSubstitution || e.isAdditional) && !e.isCancelled).length;
-    return (todayStd: todayStd, entfaelle: entfaelle, pruefungen: pruefungen, vertretungen: vertretungen);
+    final vertretungen = entries
+        .where((e) => (e.isSubstitution || e.isAdditional) && !e.isCancelled)
+        .length;
+    return (
+      todayStd: todayStd,
+      entfaelle: entfaelle,
+      pruefungen: pruefungen,
+      vertretungen: vertretungen,
+    );
   }
 
   Widget _buildHeader() {
@@ -669,28 +683,34 @@ class TimetableScreenState extends State<TimetableScreen> {
               Text(
                 '${weekStart.day}. ${_months[weekStart.month - 1]} – '
                 '${weekEnd.day}. ${_months[weekEnd.month - 1]}',
-                style: TextStyle(
-                  fontSize: 13,
-                  color: context.appTextSecondary,
-                ),
+                style: TextStyle(fontSize: 13, color: context.appTextSecondary),
               ),
               const SizedBox(width: 8),
               GestureDetector(
                 onTap: isThisWeek ? null : _goToToday,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 7,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
                     color: AppTheme.accent.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(6),
                     border: isThisWeek
                         ? null
-                        : Border.all(color: AppTheme.accent.withValues(alpha: 0.25)),
+                        : Border.all(
+                            color: AppTheme.accent.withValues(alpha: 0.25),
+                          ),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       if (!isThisWeek && _currentOffset > 0) ...[
-                        const Icon(CupertinoIcons.arrow_left, size: 9, color: AppTheme.accent),
+                        const Icon(
+                          CupertinoIcons.arrow_left,
+                          size: 9,
+                          color: AppTheme.accent,
+                        ),
                         const SizedBox(width: 3),
                       ],
                       Text(
@@ -703,7 +723,11 @@ class TimetableScreenState extends State<TimetableScreen> {
                       ),
                       if (!isThisWeek && _currentOffset < 0) ...[
                         const SizedBox(width: 3),
-                        const Icon(CupertinoIcons.arrow_right, size: 9, color: AppTheme.accent),
+                        const Icon(
+                          CupertinoIcons.arrow_right,
+                          size: 9,
+                          color: AppTheme.accent,
+                        ),
                       ],
                     ],
                   ),
@@ -724,19 +748,25 @@ class TimetableScreenState extends State<TimetableScreen> {
               _WeekStatChip(
                 label: 'Entfälle',
                 value: '${stats.entfaelle}',
-                color: stats.entfaelle > 0 ? AppTheme.danger : context.appTextSecondary,
+                color: stats.entfaelle > 0
+                    ? AppTheme.danger
+                    : context.appTextSecondary,
               ),
               const SizedBox(width: 8),
               _WeekStatChip(
                 label: 'Prüfungen',
                 value: '${stats.pruefungen}',
-                color: stats.pruefungen > 0 ? AppTheme.warning : context.appTextSecondary,
+                color: stats.pruefungen > 0
+                    ? AppTheme.warning
+                    : context.appTextSecondary,
               ),
               const SizedBox(width: 8),
               _WeekStatChip(
                 label: 'Vertretung',
                 value: '${stats.vertretungen}',
-                color: stats.vertretungen > 0 ? AppTheme.orange : context.appTextSecondary,
+                color: stats.vertretungen > 0
+                    ? AppTheme.orange
+                    : context.appTextSecondary,
               ),
             ],
           ),
@@ -946,7 +976,14 @@ class _WeekPage extends StatelessWidget {
   Widget _buildWeekGrid(BuildContext context) {
     final entries = state._cache[offset]?.entries ?? [];
 
+    // Seed the grid with the school's predefined time units so the full day
+    // (including afternoon, lunch slot and recess gaps) is always visible —
+    // even when entries are grouped into multi-period blocks by the REST API.
+    final timeGrid = state.widget.service.timeGrid;
     final allTimes = <int>{};
+    for (final unit in timeGrid) {
+      allTimes.add(unit.startTime);
+    }
     for (int d = 0; d < 6; d++) {
       for (final e in state._forDay(offset, d)) {
         allTimes.add(e.startTime);
@@ -957,9 +994,16 @@ class _WeekPage extends StatelessWidget {
     final n = sortedTimes.length;
 
     final endTimeForStart = <int, int>{};
+    // Default end times from the school's time grid units so empty periods
+    // still measure correctly when no entry covers them.
+    for (final unit in timeGrid) {
+      endTimeForStart[unit.startTime] = unit.endTime;
+    }
+    // Only fill in end times for entry start times that aren't in the school
+    // grid (e.g. exams or off-schedule lessons). Multi-period entries keep the
+    // per-period grid duration so each slot renders one row.
     for (final e in entries) {
-      if (!endTimeForStart.containsKey(e.startTime) ||
-          e.endTime > endTimeForStart[e.startTime]!) {
+      if (!endTimeForStart.containsKey(e.startTime)) {
         endTimeForStart[e.startTime] = e.endTime;
       }
     }
@@ -1008,8 +1052,8 @@ class _WeekPage extends StatelessWidget {
                 final isToday = state._isToday(offset, i);
                 final isSaturdayEmpty =
                     i == 5 && state._forDay(offset, 5).isEmpty;
-                final isHoliday = !isSaturdayEmpty &&
-                    state._isSingleHolidayDay(offset, i);
+                final isHoliday =
+                    !isSaturdayEmpty && state._isSingleHolidayDay(offset, i);
                 final isDayOff = state._isDayAllCancelled(offset, i);
                 final isDayRepl =
                     !isDayOff && state._isDayAllReplacement(offset, i);
@@ -1176,7 +1220,8 @@ class _WeekPage extends StatelessWidget {
             ...List.generate(6, (dayIndex) {
               final isSaturdayEmpty =
                   dayIndex == 5 && state._forDay(offset, 5).isEmpty;
-              final isHoliday = !isSaturdayEmpty &&
+              final isHoliday =
+                  !isSaturdayEmpty &&
                   state._isSingleHolidayDay(offset, dayIndex);
               final isDayOff = state._isDayAllCancelled(offset, dayIndex);
               final isDayRepl =
@@ -1782,7 +1827,8 @@ class _MergedCell extends StatelessWidget {
       baseCellColor,
     );
 
-    final bool isCancelledOnly = entry.isCancelled && primary.replacement == null;
+    final bool isCancelledOnly =
+        entry.isCancelled && primary.replacement == null;
     final bool isReplacement =
         primary.kind == _SlotKind.replacement ||
         (entry.isSubstitution && !entry.isCancelled) ||
@@ -1819,7 +1865,9 @@ class _MergedCell extends StatelessWidget {
     }
 
     final borderColor = isSpecial
-        ? (highlightColor ?? AppTheme.accent).withValues(alpha: isDark ? 0.55 : 0.36)
+        ? (highlightColor ?? AppTheme.accent).withValues(
+            alpha: isDark ? 0.55 : 0.36,
+          )
         : context.appBorder.withValues(alpha: 0.35);
     final borderWidth = isSpecial ? 1.3 : 1.1;
 
@@ -1847,30 +1895,30 @@ class _MergedCell extends StatelessWidget {
           child: Opacity(
             opacity: isPast ? 0.55 : 1.0,
             child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Left accent bar
-              Container(
-                width: 3,
-                color: entry.isCancelled
-                    ? AppTheme.danger.withValues(alpha: 0.7)
-                    : entry.isExam
-                    ? AppTheme.warning.withValues(alpha: 0.8)
-                    : (primary.kind == _SlotKind.replacement &&
-                          !entry.isCancelled)
-                    // Zusatzstunde → blue, Vertretung/Substitute-only → orange
-                    ? ((primary.replacement?.isAdditional == true ||
-                              entry.isAdditional)
-                          ? AppTheme.accent.withValues(alpha: 0.75)
-                          : AppTheme.orange.withValues(alpha: 0.75))
-                    : subjectColor.withValues(alpha: 0.55),
-              ),
-              Expanded(
-                child: _SlotContent(slot: primary, isTappable: isTappable),
-              ),
-            ],
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Left accent bar
+                Container(
+                  width: 3,
+                  color: entry.isCancelled
+                      ? AppTheme.danger.withValues(alpha: 0.7)
+                      : entry.isExam
+                      ? AppTheme.warning.withValues(alpha: 0.8)
+                      : (primary.kind == _SlotKind.replacement &&
+                            !entry.isCancelled)
+                      // Zusatzstunde → blue, Vertretung/Substitute-only → orange
+                      ? ((primary.replacement?.isAdditional == true ||
+                                entry.isAdditional)
+                            ? AppTheme.accent.withValues(alpha: 0.75)
+                            : AppTheme.orange.withValues(alpha: 0.75))
+                      : subjectColor.withValues(alpha: 0.55),
+                ),
+                Expanded(
+                  child: _SlotContent(slot: primary, isTappable: isTappable),
+                ),
+              ],
+            ),
           ),
-        ),
         ),
       ),
     );
@@ -1966,7 +2014,7 @@ class _SlotContent extends StatelessWidget {
         entry.originalTeacherName.isNotEmpty ||
         (isCancelledReplacement &&
             (replacement!.originalTeacherName.isNotEmpty ||
-             replacement.teacherName.isNotEmpty));
+                replacement.teacherName.isNotEmpty));
 
     return ClipRect(
       child: Padding(
@@ -2080,7 +2128,9 @@ class _SlotContent extends StatelessWidget {
                           fontSize: 10,
                           color: AppTheme.danger.withValues(alpha: 0.7),
                           decoration: TextDecoration.lineThrough,
-                          decorationColor: AppTheme.danger.withValues(alpha: 0.75),
+                          decorationColor: AppTheme.danger.withValues(
+                            alpha: 0.75,
+                          ),
                           decorationThickness: 1.5,
                         ),
                         maxLines: 1,
@@ -2104,8 +2154,8 @@ class _SlotContent extends StatelessWidget {
                             : entry.originalTeacherName.isNotEmpty
                             ? entry.originalTeacherName
                             : (isCancelledReplacement
-                                ? replacement.originalTeacherName
-                                : ''),
+                                  ? replacement.originalTeacherName
+                                  : ''),
                         style: TextStyle(
                           fontSize: 10,
                           color: isExam
@@ -2126,12 +2176,15 @@ class _SlotContent extends StatelessWidget {
                               : (isReplaced || isCancelledReplacement)
                               ? TextDecoration.lineThrough
                               : null,
-                          decorationColor: AppTheme.danger.withValues(alpha: 0.65),
+                          decorationColor: AppTheme.danger.withValues(
+                            alpha: 0.65,
+                          ),
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      if (isCancelledReplacement && replacement.teacherName.isNotEmpty)
+                      if (isCancelledReplacement &&
+                          replacement.teacherName.isNotEmpty)
                         Text(
                           '» ${replacement.teacherName}',
                           style: TextStyle(
@@ -2409,7 +2462,10 @@ class _DetailSheet extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 20),
-          Container(height: 0.5, color: context.appBorder.withValues(alpha: 0.4)),
+          Container(
+            height: 0.5,
+            color: context.appBorder.withValues(alpha: 0.4),
+          ),
           const SizedBox(height: 16),
           _InfoRow(
             icon: CupertinoIcons.clock,
@@ -2418,16 +2474,29 @@ class _DetailSheet extends StatelessWidget {
           ),
           // When hasInlineOriginal the teacher/room belong to the NEW
           // subject and are shown inside the Vertretung card below.
-          if (!hasInlineOriginal && (entry.teacherName.isNotEmpty || entry.originalTeacherName.isNotEmpty)) ...[
+          if (!hasInlineOriginal &&
+              (entry.teacherName.isNotEmpty ||
+                  entry.originalTeacherName.isNotEmpty)) ...[
             const SizedBox(height: 10),
-            if (entry.originalTeacherName.isNotEmpty && entry.teacherName.isNotEmpty &&
+            if (entry.originalTeacherName.isNotEmpty &&
+                entry.teacherName.isNotEmpty &&
                 entry.originalTeacherName != entry.teacherName) ...[
               // Teacher changed: show old (strikethrough) → new
               Row(
                 children: [
-                  Icon(CupertinoIcons.person, size: 14, color: context.appTextTertiary),
+                  Icon(
+                    CupertinoIcons.person,
+                    size: 14,
+                    color: context.appTextTertiary,
+                  ),
                   const SizedBox(width: 8),
-                  Text('Lehrer  ', style: TextStyle(fontSize: 13, color: context.appTextTertiary)),
+                  Text(
+                    'Lehrer  ',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: context.appTextTertiary,
+                    ),
+                  ),
                   Expanded(
                     child: Wrap(
                       crossAxisAlignment: WrapCrossAlignment.center,
@@ -2442,11 +2511,17 @@ class _DetailSheet extends StatelessWidget {
                             fontWeight: FontWeight.w500,
                             color: AppTheme.danger.withValues(alpha: 0.7),
                             decoration: TextDecoration.lineThrough,
-                            decorationColor: AppTheme.danger.withValues(alpha: 0.8),
+                            decorationColor: AppTheme.danger.withValues(
+                              alpha: 0.8,
+                            ),
                             decorationThickness: 1.8,
                           ),
                         ),
-                        Icon(CupertinoIcons.arrow_right, size: 11, color: AppTheme.orange),
+                        Icon(
+                          CupertinoIcons.arrow_right,
+                          size: 11,
+                          color: AppTheme.orange,
+                        ),
                         Text(
                           entry.teacherLongName.isNotEmpty
                               ? entry.teacherLongName
@@ -2465,32 +2540,65 @@ class _DetailSheet extends StatelessWidget {
             ] else if (entry.isCancelled && replacement != null) ...[
               Row(
                 children: [
-                  Icon(CupertinoIcons.person, size: 14, color: context.appTextTertiary),
+                  Icon(
+                    CupertinoIcons.person,
+                    size: 14,
+                    color: context.appTextTertiary,
+                  ),
                   const SizedBox(width: 8),
-                  Text('Lehrer  ', style: TextStyle(fontSize: 13, color: context.appTextTertiary)),
+                  Text(
+                    'Lehrer  ',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: context.appTextTertiary,
+                    ),
+                  ),
                   Expanded(
-                    child: Text(
-                      replacement!.originalTeacherLongName.isNotEmpty
-                          ? replacement!.originalTeacherLongName
-                          : replacement!.originalTeacherName.isNotEmpty
-                          ? replacement!.originalTeacherName
-                          : entry.originalTeacherLongName.isNotEmpty
-                          ? entry.originalTeacherLongName
-                          : entry.originalTeacherName.isNotEmpty
-                          ? entry.originalTeacherName
-                          : entry.teacherLongName.isNotEmpty
-                          ? entry.teacherLongName
-                          : entry.teacherName,
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500,
-                        color: AppTheme.danger.withValues(alpha: 0.7),
-                        decoration: TextDecoration.lineThrough,
-                        decorationColor: AppTheme.danger.withValues(alpha: 0.8),
-                        decorationThickness: 1.8,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
+                    child: Wrap(
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      spacing: 6,
+                      children: [
+                        Text(
+                          replacement!.originalTeacherLongName.isNotEmpty
+                              ? replacement!.originalTeacherLongName
+                              : replacement!.originalTeacherName.isNotEmpty
+                              ? replacement!.originalTeacherName
+                              : entry.originalTeacherLongName.isNotEmpty
+                              ? entry.originalTeacherLongName
+                              : entry.originalTeacherName.isNotEmpty
+                              ? entry.originalTeacherName
+                              : entry.teacherLongName.isNotEmpty
+                              ? entry.teacherLongName
+                              : entry.teacherName,
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                            color: AppTheme.danger.withValues(alpha: 0.7),
+                            decoration: TextDecoration.lineThrough,
+                            decorationColor: AppTheme.danger.withValues(
+                              alpha: 0.8,
+                            ),
+                            decorationThickness: 1.8,
+                          ),
+                        ),
+                        if (replacement!.teacherName.isNotEmpty) ...[
+                          Icon(
+                            CupertinoIcons.arrow_right,
+                            size: 11,
+                            color: AppTheme.orange,
+                          ),
+                          Text(
+                            replacement!.teacherLongName.isNotEmpty
+                                ? replacement!.teacherLongName
+                                : replacement!.teacherName,
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: AppTheme.orange,
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
                   ),
                 ],
@@ -2498,7 +2606,9 @@ class _DetailSheet extends StatelessWidget {
             ] else ...[
               _InfoRow(
                 icon: CupertinoIcons.person,
-                label: entry.isSubstitution && !entry.isAdditional ? 'Vertretung' : 'Lehrer',
+                label: entry.isSubstitution && !entry.isAdditional
+                    ? 'Vertretung'
+                    : 'Lehrer',
                 value: entry.teacherLongName.isNotEmpty
                     ? entry.teacherLongName
                     : entry.originalTeacherLongName.isNotEmpty

@@ -27,11 +27,67 @@
                     android:name="io.flutter.embedding.android.NormalTheme"
                     android:resource="@style/NormalTheme"
             />
+            <!-- No launcher intent-filter here — aliases handle all launcher entries.
+                 MainActivity itself is never disabled so flutter run / adb always works. -->
+        </activity>
+        <!-- Default icon alias — enabled by default, acts as the primary launcher entry -->
+        <activity-alias
+            android:name=".MainActivityDefault"
+            android:targetActivity=".MainActivity"
+            android:icon="@mipmap/ic_launcher"
+            android:enabled="true"
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
-        </activity>
+        </activity-alias>
+        <!-- Alternate launcher icons (disabled by default; activated via PackageManager) -->
+        <activity-alias
+            android:name=".MainActivityKlassisch"
+            android:targetActivity=".MainActivity"
+            android:icon="@mipmap/ic_launcher_klassisch"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".MainActivityNexor"
+            android:targetActivity=".MainActivity"
+            android:icon="@mipmap/ic_launcher_nexor"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".MainActivityNexor2"
+            android:targetActivity=".MainActivity"
+            android:icon="@mipmap/ic_launcher_nexor2"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".MainActivitySpez"
+            android:targetActivity=".MainActivity"
+            android:icon="@mipmap/ic_launcher_spez"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+
         <!-- flutter_local_notifications receivers -->
         <receiver android:exported="false" android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationReceiver"/>
         <receiver android:exported="false" android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationBootReceiver">

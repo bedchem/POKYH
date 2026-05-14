@@ -17,11 +17,11 @@ enum _SortMode { name, avgDesc, avgAsc, recent }
 
 Color _gradeColor(double v) {
   if (v >= 6) return AppTheme.tint;
-  if (v >= 4) return AppTheme.orange;
+  if (v >= 5) return AppTheme.orange;
   return AppTheme.danger;
 }
 
-// Detailed per-integer color used in donut chart
+// Per-integer color — matches web's DONUT_GRADE_COLORS
 Color _gradeColorByRank(int grade) {
   switch (grade) {
     case 10: return const Color(0xFF30D158);
@@ -30,9 +30,25 @@ Color _gradeColorByRank(int grade) {
     case 7:  return const Color(0xFF5E5CE6);
     case 6:  return const Color(0xFFFFD60A);
     case 5:  return const Color(0xFFFF9F0A);
-    case 4:  return const Color(0xFFFF453A);
-    default: return const Color(0xFF636366);
+    default: return const Color(0xFFFF453A); // 4 and below = red
   }
+}
+
+// Segments for donut hit-testing and painting
+typedef _SegInfo = ({int grade, double start, double sweep});
+
+List<_SegInfo> _computeDonutSegs(Map<int, int> distribution) {
+  final total = distribution.values.fold(0, (a, b) => a + b);
+  if (total == 0) return [];
+  const gap = 0.035;
+  double a = -math.pi / 2;
+  final sorted = distribution.entries.toList()..sort((x, y) => y.key.compareTo(x.key));
+  return sorted.map((e) {
+    final sweep = ((e.value / total) * math.pi * 2 - gap).clamp(0.01, math.pi * 2);
+    final seg = (grade: e.key, start: a, sweep: sweep);
+    a += sweep + gap;
+    return seg;
+  }).toList();
 }
 
 String _fmtNum(double v, {int digits = 2}) {
@@ -464,7 +480,7 @@ class _GradesScreenState extends State<GradesScreen> {
                 // ── KPI Dashboard ──
                 SliverToBoxAdapter(
                   child: Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
                     child: Column(
                       children: [
                         IntrinsicHeight(
@@ -472,18 +488,18 @@ class _GradesScreenState extends State<GradesScreen> {
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
                               Expanded(child: _KpiCardDurchschnitt(kpi: kpi)),
-                              const SizedBox(width: 10),
+                              const SizedBox(width: 8),
                               Expanded(child: _KpiCardVerhaeltnis(kpi: kpi)),
                             ],
                           ),
                         ),
-                        const SizedBox(height: 10),
+                        const SizedBox(height: 8),
                         IntrinsicHeight(
                           child: Row(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
                               Expanded(child: _KpiCardVerteilung(kpi: kpi)),
-                              const SizedBox(width: 10),
+                              const SizedBox(width: 8),
                               Expanded(child: _KpiCardKuerzlich(kpi: kpi)),
                             ],
                           ),
@@ -583,30 +599,17 @@ class _GradesScreenState extends State<GradesScreen> {
 // KPI cards
 // ═══════════════════════════════════════════════════════════════════════════════
 
-class _KpiCardDurchschnitt extends StatefulWidget {
+class _KpiCardDurchschnitt extends StatelessWidget {
   final _KpiData kpi;
   const _KpiCardDurchschnitt({required this.kpi});
 
   @override
-  State<_KpiCardDurchschnitt> createState() => _KpiCardDurchschnittState();
-}
-
-class _KpiCardDurchschnittState extends State<_KpiCardDurchschnitt> {
-  int? _tappedIndex;
-  final _sparklineKey = GlobalKey();
-
-  @override
   Widget build(BuildContext context) {
-    final kpi = widget.kpi;
     final avg = kpi.avg;
     final color = avg != null ? _gradeColor(avg) : context.appTextSecondary;
 
-    final tapped = _tappedIndex != null &&
-        _tappedIndex! < kpi.sparkline.length &&
-        _tappedIndex! < kpi.sparklineMonths.length;
-
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(11),
       decoration: BoxDecoration(
         color: context.appSurface,
         borderRadius: BorderRadius.circular(14),
@@ -615,101 +618,38 @@ class _KpiCardDurchschnittState extends State<_KpiCardDurchschnitt> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text('Durchschnittsnote',
-              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: context.appTextSecondary)),
-          const SizedBox(height: 8),
+              style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: context.appTextSecondary)),
+          Text('Alle Fächer',
+              style: TextStyle(fontSize: 9, color: context.appTextTertiary)),
+          const SizedBox(height: 6),
+          Text(
+            avg != null ? _fmtNum(avg) : '—',
+            style: TextStyle(
+              fontSize: 40, fontWeight: FontWeight.w700, color: color, height: 1.0,
+              fontFeatures: const [FontFeature.tabularFigures()],
+            ),
+          ),
+          const SizedBox(height: 6),
           Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Text(
-                avg != null ? _fmtNum(avg) : '—',
-                style: TextStyle(
-                  fontSize: 30, fontWeight: FontWeight.w700, color: color,
-                  fontFeatures: const [FontFeature.tabularFigures()],
-                ),
-              ),
-              if (kpi.delta != null) ...[
-                const SizedBox(width: 6),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  margin: const EdgeInsets.only(bottom: 4),
-                  decoration: BoxDecoration(
-                    color: (kpi.delta! >= 0 ? AppTheme.tint : AppTheme.danger).withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Text(
-                    '${kpi.delta! >= 0 ? '▲' : '▼'} ${_fmtNum(kpi.delta!.abs())}',
-                    style: TextStyle(
-                      fontSize: 10, fontWeight: FontWeight.w700,
-                      color: kpi.delta! >= 0 ? AppTheme.tint : AppTheme.danger,
-                    ),
-                  ),
-                ),
+              if (kpi.prevAvg != null) ...[
+                Text('Vormonat ', style: TextStyle(fontSize: 9, color: context.appTextTertiary)),
+                Text(_fmtNum(kpi.prevAvg!),
+                    style: TextStyle(fontSize: 9, fontWeight: FontWeight.w600,
+                        color: context.appTextSecondary,
+                        fontFeatures: const [FontFeature.tabularFigures()])),
+              ],
+              if (kpi.prevAvg != null && kpi.bestGrade > 0)
+                Text('  ·  ', style: TextStyle(fontSize: 9, color: context.appTextTertiary)),
+              if (kpi.bestGrade > 0) ...[
+                Text('Beste ', style: TextStyle(fontSize: 9, color: context.appTextTertiary)),
+                Text(_fmtNum(kpi.bestGrade),
+                    style: TextStyle(fontSize: 9, fontWeight: FontWeight.w600,
+                        color: context.appTextSecondary,
+                        fontFeatures: const [FontFeature.tabularFigures()])),
               ],
             ],
           ),
-          if (kpi.sparkline.length >= 2) ...[
-            const SizedBox(height: 6),
-            GestureDetector(
-              onTapDown: (d) {
-                final box = _sparklineKey.currentContext?.findRenderObject() as RenderBox?;
-                if (box == null) return;
-                final n = kpi.sparkline.length;
-                if (n < 2) return;
-                final w = box.size.width;
-                final x = d.localPosition.dx;
-                int closest = 0;
-                double minDist = double.infinity;
-                for (int i = 0; i < n; i++) {
-                  final dist = (i / (n - 1) * w - x).abs();
-                  if (dist < minDist) { minDist = dist; closest = i; }
-                }
-                setState(() => _tappedIndex = _tappedIndex == closest ? null : closest);
-              },
-              child: SizedBox(
-                key: _sparklineKey,
-                width: double.infinity,
-                height: 32,
-                child: CustomPaint(
-                  painter: _SparklinePainter(
-                    data: kpi.sparkline,
-                    color: color,
-                    tappedIndex: _tappedIndex,
-                  ),
-                ),
-              ),
-            ),
-            if (tapped) ...[
-              const SizedBox(height: 4),
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: color.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: color.withValues(alpha: 0.25)),
-                    ),
-                    child: Text(
-                      '${kpi.sparklineMonths[_tappedIndex!]}  ${_fmtNum(kpi.sparkline[_tappedIndex!])}',
-                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: color),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ],
-          const SizedBox(height: 8),
-          if (!tapped) ...[
-            if (kpi.prevAvg != null)
-              Text('Vormonat ${_fmtNum(kpi.prevAvg!)}',
-                  style: TextStyle(fontSize: 10, color: context.appTextTertiary)),
-            if (kpi.bestGrade > 0)
-              Text('Beste Note ${_fmtNum(kpi.bestGrade)}',
-                  style: TextStyle(fontSize: 10, color: context.appTextTertiary)),
-          ] else ...[
-            Text('Tippe erneut zum Schließen',
-                style: TextStyle(fontSize: 9, color: context.appTextTertiary)),
-          ],
         ],
       ),
     );
@@ -726,7 +666,7 @@ class _KpiCardVerhaeltnis extends StatelessWidget {
     final posRatio = total > 0 ? kpi.pos / total : 0.0;
 
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(11),
       decoration: BoxDecoration(
         color: context.appSurface,
         borderRadius: BorderRadius.circular(14),
@@ -735,60 +675,110 @@ class _KpiCardVerhaeltnis extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text('Notenverhältnis',
-              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: context.appTextSecondary)),
+              style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: context.appTextSecondary)),
+          Text('Genügend · Ungenügend',
+              style: TextStyle(fontSize: 9, color: context.appTextTertiary)),
           const SizedBox(height: 8),
           Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
             children: [
               Text('${kpi.pos}',
-                  style: TextStyle(fontSize: 26, fontWeight: FontWeight.w700, color: AppTheme.tint,
-                      fontFeatures: const [FontFeature.tabularFigures()])),
+                  style: const TextStyle(
+                    fontSize: 32, fontWeight: FontWeight.w600, color: AppTheme.tint,
+                    fontFeatures: [FontFeature.tabularFigures()], height: 1.0,
+                  )),
               Padding(
-                padding: const EdgeInsets.only(bottom: 2),
-                child: Text(' / ', style: TextStyle(fontSize: 16, color: context.appTextTertiary)),
+                padding: const EdgeInsets.symmetric(horizontal: 6),
+                child: Text('/',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.w300,
+                        color: context.appTextTertiary, height: 1.0)),
               ),
               Text('${kpi.neg}',
-                  style: TextStyle(fontSize: 26, fontWeight: FontWeight.w700, color: AppTheme.danger,
-                      fontFeatures: const [FontFeature.tabularFigures()])),
+                  style: const TextStyle(
+                    fontSize: 22, fontWeight: FontWeight.w600, color: AppTheme.danger,
+                    fontFeatures: [FontFeature.tabularFigures()], height: 1.0,
+                  )),
             ],
           ),
           const SizedBox(height: 8),
           ClipRRect(
-            borderRadius: BorderRadius.circular(4),
+            borderRadius: BorderRadius.circular(3),
             child: SizedBox(
-              height: 6,
+              height: 4,
               child: LayoutBuilder(
                 builder: (_, c) => Stack(
                   children: [
-                    Container(width: c.maxWidth, height: 6, color: AppTheme.danger.withValues(alpha: 0.2)),
-                    Container(width: c.maxWidth * posRatio, height: 6, color: AppTheme.tint),
+                    Container(width: c.maxWidth, height: 4, color: AppTheme.danger.withValues(alpha: 0.2)),
+                    Container(width: c.maxWidth * posRatio, height: 4, color: AppTheme.tint),
                   ],
                 ),
               ),
             ),
           ),
-          const SizedBox(height: 6),
-          Text(
-            '${(kpi.passRate * 100).round()}% bestanden',
-            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppTheme.tint),
+          const SizedBox(height: 7),
+          Row(
+            children: [
+              Text('${kpi.pos}',
+                  style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w600,
+                      color: AppTheme.tint, fontFeatures: [FontFeature.tabularFigures()])),
+              Text(' über 6.0  ·  ',
+                  style: TextStyle(fontSize: 9, color: context.appTextTertiary)),
+              Text('${kpi.neg}',
+                  style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w600,
+                      color: AppTheme.danger, fontFeatures: [FontFeature.tabularFigures()])),
+              Text(' unter 6.0',
+                  style: TextStyle(fontSize: 9, color: context.appTextTertiary)),
+            ],
           ),
-          const SizedBox(height: 8),
-          Text('${kpi.pos} positiv · ${kpi.neg} negativ',
-              style: TextStyle(fontSize: 10, color: context.appTextTertiary)),
         ],
       ),
     );
   }
 }
 
-class _KpiCardVerteilung extends StatelessWidget {
+class _KpiCardVerteilung extends StatefulWidget {
   final _KpiData kpi;
   const _KpiCardVerteilung({required this.kpi});
 
   @override
+  State<_KpiCardVerteilung> createState() => _KpiCardVerteilungState();
+}
+
+class _KpiCardVerteilungState extends State<_KpiCardVerteilung> {
+  int? _tappedGrade;
+
+  static const double _donutSize = 84;
+  static const double _arcRadius = 25.0; // availR(31) - sw/2(6)
+  static const double _sw = 12.0;
+
+  void _onTap(TapDownDetails d) {
+    const center = Offset(_donutSize / 2, _donutSize / 2);
+    final pos = d.localPosition - center;
+    final dist = pos.distance;
+    if (dist < _arcRadius - _sw / 2 - 6 || dist > _arcRadius + _sw / 2 + 6) {
+      setState(() => _tappedGrade = null);
+      return;
+    }
+    final segs = _computeDonutSegs(widget.kpi.distribution);
+    var angle = math.atan2(pos.dy, pos.dx);
+    if (angle < -math.pi / 2) angle += 2 * math.pi;
+    for (final seg in segs) {
+      if (angle >= seg.start && angle < seg.start + seg.sweep) {
+        setState(() => _tappedGrade = _tappedGrade == seg.grade ? null : seg.grade);
+        return;
+      }
+    }
+    setState(() => _tappedGrade = null);
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final tapped = _tappedGrade;
+    final count = tapped != null ? (widget.kpi.distribution[tapped] ?? 0) : 0;
+
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(11),
       decoration: BoxDecoration(
         color: context.appSurface,
         borderRadius: BorderRadius.circular(14),
@@ -797,20 +787,34 @@ class _KpiCardVerteilung extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text('Notenverteilung',
-              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: context.appTextSecondary)),
-          const SizedBox(height: 8),
+              style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: context.appTextSecondary)),
+          const SizedBox(height: 6),
           Center(
-            child: SizedBox(
-              width: 90, height: 90,
-              child: CustomPaint(painter: _DonutPainter(distribution: kpi.distribution)),
+            child: GestureDetector(
+              onTapDown: _onTap,
+              child: SizedBox(
+                width: _donutSize, height: _donutSize,
+                child: CustomPaint(
+                  painter: _DonutPainter(
+                    distribution: widget.kpi.distribution,
+                    tappedGrade: _tappedGrade,
+                  ),
+                ),
+              ),
             ),
           ),
-          const SizedBox(height: 8),
-          if (kpi.modeGrade != null)
-            Text('Häufigste: ${kpi.modeGrade}',
-                style: TextStyle(fontSize: 10, color: context.appTextTertiary)),
-          Text('Median: ${_fmtNum(kpi.median, digits: 1)}',
-              style: TextStyle(fontSize: 10, color: context.appTextTertiary)),
+          const SizedBox(height: 6),
+          if (tapped != null)
+            Text('Note $tapped: ${count}×',
+                style: TextStyle(fontSize: 9, fontWeight: FontWeight.w600,
+                    color: _gradeColorByRank(tapped)))
+          else ...[
+            if (widget.kpi.modeGrade != null)
+              Text('Häufigste: ${widget.kpi.modeGrade}',
+                  style: TextStyle(fontSize: 9, color: context.appTextTertiary)),
+            Text('Median: ${_fmtNum(widget.kpi.median, digits: 1)}',
+                style: TextStyle(fontSize: 9, color: context.appTextTertiary)),
+          ],
         ],
       ),
     );
@@ -824,7 +828,7 @@ class _KpiCardKuerzlich extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(11),
       decoration: BoxDecoration(
         color: context.appSurface,
         borderRadius: BorderRadius.circular(14),
@@ -832,9 +836,9 @@ class _KpiCardKuerzlich extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Kürzlich hinzugefügt',
-              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: context.appTextSecondary)),
-          const SizedBox(height: 8),
+          Text('Kürzlich',
+              style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: context.appTextSecondary)),
+          const SizedBox(height: 6),
           if (kpi.recent.isEmpty)
             Text('—', style: TextStyle(fontSize: 13, color: context.appTextTertiary))
           else
@@ -846,7 +850,7 @@ class _KpiCardKuerzlich extends StatelessWidget {
                   ? r.grade.examType
                   : '—';
               return Padding(
-                padding: const EdgeInsets.only(bottom: 7),
+                padding: const EdgeInsets.only(bottom: 5),
                 child: Row(
                   children: [
                     Expanded(
@@ -886,9 +890,17 @@ class _KpiCardKuerzlich extends StatelessWidget {
 
 class _SparklinePainter extends CustomPainter {
   final List<double> data;
+  final List<String> months;
   final Color color;
   final int? tappedIndex;
-  const _SparklinePainter({required this.data, required this.color, this.tappedIndex});
+  const _SparklinePainter({
+    required this.data,
+    required this.months,
+    required this.color,
+    this.tappedIndex,
+  });
+
+  static const double _top = 18.0; // reserved for floating tooltip
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -898,35 +910,84 @@ class _SparklinePainter extends CustomPainter {
     final range = (maxV - minV).abs();
 
     double yOf(double v) => range < 0.001
-        ? size.height / 2
-        : size.height - (v - minV) / range * (size.height - 4) - 2;
+        ? (size.height + _top) / 2
+        : size.height - (v - minV) / range * (size.height - _top - 3) - 2;
 
-    final paint = Paint()
-      ..color = color.withValues(alpha: 0.75)
+    // Area fill
+    final areaPath = Path();
+    for (int i = 0; i < data.length; i++) {
+      final x = i / (data.length - 1) * size.width;
+      if (i == 0) areaPath.moveTo(x, yOf(data[i]));
+      else areaPath.lineTo(x, yOf(data[i]));
+    }
+    areaPath.lineTo(size.width, size.height);
+    areaPath.lineTo(0, size.height);
+    areaPath.close();
+    canvas.drawPath(
+      areaPath,
+      Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [color.withValues(alpha: 0.12), color.withValues(alpha: 0.0)],
+        ).createShader(Rect.fromLTWH(0, 0, size.width, size.height))
+        ..style = PaintingStyle.fill,
+    );
+
+    // Line
+    final linePaint = Paint()
+      ..color = color.withValues(alpha: 0.8)
       ..strokeWidth = 1.5
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round;
-
     final path = Path();
     for (int i = 0; i < data.length; i++) {
       final x = i / (data.length - 1) * size.width;
       final y = yOf(data[i]);
       if (i == 0) path.moveTo(x, y); else path.lineTo(x, y);
     }
-    canvas.drawPath(path, paint);
+    canvas.drawPath(path, linePaint);
 
     // End dot
-    final endY = yOf(data.last);
-    canvas.drawCircle(Offset(size.width, endY), 2.5, Paint()..color = color);
+    canvas.drawCircle(Offset(size.width, yOf(data.last)), 2.5, Paint()..color = color);
 
-    // Tapped point highlight
+    // Tapped state
     if (tappedIndex != null && tappedIndex! < data.length) {
       final tx = tappedIndex! / (data.length - 1) * size.width;
       final ty = yOf(data[tappedIndex!]);
-      canvas.drawCircle(Offset(tx, ty), 4.5,
-          Paint()..color = color.withValues(alpha: 0.25));
-      canvas.drawCircle(Offset(tx, ty), 2.8, Paint()..color = color);
+
+      // Cursor line
+      canvas.drawLine(
+        Offset(tx, _top),
+        Offset(tx, size.height),
+        Paint()..color = color.withValues(alpha: 0.22)..strokeWidth = 1.0,
+      );
+
+      // Dot
+      canvas.drawCircle(Offset(tx, ty), 3.5, Paint()..color = color);
+
+      // Floating tooltip drawn at top of painter
+      if (tappedIndex! < months.length) {
+        final label = '${months[tappedIndex!]}   ${_fmtNum(data[tappedIndex!])}';
+        final tp = TextPainter(
+          text: TextSpan(
+            text: label,
+            style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w600, color: color),
+          ),
+          textDirection: TextDirection.ltr,
+        )..layout();
+        const hPad = 5.0, vPad = 2.5;
+        var lx = tx - tp.width / 2 - hPad;
+        lx = lx.clamp(0.0, size.width - tp.width - hPad * 2);
+        const ly = 0.0;
+        canvas.drawRRect(
+          RRect.fromLTRBR(lx, ly, lx + tp.width + hPad * 2,
+              ly + tp.height + vPad * 2, const Radius.circular(5)),
+          Paint()..color = color.withValues(alpha: 0.13),
+        );
+        tp.paint(canvas, Offset(lx + hPad, ly + vPad));
+      }
     }
   }
 
@@ -1117,63 +1178,69 @@ class _SubjectRow extends StatelessWidget {
 
 class _DonutPainter extends CustomPainter {
   final Map<int, int> distribution;
-  const _DonutPainter({required this.distribution});
+  final int? tappedGrade;
+  const _DonutPainter({required this.distribution, this.tappedGrade});
+
+  static const double _sw = 12.0;
+  static const double _labelReserve = 11.0;
 
   @override
   void paint(Canvas canvas, Size size) {
     final total = distribution.values.fold(0, (a, b) => a + b);
     if (total == 0) return;
-    const labelReserve = 18.0;
-    final availR = (math.min(size.width, size.height) / 2) - labelReserve;
+    final availR = (math.min(size.width, size.height) / 2) - _labelReserve;
     final center = Offset(size.width / 2, size.height / 2);
-    const strokeWidth = 16.0;
-    final arcRadius = availR - strokeWidth / 2;
+    final arcRadius = availR - _sw / 2;
     const gap = 0.035;
     double startAngle = -math.pi / 2;
     final sorted = distribution.entries.toList()
       ..sort((a, b) => b.key.compareTo(a.key));
 
-    final segmentMidAngles = <int, double>{};
-    final segmentSweeps = <int, double>{};
+    final midAngles = <int, double>{};
+    final sweeps = <int, double>{};
+
     for (final entry in sorted) {
-      final sweep = ((entry.value / total) * (math.pi * 2) - gap).clamp(0.01, math.pi * 2);
+      final sweep = ((entry.value / total) * math.pi * 2 - gap).clamp(0.01, math.pi * 2);
+      final isActive = tappedGrade == null || tappedGrade == entry.key;
       final paint = Paint()
-        ..color = _gradeColorByRank(entry.key)
+        ..color = _gradeColorByRank(entry.key).withValues(alpha: isActive ? 1.0 : 0.2)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = strokeWidth
+        ..strokeWidth = _sw
         ..strokeCap = StrokeCap.butt;
       canvas.drawArc(
         Rect.fromCircle(center: center, radius: arcRadius),
         startAngle, sweep, false, paint,
       );
-      segmentMidAngles[entry.key] = startAngle + sweep / 2;
-      segmentSweeps[entry.key] = sweep;
+      midAngles[entry.key] = startAngle + sweep / 2;
+      sweeps[entry.key] = sweep;
       startAngle += sweep + gap;
     }
 
+    // Labels — only show when no grade is tapped, or only the tapped one
     for (final entry in sorted) {
-      if ((segmentSweeps[entry.key] ?? 0) < 0.18) continue;
-      final midAngle = segmentMidAngles[entry.key]!;
+      if ((sweeps[entry.key] ?? 0) < 0.20) continue;
+      if (tappedGrade != null && tappedGrade != entry.key) continue;
+      final midAngle = midAngles[entry.key]!;
       final color = _gradeColorByRank(entry.key);
 
       final tickStart = Offset(
-        center.dx + (arcRadius + strokeWidth / 2 + 1) * math.cos(midAngle),
-        center.dy + (arcRadius + strokeWidth / 2 + 1) * math.sin(midAngle),
+        center.dx + (arcRadius + _sw / 2 + 1) * math.cos(midAngle),
+        center.dy + (arcRadius + _sw / 2 + 1) * math.sin(midAngle),
       );
       final tickEnd = Offset(
-        center.dx + (arcRadius + strokeWidth / 2 + 7) * math.cos(midAngle),
-        center.dy + (arcRadius + strokeWidth / 2 + 7) * math.sin(midAngle),
+        center.dx + (arcRadius + _sw / 2 + 5) * math.cos(midAngle),
+        center.dy + (arcRadius + _sw / 2 + 5) * math.sin(midAngle),
       );
       canvas.drawLine(tickStart, tickEnd,
-          Paint()..color = color.withValues(alpha: 0.8)..strokeWidth = 1.2);
+          Paint()..color = color.withValues(alpha: 0.8)..strokeWidth = 1.0);
 
-      final labelR = arcRadius + strokeWidth / 2 + 14;
+      final labelR = arcRadius + _sw / 2 + _labelReserve * 0.75;
       final lx = center.dx + labelR * math.cos(midAngle);
       final ly = center.dy + labelR * math.sin(midAngle);
       final tp = TextPainter(
         text: TextSpan(
           text: '${entry.key}',
-          style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: color),
+          style: TextStyle(fontSize: 8, fontWeight: FontWeight.w700, color: color),
         ),
         textDirection: TextDirection.ltr,
       )..layout();
@@ -1181,10 +1248,28 @@ class _DonutPainter extends CustomPainter {
       final ty = (ly - tp.height / 2).clamp(0.0, size.height - tp.height);
       tp.paint(canvas, Offset(tx, ty));
     }
+
+    // Center count
+    if (tappedGrade != null) {
+      final count = distribution[tappedGrade!] ?? 0;
+      final color = _gradeColorByRank(tappedGrade!);
+      final tp = TextPainter(
+        text: TextSpan(
+          text: '${count}×',
+          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: color),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      tp.paint(canvas, Offset(
+        center.dx - tp.width / 2,
+        center.dy - tp.height / 2,
+      ));
+    }
   }
 
   @override
-  bool shouldRepaint(_DonutPainter old) => old.distribution != distribution;
+  bool shouldRepaint(_DonutPainter old) =>
+      old.distribution != distribution || old.tappedGrade != tappedGrade;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -1201,25 +1286,22 @@ class _SubjectDetailSheet extends StatefulWidget {
 
 class _SubjectDetailSheetState extends State<_SubjectDetailSheet> {
   final List<double> _extraGrades = [];
-  final Set<int> _removedIndices = {};
+  final Set<int> _removedIds = {};
   final TextEditingController _inputCtrl = TextEditingController();
-  final FocusNode _focusNode = FocusNode();
-  String? _inputError;
+  final TextEditingController _targetCtrl = TextEditingController();
   bool _scrollResetQueued = false;
 
   @override
   void dispose() {
     _inputCtrl.dispose();
-    _focusNode.dispose();
+    _targetCtrl.dispose();
     super.dispose();
   }
 
   List<double> get _allGradeValues => [
     ...widget.subject.grades
-        .asMap()
-        .entries
-        .where((e) => !_removedIndices.contains(e.key))
-        .map((e) => e.value.markDisplayValue),
+        .where((g) => !_removedIds.contains(g.id))
+        .map((g) => g.markDisplayValue),
     ..._extraGrades,
   ];
 
@@ -1229,24 +1311,82 @@ class _SubjectDetailSheetState extends State<_SubjectDetailSheet> {
     return all.reduce((a, b) => a + b) / all.length;
   }
 
+  Set<int> get _removedIndicesForChart {
+    final result = <int>{};
+    for (int i = 0; i < widget.subject.grades.length; i++) {
+      if (_removedIds.contains(widget.subject.grades[i].id)) result.add(i);
+    }
+    return result;
+  }
+
+  bool get _hasDraft => _removedIds.isNotEmpty || _extraGrades.isNotEmpty;
+
   Color _gradeColor(double v) {
     if (v >= 6) return AppTheme.tint;
-    if (v >= 4) return AppTheme.orange;
+    if (v >= 5) return AppTheme.orange;
     return AppTheme.danger;
   }
 
-  String _fmtAvg(double v) {
-    final s = v.toStringAsFixed(3);
-    return s.replaceAll(RegExp(r'0+$'), '').replaceAll(RegExp(r'\.?$'), '');
+  String _fmtGrade(double v) =>
+      v.toStringAsFixed(2).replaceAll(RegExp(r'0+$'), '').replaceAll(RegExp(r'\.$'), '');
+
+  String _relativeDate(int date) {
+    final s = date.toString();
+    if (s.length != 8) return '';
+    final d = DateTime(int.parse(s.substring(0, 4)), int.parse(s.substring(4, 6)), int.parse(s.substring(6, 8)));
+    final diff = DateTime.now().difference(d).inDays;
+    if (diff == 0) return 'Heute';
+    if (diff == 1) return 'Gestern';
+    if (diff < 7) return 'vor $diff Tagen';
+    if (diff < 30) return 'vor ${(diff / 7).round()} Wochen';
+    if (diff < 365) return 'vor ${(diff / 30).round()} Monaten';
+    return 'vor ${(diff / 365).round()} Jahren';
+  }
+
+  double _roundToStep(double v, bool up) {
+    final scaled = v * 2;
+    final rounded = up ? scaled.ceil() : scaled.floor();
+    return (rounded / 2.0).clamp(4.0, 10.0);
+  }
+
+  ({String status, int count, double needed})? _calcRequired() {
+    final text = _targetCtrl.text.replaceAll(',', '.');
+    final target = double.tryParse(text);
+    if (target == null || target < 1 || target > 10) return null;
+    final allVals = _allGradeValues;
+    final n = allVals.length;
+    if (n == 0) return null;
+    final sum = allVals.reduce((a, b) => a + b);
+    final currentAvg = sum / n;
+    if ((currentAvg - target).abs() < 1e-6) {
+      return (status: 'reached', count: 0, needed: 0.0);
+    }
+    if (currentAvg < target) {
+      for (int k = 1; k <= 50; k++) {
+        final perGrade = (target * (n + k) - sum) / k;
+        if (perGrade <= 10) {
+          return (status: 'reachable', count: k, needed: _roundToStep(math.max(4.0, perGrade), true));
+        }
+      }
+      return (status: 'impossible', count: 0, needed: 0.0);
+    } else {
+      if (target <= 4 + 1e-6) return (status: 'impossible', count: 0, needed: 0.0);
+      final kMinRaw = (sum - target * n) / (target - 4);
+      final kMin = kMinRaw.ceil().clamp(1, 50);
+      if (kMin > 50) return (status: 'impossible', count: 0, needed: 0.0);
+      final perGrade = (target * (n + kMin) - sum) / kMin;
+      return (status: 'reachable', count: kMin, needed: _roundToStep(math.max(4.0, perGrade), false));
+    }
   }
 
   void _addGrade() {
     final val = double.tryParse(_inputCtrl.text.replaceAll(',', '.'));
-    if (val == null || val < 1 || val > 10) {
-      setState(() => _inputError = 'Bitte eine Note zwischen 1 und 10 eingeben');
-      return;
-    }
-    setState(() { _extraGrades.add(val); _inputCtrl.clear(); _inputError = null; });
+    if (val == null || val < 1 || val > 10) return;
+    setState(() { _extraGrades.add(val); _inputCtrl.clear(); });
+  }
+
+  void _resetDraft() {
+    setState(() { _removedIds.clear(); _extraGrades.clear(); _targetCtrl.clear(); });
   }
 
   @override
@@ -1277,7 +1417,7 @@ class _SubjectDetailSheetState extends State<_SubjectDetailSheet> {
         }
 
         return GestureDetector(
-          onTap: () => _focusNode.unfocus(),
+          onTap: () => FocusScope.of(context).unfocus(),
           behavior: HitTestBehavior.opaque,
           child: Container(
             decoration: BoxDecoration(
@@ -1303,12 +1443,24 @@ class _SubjectDetailSheetState extends State<_SubjectDetailSheet> {
                       ),
                       const SizedBox(width: 10),
                       Expanded(
-                        child: Text(
-                          widget.subject.subjectName,
-                          style: TextStyle(
-                            fontSize: 20, fontWeight: FontWeight.w700,
-                            color: context.appTextPrimary, letterSpacing: -0.3,
-                          ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              widget.subject.subjectName,
+                              style: TextStyle(
+                                fontSize: 20, fontWeight: FontWeight.w700,
+                                color: context.appTextPrimary, letterSpacing: -0.3,
+                              ),
+                            ),
+                            if (widget.subject.teacherName.isNotEmpty) ...[
+                              const SizedBox(height: 2),
+                              Text(
+                                widget.subject.teacherName,
+                                style: TextStyle(fontSize: 13, color: context.appTextSecondary),
+                              ),
+                            ],
+                          ],
                         ),
                       ),
                     ],
@@ -1317,43 +1469,30 @@ class _SubjectDetailSheetState extends State<_SubjectDetailSheet> {
                 Expanded(
                   child: NotificationListener<ScrollNotification>(
                     onNotification: (n) {
-                      if (n is ScrollStartNotification) _focusNode.unfocus();
+                      if (n is ScrollStartNotification) FocusScope.of(context).unfocus();
                       return false;
                     },
                     child: ListView(
                       controller: scrollCtrl,
                       padding: const EdgeInsets.fromLTRB(20, 16, 20, 40),
                       children: [
+                        // ── KPI Cards: Durchschnitt + Notenverhältnis ──────
                         Row(
                           children: [
                             Expanded(
-                              child: _MiniStatCard(
-                                label: 'Durchschnitt',
-                                value: origAvg != null
-                                    ? origAvg.toStringAsFixed(3).replaceAll(RegExp(r'0+4'), '').replaceAll(RegExp(r'\.\$'), '')
-                                    : '—',
-                                valueColor: origAvg != null ? _gradeColor(origAvg) : context.appTextSecondary,
-                              ),
+                              child: _buildAvgCard(context, simAvg, origAvg),
                             ),
                             const SizedBox(width: 10),
                             Expanded(
-                              child: _MiniStatCard(
-                                label: 'Pos. / Neg.',
-                                value: '${widget.subject.positiveCount} / ${widget.subject.negativeCount}',
-                                valueColor: context.appTextPrimary,
-                              ),
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: _MiniStatCard(
-                                label: 'Noten',
-                                value: '${widget.subject.grades.length}',
-                                valueColor: context.appTextPrimary,
-                              ),
+                              child: _buildRatioCard(context),
                             ),
                           ],
                         ),
+                        const SizedBox(height: 10),
+                        // ── KPI Card: Was brauche ich? ────────────────────
+                        _buildTargetCard(context),
                         const SizedBox(height: 14),
+                        // ── Notentrend ────────────────────────────────────
                         Container(
                           padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(color: context.appSurface, borderRadius: BorderRadius.circular(14)),
@@ -1366,28 +1505,34 @@ class _SubjectDetailSheetState extends State<_SubjectDetailSheet> {
                                     child: Column(
                                       crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
-                                        Text('Trend', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: context.appTextPrimary)),
-                                        Text('Notenentwicklung', style: TextStyle(fontSize: 11, color: context.appTextSecondary)),
+                                        Text('Notentrend', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: context.appTextPrimary)),
+                                        Text('Verlauf aller Noten', style: TextStyle(fontSize: 11, color: context.appTextSecondary)),
                                       ],
                                     ),
                                   ),
-                                  Row(
-                                    children: [
-                                      Container(width: 14, height: 2, color: color),
-                                      const SizedBox(width: 4),
-                                      Text('Noten', style: TextStyle(fontSize: 10, color: context.appTextTertiary)),
-                                      const SizedBox(width: 10),
-                                      Container(width: 14, height: 2, color: AppTheme.danger.withValues(alpha: 0.5)),
-                                      const SizedBox(width: 4),
-                                      Text('Trend', style: TextStyle(fontSize: 10, color: context.appTextTertiary)),
-                                      if (_extraGrades.isNotEmpty) ...[
-                                        const SizedBox(width: 10),
-                                        Container(width: 14, height: 2, color: AppTheme.accent.withValues(alpha: 0.7)),
+                                  if (_hasDraft)
+                                    GestureDetector(
+                                      onTap: _resetDraft,
+                                      child: Row(
+                                        children: [
+                                          Icon(CupertinoIcons.arrow_counterclockwise, size: 12, color: context.appTextTertiary),
+                                          const SizedBox(width: 4),
+                                          Text('Zurücksetzen', style: TextStyle(fontSize: 12, color: context.appTextTertiary)),
+                                        ],
+                                      ),
+                                    )
+                                  else
+                                    Row(
+                                      children: [
+                                        Container(width: 14, height: 2, color: color),
                                         const SizedBox(width: 4),
-                                        Text('Simulation', style: TextStyle(fontSize: 10, color: context.appTextTertiary)),
+                                        Text('Noten', style: TextStyle(fontSize: 10, color: context.appTextTertiary)),
+                                        const SizedBox(width: 8),
+                                        Container(width: 14, height: 2, color: AppTheme.danger.withValues(alpha: 0.5)),
+                                        const SizedBox(width: 4),
+                                        Text('Trend', style: TextStyle(fontSize: 10, color: context.appTextTertiary)),
                                       ],
-                                    ],
-                                  ),
+                                    ),
                                 ],
                               ),
                               const SizedBox(height: 14),
@@ -1396,7 +1541,7 @@ class _SubjectDetailSheetState extends State<_SubjectDetailSheet> {
                                 child: _TrendChart(
                                   grades: widget.subject.grades,
                                   extraGrades: _extraGrades,
-                                  removedIndices: _removedIndices,
+                                  removedIndices: _removedIndicesForChart,
                                   color: color,
                                 ),
                               ),
@@ -1404,188 +1549,12 @@ class _SubjectDetailSheetState extends State<_SubjectDetailSheet> {
                           ),
                         ),
                         const SizedBox(height: 12),
-                        Container(
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(color: context.appSurface, borderRadius: BorderRadius.circular(14)),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text('Mittelwert-Rechner', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: context.appTextPrimary)),
-                              const SizedBox(height: 2),
-                              Text('Simuliere zukünftige Noten', style: TextStyle(fontSize: 11, color: context.appTextSecondary)),
-                              const SizedBox(height: 16),
-                              if (simAvg != null)
-                                Center(
-                                  child: Column(
-                                    children: [
-                                      Text(
-                                        _fmtAvg(simAvg),
-                                        style: TextStyle(
-                                          fontSize: 40, fontWeight: FontWeight.w700,
-                                          color: _gradeColor(simAvg),
-                                          fontFeatures: const [FontFeature.tabularFigures()],
-                                        ),
-                                      ),
-                                      if (_extraGrades.isNotEmpty && origAvg != null)
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                                          decoration: BoxDecoration(
-                                            color: (simAvg >= origAvg ? AppTheme.success : AppTheme.danger).withValues(alpha: 0.12),
-                                            borderRadius: BorderRadius.circular(6),
-                                          ),
-                                          child: Text(
-                                            simAvg > origAvg
-                                                ? '↑ ${(simAvg - origAvg).abs().toStringAsFixed(3).replaceAll(RegExp(r'0+\$'), '').replaceAll(RegExp(r'\.\$'), '')} besser'
-                                                : simAvg < origAvg
-                                                ? '↓ ${(origAvg - simAvg).abs().toStringAsFixed(3).replaceAll(RegExp(r'0+\$'), '').replaceAll(RegExp(r'\.\$'), '')} schlechter'
-                                                : 'Kein Unterschied',
-                                            style: TextStyle(
-                                              fontSize: 12, fontWeight: FontWeight.w600,
-                                              color: simAvg >= origAvg ? AppTheme.success : AppTheme.danger,
-                                            ),
-                                          ),
-                                        ),
-                                    ],
-                                  ),
-                                ),
-                              const SizedBox(height: 16),
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  if (widget.subject.grades.isNotEmpty) ...[
-                                    Text('Vorhandene Noten', style: TextStyle(fontSize: 11, color: context.appTextTertiary)),
-                                    const SizedBox(height: 8),
-                                    Wrap(
-                                      spacing: 8, runSpacing: 7,
-                                      children: widget.subject.grades.asMap().entries.map((e) {
-                                        final removed = _removedIndices.contains(e.key);
-                                        final raw = e.value.markDisplayValue;
-                                        final label = raw.toStringAsFixed(3)
-                                            .replaceAll(RegExp(r'0+$'), '')
-                                            .replaceAll(RegExp(r'\.?$'), '');
-                                        final gc = removed
-                                            ? context.appTextTertiary
-                                            : _gradeColor(raw).withValues(alpha: 0.85);
-                                        return GestureDetector(
-                                          onTap: () => setState(() {
-                                            if (removed) _removedIndices.remove(e.key);
-                                            else _removedIndices.add(e.key);
-                                          }),
-                                          child: Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-                                            decoration: BoxDecoration(
-                                              color: removed ? context.appSurface : gc.withValues(alpha: 0.12),
-                                              borderRadius: BorderRadius.circular(9),
-                                              border: Border.all(
-                                                color: removed
-                                                    ? context.appBorder.withValues(alpha: 0.35)
-                                                    : gc.withValues(alpha: 0.35),
-                                              ),
-                                            ),
-                                            child: Row(
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                Text(label,
-                                                    style: TextStyle(
-                                                      fontSize: 15,
-                                                      fontWeight: removed ? FontWeight.w400 : FontWeight.w600,
-                                                      color: gc,
-                                                      decoration: removed ? TextDecoration.lineThrough : null,
-                                                      decorationColor: context.appTextTertiary.withValues(alpha: 0.6),
-                                                    )),
-                                                const SizedBox(width: 5),
-                                                Icon(
-                                                  removed ? CupertinoIcons.plus : CupertinoIcons.xmark,
-                                                  size: 12,
-                                                  color: removed
-                                                      ? context.appTextTertiary.withValues(alpha: 0.5)
-                                                      : AppTheme.danger,
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                        );
-                                      }).toList(),
-                                    ),
-                                    const SizedBox(height: 14),
-                                  ],
-                                  if (_extraGrades.isNotEmpty) ...[
-                                    Text('Testnoten', style: TextStyle(fontSize: 11, color: context.appTextTertiary)),
-                                    const SizedBox(height: 6),
-                                    Wrap(
-                                      spacing: 8, runSpacing: 7,
-                                      children: _extraGrades.asMap().entries.map((e) {
-                                        final gc = _gradeColor(e.value);
-                                        final label = e.value.toStringAsFixed(3)
-                                            .replaceAll(RegExp(r'0+$'), '')
-                                            .replaceAll(RegExp(r'\.?$'), '');
-                                        return GestureDetector(
-                                          onTap: () => setState(() => _extraGrades.removeAt(e.key)),
-                                          child: Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-                                            decoration: BoxDecoration(
-                                              color: gc.withValues(alpha: 0.12),
-                                              borderRadius: BorderRadius.circular(9),
-                                              border: Border.all(color: gc.withValues(alpha: 0.35)),
-                                            ),
-                                            child: Row(
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                Text(label, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: gc)),
-                                                const SizedBox(width: 5),
-                                                Icon(CupertinoIcons.xmark, size: 11, color: gc.withValues(alpha: 0.7)),
-                                              ],
-                                            ),
-                                          ),
-                                        );
-                                      }).toList(),
-                                    ),
-                                    const SizedBox(height: 12),
-                                  ],
-                                ],
-                              ),
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: GestureDetector(
-                                      onTap: () {},
-                                      child: CupertinoTextField(
-                                        focusNode: _focusNode,
-                                        controller: _inputCtrl,
-                                        placeholder: 'Note eingeben (1–10)',
-                                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                                        style: TextStyle(color: context.appTextPrimary, fontSize: 14),
-                                        placeholderStyle: TextStyle(color: context.appTextTertiary, fontSize: 14),
-                                        decoration: BoxDecoration(
-                                          color: context.appBg,
-                                          borderRadius: BorderRadius.circular(10),
-                                          border: Border.all(
-                                            color: _inputError != null ? AppTheme.danger : context.appBorder,
-                                          ),
-                                        ),
-                                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                                        onSubmitted: (_) => _addGrade(),
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  CupertinoButton(
-                                    color: AppTheme.accent,
-                                    borderRadius: BorderRadius.circular(10),
-                                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                                    minimumSize: Size.zero,
-                                    onPressed: _addGrade,
-                                    child: const Icon(CupertinoIcons.plus, size: 18, color: Colors.white),
-                                  ),
-                                ],
-                              ),
-                              if (_inputError != null) ...[
-                                const SizedBox(height: 6),
-                                Text(_inputError!, style: const TextStyle(fontSize: 11, color: AppTheme.danger)),
-                              ],
-                            ],
-                          ),
-                        ),
+                        // ── Noten-Liste ───────────────────────────────────
+                        if (widget.subject.grades.isNotEmpty)
+                          _buildGradeList(context),
+                        const SizedBox(height: 12),
+                        // ── Mittelwert-Rechner ────────────────────────────
+                        _buildCalculator(context),
                       ],
                     ),
                   ),
@@ -1597,31 +1566,514 @@ class _SubjectDetailSheetState extends State<_SubjectDetailSheet> {
       },
     );
   }
-}
 
-// ─── Mini stat card ────────────────────────────────────────────────────────────
+  // ── Avg KPI card ──────────────────────────────────────────────────────────────
 
-class _MiniStatCard extends StatelessWidget {
-  final String label;
-  final String value;
-  final Color valueColor;
-  const _MiniStatCard({required this.label, required this.value, required this.valueColor});
+  Widget _buildAvgCard(BuildContext context, double? simAvg, double? origAvg) {
+    final liveVals = _allGradeValues;
+    final bestGrade = liveVals.isEmpty ? null : liveVals.reduce(math.max);
+    final teacherDelta = (simAvg != null && origAvg != null) ? simAvg - origAvg : null;
+    final color = simAvg != null ? _gradeColor(simAvg) : context.appTextSecondary;
+    final count = liveVals.length;
 
-  @override
-  Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(color: context.appSurface, borderRadius: BorderRadius.circular(12)),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(color: context.appSurface, borderRadius: BorderRadius.circular(14)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: TextStyle(fontSize: 10, color: context.appTextTertiary)),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Durchschnitt',
+                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: context.appTextSecondary)),
+                    Text(
+                      _hasDraft ? '$count Noten · Simulation' : '$count Noten',
+                      style: TextStyle(fontSize: 10, color: context.appTextTertiary),
+                    ),
+                  ],
+                ),
+              ),
+              if (_hasDraft && teacherDelta != null && teacherDelta.abs() > 0.005)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: (teacherDelta >= 0 ? AppTheme.tint : AppTheme.danger).withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(99),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        teacherDelta >= 0 ? Icons.trending_up_rounded : Icons.trending_down_rounded,
+                        size: 11,
+                        color: teacherDelta >= 0 ? AppTheme.tint : AppTheme.danger,
+                      ),
+                      const SizedBox(width: 2),
+                      Text(
+                        _fmtGrade(teacherDelta.abs()),
+                        style: TextStyle(
+                          fontSize: 10, fontWeight: FontWeight.w600,
+                          color: teacherDelta >= 0 ? AppTheme.tint : AppTheme.danger,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            simAvg != null ? _fmtGrade(simAvg) : '—',
+            style: TextStyle(
+              fontSize: 30, fontWeight: FontWeight.w700, color: color,
+              fontFeatures: const [FontFeature.tabularFigures()],
+            ),
+          ),
           const SizedBox(height: 4),
-          Text(value,
-              style: TextStyle(
-                fontSize: 15, fontWeight: FontWeight.w700, color: valueColor,
-                fontFeatures: const [FontFeature.tabularFigures()],
-              )),
+          if (_hasDraft && origAvg != null)
+            Text('Lehrer-Schnitt ${_fmtGrade(origAvg)}',
+                style: TextStyle(fontSize: 10, color: context.appTextTertiary))
+          else if (bestGrade != null)
+            Text('Beste ${_fmtGrade(bestGrade)}',
+                style: TextStyle(fontSize: 10, color: context.appTextTertiary))
+          else
+            const SizedBox.shrink(),
+        ],
+      ),
+    );
+  }
+
+  // ── Ratio KPI card ────────────────────────────────────────────────────────────
+
+  Widget _buildRatioCard(BuildContext context) {
+    final liveVals = _allGradeValues;
+    final pos = liveVals.where((v) => v >= 6).length;
+    final neg = liveVals.where((v) => v < 6).length;
+    final total = pos + neg;
+    final passRate = total > 0 ? pos / total : 0.0;
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(color: context.appSurface, borderRadius: BorderRadius.circular(14)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Notenverhältnis',
+                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: context.appTextSecondary)),
+              Text('Genügend · Ungenügend',
+                  style: TextStyle(fontSize: 10, color: context.appTextTertiary)),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text('$pos',
+                  style: TextStyle(fontSize: 26, fontWeight: FontWeight.w700, color: AppTheme.tint,
+                      fontFeatures: const [FontFeature.tabularFigures()])),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 2),
+                child: Text(' / ', style: TextStyle(fontSize: 16, color: context.appTextTertiary)),
+              ),
+              Text('$neg',
+                  style: TextStyle(fontSize: 26, fontWeight: FontWeight.w700, color: AppTheme.danger,
+                      fontFeatures: const [FontFeature.tabularFigures()])),
+            ],
+          ),
+          const SizedBox(height: 8),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: SizedBox(
+              height: 5,
+              child: LayoutBuilder(
+                builder: (_, c) => Stack(
+                  children: [
+                    Container(width: c.maxWidth, height: 5, color: AppTheme.danger.withValues(alpha: 0.2)),
+                    Container(width: c.maxWidth * passRate, height: 5, color: AppTheme.tint),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Was brauche ich? KPI card ─────────────────────────────────────────────────
+
+  Widget _buildTargetCard(BuildContext context) {
+    final result = _calcRequired();
+    final hasInput = _targetCtrl.text.isNotEmpty;
+
+    String resultText;
+    Color resultColor;
+    String hintText;
+
+    if (!hasInput || result == null) {
+      resultText = '—';
+      resultColor = context.appTextTertiary;
+      hintText = hasInput
+          ? 'Bitte gib eine Zahl zwischen 1 und 10 ein'
+          : 'Trage einen Zielschnitt ein';
+    } else if (result.status == 'reached') {
+      resultText = 'erreicht';
+      resultColor = AppTheme.tint;
+      hintText = 'Ziel ist mit dem aktuellen Schnitt schon erreicht';
+    } else if (result.status == 'impossible') {
+      resultText = 'unmöglich';
+      resultColor = AppTheme.danger;
+      hintText = 'Ziel ist mit weiteren Noten nicht mehr erreichbar';
+    } else {
+      resultColor = _gradeColor(result.needed);
+      if (result.count == 1) {
+        resultText = _fmtGrade(result.needed);
+        hintText = 'Nächste Note für dein Ziel';
+      } else {
+        resultText = '${result.count}× ${_fmtGrade(result.needed)}';
+        hintText = '${result.count}x ${_fmtGrade(result.needed)}, um den Schnitt zu erreichen';
+      }
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(color: context.appSurface, borderRadius: BorderRadius.circular(14)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Was brauche ich?',
+                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: context.appTextSecondary)),
+                    Text('Zielnote-Rechner',
+                        style: TextStyle(fontSize: 10, color: context.appTextTertiary)),
+                  ],
+                ),
+              ),
+              Icon(CupertinoIcons.scope, size: 14, color: context.appTextSecondary),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                flex: 3,
+                child: TextField(
+                  controller: _targetCtrl,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  style: TextStyle(fontSize: 15, color: context.appTextPrimary),
+                  decoration: InputDecoration(
+                    hintText: 'Ziel',
+                    hintStyle: TextStyle(fontSize: 14, color: context.appTextTertiary),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    filled: true,
+                    fillColor: context.appBg,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide(color: context.appBorder),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide(color: context.appBorder),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide(color: AppTheme.accent),
+                    ),
+                    isDense: true,
+                  ),
+                  onChanged: (_) => setState(() {}),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                child: Text('→', style: TextStyle(fontSize: 18, color: context.appTextTertiary)),
+              ),
+              Expanded(
+                flex: 3,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: hasInput && result != null
+                        ? resultColor.withValues(alpha: 0.1)
+                        : context.appBg,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: hasInput && result != null
+                          ? resultColor.withValues(alpha: 0.3)
+                          : context.appBorder,
+                    ),
+                  ),
+                  child: Text(
+                    resultText,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 14, fontWeight: FontWeight.w700,
+                      color: hasInput && result != null ? resultColor : context.appTextTertiary,
+                      fontFeatures: const [FontFeature.tabularFigures()],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(hintText, style: TextStyle(fontSize: 11, color: context.appTextTertiary)),
+        ],
+      ),
+    );
+  }
+
+  // ── Noten-Liste card ──────────────────────────────────────────────────────────
+
+  Widget _buildGradeList(BuildContext context) {
+    final grades = List<GradeEntry>.from(widget.subject.grades)
+      ..sort((a, b) => b.date.compareTo(a.date));
+    final activeCount = grades.where((g) => !_removedIds.contains(g.id)).length;
+    final excludedCount = _removedIds.length;
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(color: context.appSurface, borderRadius: BorderRadius.circular(14)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Noten-Liste',
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: context.appTextPrimary)),
+          Text(
+            '$activeCount aktiv · $excludedCount ausgeschlossen',
+            style: TextStyle(fontSize: 11, color: context.appTextSecondary),
+          ),
+          const SizedBox(height: 12),
+          if (grades.isEmpty)
+            Text('Keine Noten erfasst',
+                style: TextStyle(fontSize: 13, color: context.appTextTertiary))
+          else
+            ...grades.map((g) {
+              final isRemoved = _removedIds.contains(g.id);
+              final gc = _gradeColor(g.markDisplayValue);
+              final label = g.text.isNotEmpty
+                  ? g.text
+                  : g.examType.isNotEmpty
+                  ? g.examType
+                  : '—';
+              final dateShort = _fmtDateShort(g.date);
+              final rel = _relativeDate(g.date);
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            label,
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: isRemoved ? context.appTextTertiary : context.appTextPrimary,
+                              decoration: isRemoved ? TextDecoration.lineThrough : null,
+                              decorationColor: context.appTextTertiary,
+                            ),
+                            maxLines: 1, overflow: TextOverflow.ellipsis,
+                          ),
+                          Text(
+                            '$dateShort · $rel',
+                            style: TextStyle(fontSize: 10, color: context.appTextTertiary),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: (isRemoved ? context.appTextTertiary : gc).withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(7),
+                      ),
+                      child: Text(
+                        g.markName,
+                        style: TextStyle(
+                          fontSize: 13, fontWeight: FontWeight.w700,
+                          color: isRemoved ? context.appTextTertiary : gc,
+                          fontFeatures: const [FontFeature.tabularFigures()],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    GestureDetector(
+                      onTap: () => setState(() {
+                        if (isRemoved) {
+                          _removedIds.remove(g.id);
+                        } else {
+                          _removedIds.add(g.id);
+                        }
+                      }),
+                      child: Container(
+                        width: 30, height: 30,
+                        decoration: BoxDecoration(
+                          color: context.appBg,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Icon(
+                          isRemoved
+                              ? CupertinoIcons.arrow_counterclockwise
+                              : CupertinoIcons.trash,
+                          size: 14,
+                          color: isRemoved ? AppTheme.accent : context.appTextTertiary,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
+        ],
+      ),
+    );
+  }
+
+  // ── Mittelwert-Rechner card ───────────────────────────────────────────────────
+
+  Widget _buildCalculator(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(color: context.appSurface, borderRadius: BorderRadius.circular(14)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Mittelwert-Rechner',
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: context.appTextPrimary)),
+          Text('Eigene Noten zum Spielen',
+              style: TextStyle(fontSize: 11, color: context.appTextSecondary)),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _inputCtrl,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  style: TextStyle(fontSize: 15, color: context.appTextPrimary),
+                  decoration: InputDecoration(
+                    hintText: 'z.B. 7,5',
+                    hintStyle: TextStyle(fontSize: 13, color: context.appTextTertiary),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    filled: true,
+                    fillColor: context.appBg,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide(color: context.appBorder),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide(color: context.appBorder),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide(color: AppTheme.accent),
+                    ),
+                    isDense: true,
+                  ),
+                  onSubmitted: (_) => _addGrade(),
+                ),
+              ),
+              const SizedBox(width: 8),
+              GestureDetector(
+                onTap: _addGrade,
+                child: Container(
+                  width: 40, height: 40,
+                  decoration: BoxDecoration(
+                    color: AppTheme.accent,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(CupertinoIcons.add, size: 18, color: Colors.white),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          if (_extraGrades.isEmpty)
+            Text('Noch keine eigenen Noten',
+                style: TextStyle(fontSize: 12, color: context.appTextTertiary))
+          else
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: _extraGrades.asMap().entries.map((e) {
+                final gc = _gradeColor(e.value);
+                return GestureDetector(
+                  onTap: () => setState(() => _extraGrades.removeAt(e.key)),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: gc.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(7),
+                      border: Border.all(color: gc.withValues(alpha: 0.25)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Text(
+                          _fmtGrade(e.value),
+                          style: TextStyle(
+                            fontSize: 13, fontWeight: FontWeight.w700, color: gc,
+                            fontFeatures: const [FontFeature.tabularFigures()],
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Icon(CupertinoIcons.trash, size: 11,
+                            color: const Color(0xFF8E8E93)),
+                      ],
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              Text('Schnell-Test:',
+                  style: TextStyle(fontSize: 11, color: context.appTextTertiary)),
+              ...[4, 5, 6, 7, 8, 9, 10].map((v) {
+                final gc = _gradeColor(v.toDouble());
+                return GestureDetector(
+                  onTap: () => setState(() => _extraGrades.add(v.toDouble())),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: gc.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(7),
+                      border: Border.all(color: gc.withValues(alpha: 0.25)),
+                    ),
+                    child: Text(
+                      '$v',
+                      style: TextStyle(
+                        fontSize: 12, fontWeight: FontWeight.w700, color: gc,
+                        fontFeatures: const [FontFeature.tabularFigures()],
+                      ),
+                    ),
+                  ),
+                );
+              }),
+            ],
+          ),
         ],
       ),
     );

@@ -468,20 +468,32 @@ class WebUntisService {
     final cached = getCachedWeek(start);
     if (cached != null) return cached;
 
-    final dateStr =
+    // Use the same REST endpoint as the web frontend so we get full
+    // teacher/subject longName and `removed` (absent) info via position1/2/3.
+    final startStr =
         '${start.year}-${start.month.toString().padLeft(2, '0')}-${start.day.toString().padLeft(2, '0')}';
+    final endDate = start.add(const Duration(days: 6));
+    final endStr =
+        '${endDate.year}-${endDate.month.toString().padLeft(2, '0')}-${endDate.day.toString().padLeft(2, '0')}';
+
+    final url = '$_baseUrl/api/rest/view/v1/timetable/entries'
+        '?start=$startStr&end=$endStr&format=1'
+        '&resourceType=STUDENT&resources=$_studentId'
+        '&periodTypes=&timetableType=MY_TIMETABLE&layout=START_TIME';
 
     try {
+      final headers = <String, String>{
+        'Cookie': _cookieHeader,
+        'Accept': 'application/json',
+        if (_bearerToken != null) 'Authorization': 'Bearer $_bearerToken',
+      };
       final response = await _client
-          .get(
-            Uri.parse(
-              '$_baseUrl/api/public/timetable/weekly/data?elementType=5&elementId=$_studentId&date=$dateStr&formatId=1',
-            ),
-            headers: {'Cookie': _cookieHeader},
-          )
+          .get(Uri.parse(url), headers: headers)
           .timeout(_timeout);
 
-      if (response.statusCode == 401 || response.statusCode == 403) {
+      if (response.statusCode == 401 ||
+          response.statusCode == 403 ||
+          response.body.trimLeft().startsWith('<')) {
         throw WebUntisException('Sitzung abgelaufen', isAuthError: true);
       }
 
@@ -489,28 +501,21 @@ class WebUntisService {
         throw WebUntisException('Fehler beim Laden des Stundenplans');
       }
 
-      final data = _parseJsonResponse(response.body);
-      final resultData = data['data']?['result']?['data'];
-      if (resultData == null) {
-        _cacheTimetable(start, []);
-        return [];
-      }
-
-      final elements = resultData['elements'] as List? ?? [];
-      final elementMap = <String, Map<String, dynamic>>{};
-      for (final e in elements) {
-        final type = e['type'];
-        final id = e['id'];
-        elementMap['$type-$id'] = Map<String, dynamic>.from(e);
-      }
-
-      final periodsMap =
-          resultData['elementPeriods'] as Map<String, dynamic>? ?? {};
-      final periods = periodsMap['$_studentId'] as List? ?? [];
+      final root = jsonDecode(response.body) as Map<String, dynamic>;
+      final days = root['days'] as List? ?? [];
 
       final entries = <TimetableEntry>[];
-      for (final p in periods) {
-        entries.add(TimetableEntry.fromWeeklyApi(p, elementMap));
+      for (final day in days) {
+        final dayMap = day as Map<String, dynamic>;
+        final gridEntries = dayMap['gridEntries'] as List? ?? [];
+        if (gridEntries.isEmpty) continue;
+        final dateStr = (dayMap['date'] as String).replaceAll('-', '');
+        final dateNum = int.tryParse(dateStr) ?? 0;
+        for (final ge in gridEntries) {
+          entries.add(
+            TimetableEntry.fromRestApi(ge as Map<String, dynamic>, dateNum),
+          );
+        }
       }
 
       entries.sort((a, b) {

@@ -31,6 +31,7 @@ class AbsencesScreen extends StatefulWidget {
 
 class _AbsencesScreenState extends State<AbsencesScreen> {
   List<AbsenceEntry> _absences = [];
+  int? _totalPossibleMins;
   bool _loading = true;
   String? _error;
   bool _exact = false;
@@ -53,6 +54,7 @@ class _AbsencesScreenState extends State<AbsencesScreen> {
         _loading = false;
         _error = null;
       });
+      if (_totalPossibleMins == null) _loadPossibleMins();
       _refreshInBackground();
       return;
     }
@@ -63,6 +65,7 @@ class _AbsencesScreenState extends State<AbsencesScreen> {
     try {
       final absences = await widget.service.getAbsences(forceRefresh: forceRefresh);
       if (mounted) setState(() { _absences = absences; _loading = false; });
+      _loadPossibleMins();
     } on WebUntisException catch (e) {
       if (!mounted) return;
       if (e.isAuthError) {
@@ -83,6 +86,51 @@ class _AbsencesScreenState extends State<AbsencesScreen> {
     try {
       final absences = await widget.service.getAbsences(forceRefresh: true);
       if (mounted) setState(() => _absences = absences);
+      _loadPossibleMins();
+    } catch (_) {}
+  }
+
+  List<DateTime> _schoolYearWeeks() {
+    final now = DateTime.now();
+    final startYear = now.month >= 9 ? now.year : now.year - 1;
+    var d = DateTime(startYear, 9, 1);
+    while (d.weekday != DateTime.monday) d = d.subtract(const Duration(days: 1));
+    final weeks = <DateTime>[];
+    while (!d.isAfter(now)) {
+      weeks.add(d);
+      d = d.add(const Duration(days: 7));
+    }
+    return weeks;
+  }
+
+  Future<void> _loadPossibleMins() async {
+    try {
+      final now = DateTime.now();
+      final startYear = now.month >= 9 ? now.year : now.year - 1;
+      final sepNum = startYear * 10000 + 9 * 100 + 1;
+      final nowNum = now.year * 10000 + now.month * 100 + now.day;
+
+      final weeks = _schoolYearWeeks();
+      final results = await Future.wait(
+        weeks.map((w) => widget.service
+            .getWeekSlotsForAbsences(w)
+            .catchError((_) => <int, List<(int, int)>>{})),
+      );
+
+      var possible = 0;
+      for (final weekMap in results) {
+        for (final e in weekMap.entries) {
+          if (e.key >= sepNum && e.key <= nowNum) {
+            for (final slot in e.value) {
+              possible += slot.$2 - slot.$1;
+            }
+          }
+        }
+      }
+
+      if (mounted) {
+        setState(() => _totalPossibleMins = possible > 0 ? possible : null);
+      }
     } catch (_) {}
   }
 
@@ -96,10 +144,8 @@ class _AbsencesScreenState extends State<AbsencesScreen> {
   int get _unexcusedMinutes => _totalMinutes - _excusedMinutes;
 
   double get _absenceRate {
-    final now = DateTime.now();
-    final startYear = now.month >= 9 ? now.year : now.year - 1;
-    final elapsedDays = now.difference(DateTime(startYear, 9, 1)).inDays;
-    final possible = ((elapsedDays * 5 / 7).floor() * 8 * 60).clamp(1, 999999).toInt();
+    final possible = _totalPossibleMins;
+    if (possible == null || possible <= 0) return 0.0;
     return (_totalMinutes / possible * 100).clamp(0.0, 100.0);
   }
 
@@ -778,28 +824,63 @@ class _AbsenceCard extends StatelessWidget {
             const SizedBox(height: 8),
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
               decoration: BoxDecoration(
                 color: context.appCard,
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: Text(
-                entry.reasonName!,
-                style: TextStyle(fontSize: 12, color: context.appTextSecondary),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.baseline,
+                textBaseline: TextBaseline.alphabetic,
+                children: [
+                  Text(
+                    'Grund',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: context.appTextTertiary,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      entry.reasonName!,
+                      style: TextStyle(fontSize: 12, color: context.appTextSecondary),
+                    ),
+                  ),
+                ],
               ),
             ),
-          ] else if (entry.note != null) ...[
-            const SizedBox(height: 8),
+          ],
+          if (entry.note != null) ...[
+            const SizedBox(height: 6),
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
               decoration: BoxDecoration(
                 color: context.appCard,
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: Text(
-                entry.note!,
-                style: TextStyle(fontSize: 12, color: context.appTextSecondary),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.baseline,
+                textBaseline: TextBaseline.alphabetic,
+                children: [
+                  Text(
+                    'Text',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: context.appTextTertiary,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      entry.note!,
+                      style: TextStyle(fontSize: 12, color: context.appTextSecondary),
+                    ),
+                  ),
+                ],
               ),
             ),
           ],

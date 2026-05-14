@@ -52,7 +52,7 @@ class AppIconService {
     ),
   ];
 
-  static bool get isSupported => Platform.isIOS;
+  static bool get isSupported => Platform.isIOS || Platform.isAndroid;
 
   static Future<String?> getCurrentIconName() async {
     if (!isSupported) return null;
