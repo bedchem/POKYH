@@ -294,25 +294,41 @@ class _LoginScreenState extends State<LoginScreen>
         return;
       }
 
-      bool ok = false;
+      // 1. POKYH zuerst
       try {
-        ok = await _service.login(account.username, password);
+        await AuthService.instance.signInWithPassword(account.username, password);
+        if (!mounted) return;
+        _clearFailedAttempts(account.username);
+        _navigateHome();
+        return;
+      } catch (_) {}
+
+      if (!mounted) return;
+
+      // 2. Fallback: Untis
+      bool untisOk = false;
+      Object? untisError;
+      try {
+        untisOk = await _service.login(account.username, password);
       } on WebUntisException catch (e) {
-        // Network/timeout error — keep the saved account, just show the message.
-        if (mounted) setState(() => _error = e.message);
-        return;
+        untisError = e;
       } catch (e) {
-        if (mounted) setState(() => _error = simplifyErrorMessage(e));
-        return;
+        untisError = e;
       }
 
       if (!mounted) return;
 
-      if (ok) {
+      if (untisOk) {
         _clearFailedAttempts(account.username);
         _afterSuccessfulLogin(account.username);
+        return;
+      }
+
+      if (untisError is WebUntisException) {
+        // Netzwerkfehler — Account behalten
+        _setError(untisError.message);
       } else {
-        // login() returned false = server explicitly rejected credentials.
+        // Beide fehlgeschlagen — Account löschen
         await _credService.removeAccount(account.username);
         await _loadSavedAccounts();
         _setError('Passwort ungültig. Bitte manuell anmelden.');
@@ -382,48 +398,40 @@ class _LoginScreenState extends State<LoginScreen>
     });
 
     try {
-      // 1. WebUntis-Login versuchen
+      // 1. POKYH-API zuerst prüfen
+      Object? pokyhError;
+      try {
+        await AuthService.instance.signInWithPassword(username, password);
+        if (!mounted) return;
+        if (_saveLogin) {
+          await _credService.saveCredentials(username: username, password: password);
+        }
+        _navigateHome();
+        return;
+      } catch (e) {
+        pokyhError = e;
+      }
+
+      if (!mounted) return;
+
+      // 2. Fallback: WebUntis-Login versuchen
       bool untisOk = false;
-      Object? untisError;
       try {
         untisOk = await _service.login(username, password);
-      } catch (e) {
-        untisError = e;
-      }
+      } catch (_) {}
 
       if (!mounted) return;
 
       if (untisOk) {
         if (_saveLogin) {
-          await _credService.saveCredentials(
-            username: username,
-            password: password,
-          );
+          await _credService.saveCredentials(username: username, password: password);
         }
         _afterSuccessfulLogin(username);
         return;
       }
 
-      // 2. Fallback: POKYH-Konto probieren
-      try {
-        await AuthService.instance.signInWithPassword(username, password);
-        if (!mounted) return;
-        if (_saveLogin) {
-          await _credService.saveCredentials(
-            username: username,
-            password: password,
-          );
-        }
-        _navigateHome();
-        return;
-      } catch (_) {}
-
-      // Beide fehlgeschlagen — WebUntis-Fehler anzeigen
-      if (untisError != null) {
-        _setError(simplifyErrorMessage(untisError));
-      } else {
-        _setError('Falscher Benutzername oder Passwort.');
-      }
+      // Beide fehlgeschlagen — POKYH-Fehler zeigen (spezifischer für API-Accounts)
+      _setError(simplifyErrorMessage(pokyhError));
     } catch (e) {
       if (mounted) _setError(simplifyErrorMessage(e));
     } finally {

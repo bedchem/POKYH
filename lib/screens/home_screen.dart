@@ -911,6 +911,19 @@ class _DashboardTabState extends State<_DashboardTab>
 
   Future<void> _load() async {
     _isWeekend = DateTime.now().weekday >= 6;
+    _fadeController.reset();
+
+    if (!AuthService.instance.isUntisUser) {
+      setState(() {
+        _loadingTimetable = false;
+        _loadingGrades = false;
+        _loadingMensa = true;
+      });
+      await _loadMensa();
+      if (mounted) _fadeController.forward();
+      return;
+    }
+
     _applyGradesCache(widget.service.cachedGrades);
     final cachedWeek = widget.service.getCachedWeek(_getDisplayMonday());
     if (cachedWeek != null) _applyTimetableCache(cachedWeek);
@@ -920,7 +933,6 @@ class _DashboardTabState extends State<_DashboardTab>
       _loadingMensa = true;
       _errorTimetable = null;
     });
-    _fadeController.reset();
     await Future.wait([_loadTimetable(), _loadGrades(), _loadMensa()]);
     if (mounted) _fadeController.forward();
   }

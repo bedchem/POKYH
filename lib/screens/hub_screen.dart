@@ -1,6 +1,7 @@
 import 'dart:io' show Platform;
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import '../services/auth_service.dart';
 import '../services/webuntis_service.dart';
 import '../theme/app_theme.dart';
 import 'absences_screen.dart';
@@ -25,6 +26,7 @@ class HubScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isUntisUser = AuthService.instance.isUntisUser;
     return Scaffold(
       backgroundColor: context.appBg,
       body: SafeArea(
@@ -33,6 +35,34 @@ class HubScreen extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              if (!isUntisUser) ...[
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: AppTheme.orange.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppTheme.orange.withValues(alpha: 0.25)),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        _isIOS ? CupertinoIcons.exclamationmark_circle : Icons.info_outline_rounded,
+                        color: AppTheme.orange,
+                        size: 16,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Kein Schulkonto verknüpft – Schuldaten nicht verfügbar.',
+                          style: TextStyle(fontSize: 13, color: AppTheme.orange),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
               Padding(
                 padding: const EdgeInsets.only(right: 88),
                 child: Text(

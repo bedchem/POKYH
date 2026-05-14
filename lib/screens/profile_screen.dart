@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../config/app_config.dart';
 import '../main.dart' show appVersion;
+import '../services/app_icon_service.dart';
 import '../services/dish_service.dart';
 import '../services/auth_service.dart';
 import '../services/webuntis_service.dart';
@@ -39,11 +40,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   // Einstellungen
   String _themeMode = 'system';
+  String? _currentIconName;
 
   @override
   void initState() {
     super.initState();
     _loadSettings();
+    if (AppIconService.isSupported) {
+      AppIconService.getCurrentIconName().then((name) {
+        if (mounted) setState(() => _currentIconName = name);
+      });
+    }
   }
 
   Future<void> _loadSettings() async {
@@ -51,6 +58,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
     setState(() {
       _themeMode = prefs.getString('themeMode') ?? 'system';
     });
+  }
+
+  void _showIconPicker(BuildContext context) {
+    showCupertinoModalPopup<void>(
+      context: context,
+      builder: (ctx) => _IconPickerSheet(
+        currentIconName: _currentIconName,
+        onSelect: (option) async {
+          Navigator.pop(ctx);
+          final ok = await AppIconService.setIcon(option);
+          if (ok && mounted) setState(() => _currentIconName = option.iconName);
+        },
+      ),
+    );
   }
 
   Future<void> _save(String key, dynamic value) async {
@@ -759,6 +780,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       loading: _clearingCache,
                       onTap: _clearingCache ? null : _clearCache,
                     ),
+                    if (AppIconService.isSupported) ...[
+                      const SizedBox(height: 10),
+                      _ActionTile(
+                        icon: _isIOS
+                            ? CupertinoIcons.app
+                            : Icons.grid_view_outlined,
+                        title: 'App-Icon',
+                        subtitle: AppIconService.currentOption(_currentIconName).displayName,
+                        onTap: () => _showIconPicker(context),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -1118,6 +1150,121 @@ class _LegalButton extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+// ── Icon Picker Sheet ─────────────────────────────────────────────────────────
+
+class _IconPickerSheet extends StatelessWidget {
+  final String? currentIconName;
+  final void Function(AppIconOption) onSelect;
+
+  const _IconPickerSheet({required this.currentIconName, required this.onSelect});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = MediaQuery.platformBrightnessOf(context) == Brightness.dark;
+    final bg = isDark ? const Color(0xFF1C1C1E) : CupertinoColors.white;
+    final textColor = isDark ? CupertinoColors.white : CupertinoColors.black;
+    final subColor = isDark ? const Color(0xFF8E8E93) : const Color(0xFF6C6C70);
+
+    return DefaultTextStyle(
+      style: TextStyle(
+        fontFamily: 'SF Pro Text',
+        decoration: TextDecoration.none,
+        color: textColor,
+      ),
+      child: Container(
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      padding: EdgeInsets.fromLTRB(20, 16, 20, 20 + MediaQuery.of(context).padding.bottom),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Center(
+            child: Container(
+              width: 36,
+              height: 4,
+              margin: const EdgeInsets.only(bottom: 20),
+              decoration: BoxDecoration(
+                color: subColor.withValues(alpha: 0.4),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          Text(
+            'App-Icon',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w700,
+              color: textColor,
+              letterSpacing: -0.3,
+            ),
+          ),
+          const SizedBox(height: 16),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: AppIconService.icons.map((option) {
+                final isSelected = option.iconName == currentIconName;
+                return GestureDetector(
+                  onTap: () => onSelect(option),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 150),
+                    margin: const EdgeInsets.only(right: 14),
+                    padding: const EdgeInsets.all(3),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: isSelected
+                            ? CupertinoColors.systemPurple
+                            : Colors.transparent,
+                        width: 3,
+                      ),
+                    ),
+                    child: Column(
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(16),
+                          child: Image.asset(
+                            option.previewAsset,
+                            width: 72,
+                            height: 72,
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          option.displayName,
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                            color: isSelected ? CupertinoColors.systemPurple : subColor,
+                          ),
+                        ),
+                        if (isSelected) ...[
+                          const SizedBox(height: 2),
+                          const Icon(
+                            CupertinoIcons.checkmark_circle_fill,
+                            size: 14,
+                            color: CupertinoColors.systemPurple,
+                          ),
+                        ] else
+                          const SizedBox(height: 16),
+                      ],
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+        ],
+      ),
+    ),
     );
   }
 }

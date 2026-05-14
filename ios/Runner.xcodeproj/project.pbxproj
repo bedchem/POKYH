@@ -7,6 +7,16 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		8D5288F1142C3FE860E7A113 /* AppIconClassic@2x.png in Resources */ = {isa = PBXBuildFile; fileRef = 392456DE3EB13B9046685257 /* AppIconClassic@2x.png */; };
+		93CD59BF5C941CF0DC98D2C1 /* AppIconClassic@3x.png in Resources */ = {isa = PBXBuildFile; fileRef = 07A0CA6E0822E8F36C031199 /* AppIconClassic@3x.png */; };
+		47294739614FF3D719DB3AD0 /* AppIconNexor@2x.png in Resources */ = {isa = PBXBuildFile; fileRef = 8B8148F6B38A088CA65ED389 /* AppIconNexor@2x.png */; };
+		5D65A441D58842DEA2BC372F /* AppIconNexor@3x.png in Resources */ = {isa = PBXBuildFile; fileRef = 96DA1DAC72FF5D2A386ECBE0 /* AppIconNexor@3x.png */; };
+		BAA80DD488BD64072BCFBE01 /* AppIconNexor2@2x.png in Resources */ = {isa = PBXBuildFile; fileRef = B2B9437A28DF6EC4CE4A2BBD /* AppIconNexor2@2x.png */; };
+		6123FDF77656AF7229D4BEEF /* AppIconNexor2@3x.png in Resources */ = {isa = PBXBuildFile; fileRef = 27CD813047229389571AA876 /* AppIconNexor2@3x.png */; };
+		AF42E12F3838B3268E944239 /* AppIconSpecial@2x.png in Resources */ = {isa = PBXBuildFile; fileRef = 562B0F79C37459EEF50BEA63 /* AppIconSpecial@2x.png */; };
+		C6A7EE39C4B032CCD7C524A5 /* AppIconSpecial@3x.png in Resources */ = {isa = PBXBuildFile; fileRef = 18C267976142EA7D17BE3111 /* AppIconSpecial@3x.png */; };
+		448AAA9E66B2BC5B50C187FC /* AppIconMeme@2x.png in Resources */ = {isa = PBXBuildFile; fileRef = 9A8DCA03580D7B71D8F56413 /* AppIconMeme@2x.png */; };
+		508EBAD7B7C93ACFE059A0EE /* AppIconMeme@3x.png in Resources */ = {isa = PBXBuildFile; fileRef = BACFB3D00B1F9163CE9FF57F /* AppIconMeme@3x.png */; };
 		1498D2341E8E89220040F4C2 /* GeneratedPluginRegistrant.m in Sources */ = {isa = PBXBuildFile; fileRef = 1498D2331E8E89220040F4C2 /* GeneratedPluginRegistrant.m */; };
 		1AB268D3D6B3A45BB32E8BEC /* Pods_RunnerTests.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AC0EEB22219E8930FC8B9805 /* Pods_RunnerTests.framework */; };
 		331C808B294A63AB00263BE5 /* RunnerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 331C807B294A618700263BE5 /* RunnerTests.swift */; };
@@ -44,6 +54,16 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		392456DE3EB13B9046685257 /* AppIconClassic@2x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "AppIconClassic@2x.png"; sourceTree = "<group>"; };
+		07A0CA6E0822E8F36C031199 /* AppIconClassic@3x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "AppIconClassic@3x.png"; sourceTree = "<group>"; };
+		8B8148F6B38A088CA65ED389 /* AppIconNexor@2x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "AppIconNexor@2x.png"; sourceTree = "<group>"; };
+		96DA1DAC72FF5D2A386ECBE0 /* AppIconNexor@3x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "AppIconNexor@3x.png"; sourceTree = "<group>"; };
+		B2B9437A28DF6EC4CE4A2BBD /* AppIconNexor2@2x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "AppIconNexor2@2x.png"; sourceTree = "<group>"; };
+		27CD813047229389571AA876 /* AppIconNexor2@3x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "AppIconNexor2@3x.png"; sourceTree = "<group>"; };
+		562B0F79C37459EEF50BEA63 /* AppIconSpecial@2x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "AppIconSpecial@2x.png"; sourceTree = "<group>"; };
+		18C267976142EA7D17BE3111 /* AppIconSpecial@3x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "AppIconSpecial@3x.png"; sourceTree = "<group>"; };
+		9A8DCA03580D7B71D8F56413 /* AppIconMeme@2x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "AppIconMeme@2x.png"; sourceTree = "<group>"; };
+		BACFB3D00B1F9163CE9FF57F /* AppIconMeme@3x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "AppIconMeme@3x.png"; sourceTree = "<group>"; };
 		06F587A96F85B6AE8D975CA1 /* Pods-RunnerTests.profile.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-RunnerTests.profile.xcconfig"; path = "Target Support Files/Pods-RunnerTests/Pods-RunnerTests.profile.xcconfig"; sourceTree = "<group>"; };
 		1498D2321E8E86230040F4C2 /* GeneratedPluginRegistrant.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = GeneratedPluginRegistrant.h; sourceTree = "<group>"; };
 		1498D2331E8E89220040F4C2 /* GeneratedPluginRegistrant.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = GeneratedPluginRegistrant.m; sourceTree = "<group>"; };
@@ -153,6 +173,16 @@
 				74858FAE1ED2DC5600515810 /* AppDelegate.swift */,
 				7884E8672EC3CC0400C636F2 /* SceneDelegate.swift */,
 				74858FAD1ED2DC5600515810 /* Runner-Bridging-Header.h */,
+				392456DE3EB13B9046685257 /* AppIconClassic@2x.png */,
+				07A0CA6E0822E8F36C031199 /* AppIconClassic@3x.png */,
+				8B8148F6B38A088CA65ED389 /* AppIconNexor@2x.png */,
+				96DA1DAC72FF5D2A386ECBE0 /* AppIconNexor@3x.png */,
+				B2B9437A28DF6EC4CE4A2BBD /* AppIconNexor2@2x.png */,
+				27CD813047229389571AA876 /* AppIconNexor2@3x.png */,
+				562B0F79C37459EEF50BEA63 /* AppIconSpecial@2x.png */,
+				18C267976142EA7D17BE3111 /* AppIconSpecial@3x.png */,
+				9A8DCA03580D7B71D8F56413 /* AppIconMeme@2x.png */,
+				BACFB3D00B1F9163CE9FF57F /* AppIconMeme@3x.png */,
 			);
 			path = Runner;
 			sourceTree = "<group>";
@@ -271,6 +301,16 @@
 				97C146FE1CF9000F007C117D /* Assets.xcassets in Resources */,
 				97C146FC1CF9000F007C117D /* Main.storyboard in Resources */,
 				C264D4EA62DC717FC575B90C /* GoogleService-Info.plist in Resources */,
+				8D5288F1142C3FE860E7A113 /* AppIconClassic@2x.png in Resources */,
+				93CD59BF5C941CF0DC98D2C1 /* AppIconClassic@3x.png in Resources */,
+				47294739614FF3D719DB3AD0 /* AppIconNexor@2x.png in Resources */,
+				5D65A441D58842DEA2BC372F /* AppIconNexor@3x.png in Resources */,
+				BAA80DD488BD64072BCFBE01 /* AppIconNexor2@2x.png in Resources */,
+				6123FDF77656AF7229D4BEEF /* AppIconNexor2@3x.png in Resources */,
+				AF42E12F3838B3268E944239 /* AppIconSpecial@2x.png in Resources */,
+				C6A7EE39C4B032CCD7C524A5 /* AppIconSpecial@3x.png in Resources */,
+				448AAA9E66B2BC5B50C187FC /* AppIconMeme@2x.png in Resources */,
+				508EBAD7B7C93ACFE059A0EE /* AppIconMeme@3x.png in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

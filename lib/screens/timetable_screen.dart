@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import '../config/app_config.dart';
+import '../services/auth_service.dart';
 import '../services/webuntis_service.dart';
 import '../theme/app_theme.dart';
 import '../utils/error_message.dart';
@@ -49,6 +50,49 @@ class _WeekData {
 // ── Day status (for full-day cancelled / replacement columns) ─────────────────
 
 enum _DayStatus { cancelled, replacement }
+
+// ── Untis required banner (for POKYH-only users) ─────────────────────────────
+
+class _UntisRequiredBanner extends StatelessWidget {
+  const _UntisRequiredBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                CupertinoIcons.person_crop_circle_badge_exclam,
+                size: 56,
+                color: context.appTextTertiary,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Kein Schulkonto verknüpft',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: context.appTextPrimary,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Stundenplan und Schuldaten sind nur mit einem WebUntis-Konto verfügbar.',
+                style: TextStyle(fontSize: 14, color: context.appTextSecondary),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
 
 // ── Root screen ───────────────────────────────────────────────────────────────
 
@@ -557,6 +601,9 @@ class TimetableScreenState extends State<TimetableScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (!AuthService.instance.isUntisUser) {
+      return const _UntisRequiredBanner();
+    }
     return SafeArea(
       child: Column(
         children: [

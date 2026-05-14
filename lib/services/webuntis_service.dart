@@ -165,6 +165,11 @@ class WebUntisService {
           )
           .timeout(_timeout);
 
+      if (response.statusCode >= 500) {
+        throw WebUntisException(
+          'Untis ist momentan nicht erreichbar (Fehler ${response.statusCode}). Bitte versuche es später erneut.',
+        );
+      }
       if (response.statusCode != 200) return false;
 
       final data = _parseJsonResponse(response.body);

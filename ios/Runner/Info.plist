@@ -69,6 +69,44 @@
 		<string>fetch</string>
 		<string>remote-notification</string>
 	</array>
+	<key>CFBundleIcons</key>
+	<dict>
+		<key>CFBundlePrimaryIcon</key>
+		<dict>
+			<key>CFBundleIconFiles</key>
+			<array>
+				<string>AppIcon</string>
+			</array>
+		</dict>
+		<key>CFBundleAlternateIcons</key>
+		<dict>
+			<key>AppIconClassic</key>
+			<dict>
+				<key>CFBundleIconFiles</key>
+				<array><string>AppIconClassic</string></array>
+			</dict>
+			<key>AppIconNexor</key>
+			<dict>
+				<key>CFBundleIconFiles</key>
+				<array><string>AppIconNexor</string></array>
+			</dict>
+			<key>AppIconNexor2</key>
+			<dict>
+				<key>CFBundleIconFiles</key>
+				<array><string>AppIconNexor2</string></array>
+			</dict>
+			<key>AppIconSpecial</key>
+			<dict>
+				<key>CFBundleIconFiles</key>
+				<array><string>AppIconSpecial</string></array>
+			</dict>
+			<key>AppIconMeme</key>
+			<dict>
+				<key>CFBundleIconFiles</key>
+				<array><string>AppIconMeme</string></array>
+			</dict>
+		</dict>
+	</dict>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
