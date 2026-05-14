@@ -80,30 +80,25 @@
 		</dict>
 		<key>CFBundleAlternateIcons</key>
 		<dict>
-			<key>AppIconClassic</key>
+			<key>AppIconKlassisch</key>
 			<dict>
-				<key>CFBundleIconFiles</key>
-				<array><string>AppIconClassic</string></array>
+				<key>CFBundleIconName</key>
+				<string>AppIconKlassisch</string>
 			</dict>
 			<key>AppIconNexor</key>
 			<dict>
-				<key>CFBundleIconFiles</key>
-				<array><string>AppIconNexor</string></array>
+				<key>CFBundleIconName</key>
+				<string>AppIconNexor</string>
 			</dict>
 			<key>AppIconNexor2</key>
 			<dict>
-				<key>CFBundleIconFiles</key>
-				<array><string>AppIconNexor2</string></array>
+				<key>CFBundleIconName</key>
+				<string>AppIconNexor2</string>
 			</dict>
-			<key>AppIconSpecial</key>
+			<key>AppIconSpez</key>
 			<dict>
-				<key>CFBundleIconFiles</key>
-				<array><string>AppIconSpecial</string></array>
-			</dict>
-			<key>AppIconMeme</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array><string>AppIconMeme</string></array>
+				<key>CFBundleIconName</key>
+				<string>AppIconSpez</string>
 			</dict>
 		</dict>
 	</dict>

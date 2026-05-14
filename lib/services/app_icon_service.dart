@@ -32,28 +32,23 @@ class AppIconService {
     ),
     AppIconOption(
       displayName: 'Klassisch',
-      iconName: 'AppIconClassic',
+      iconName: 'AppIconKlassisch',
       previewAsset: 'assets/icons/image4.png',
     ),
     AppIconOption(
-      displayName: 'Nexor',
+      displayName: 'Heinrich',
       iconName: 'AppIconNexor',
       previewAsset: 'assets/icons/image2.png',
     ),
     AppIconOption(
-      displayName: 'Nexor 2',
+      displayName: 'Siggidy',
       iconName: 'AppIconNexor2',
       previewAsset: 'assets/icons/image3.png',
     ),
     AppIconOption(
       displayName: 'Special',
-      iconName: 'AppIconSpecial',
+      iconName: 'AppIconSpez',
       previewAsset: 'assets/icons/image5.png',
-    ),
-    AppIconOption(
-      displayName: 'Meme',
-      iconName: 'AppIconMeme',
-      previewAsset: 'assets/icons/image.png',
     ),
   ];
 

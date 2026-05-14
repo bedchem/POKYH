@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import '../config/app_config.dart';
+import '../services/auth_service.dart';
 import '../services/webuntis_service.dart';
 import '../theme/app_theme.dart';
 import '../utils/error_message.dart';
@@ -41,6 +42,10 @@ class _AbsencesScreenState extends State<AbsencesScreen> {
   }
 
   Future<void> _load({bool forceRefresh = false}) async {
+    if (!AuthService.instance.isUntisUser) {
+      if (mounted) setState(() { _loading = false; _error = null; });
+      return;
+    }
     final cached = widget.service.cachedAbsences;
     if (cached != null && !forceRefresh) {
       setState(() {
@@ -74,6 +79,7 @@ class _AbsencesScreenState extends State<AbsencesScreen> {
   }
 
   Future<void> _refreshInBackground() async {
+    if (!AuthService.instance.isUntisUser) return;
     try {
       final absences = await widget.service.getAbsences(forceRefresh: true);
       if (mounted) setState(() => _absences = absences);
@@ -112,6 +118,7 @@ class _AbsencesScreenState extends State<AbsencesScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isUntisUser = AuthService.instance.isUntisUser;
     return Scaffold(
       backgroundColor: context.appBg,
       body: SafeArea(
@@ -162,6 +169,42 @@ class _AbsencesScreenState extends State<AbsencesScreen> {
                 ],
               ),
             ),
+
+            if (!isUntisUser)
+              Expanded(
+                child: Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(32),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          CupertinoIcons.person_crop_circle_badge_exclam,
+                          size: 56,
+                          color: context.appTextTertiary,
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'Kein Schulkonto verknüpft',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w600,
+                            color: context.appTextPrimary,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Abwesenheiten sind nur mit einem WebUntis-Konto verfügbar.',
+                          style: TextStyle(fontSize: 14, color: context.appTextSecondary),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              )
+            else
 
             // ── Scrollable Body ────────────────────────────────────────────
             Expanded(

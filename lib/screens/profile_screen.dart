@@ -905,10 +905,10 @@ class _ProfileAvatarState extends State<_ProfileAvatar> {
   @override
   void initState() {
     super.initState();
-    if (!widget.service.profileImageFetched) {
+    if (AuthService.instance.isUntisUser && !widget.service.profileImageFetched) {
       widget.service.fetchProfileImage().then((_) {
         if (mounted) setState(() {});
-      });
+      }).catchError((_) {});
     }
   }
 
@@ -1203,6 +1203,7 @@ class _IconPickerSheet extends StatelessWidget {
               fontWeight: FontWeight.w700,
               color: textColor,
               letterSpacing: -0.3,
+              decoration: TextDecoration.none,
             ),
           ),
           const SizedBox(height: 16),
@@ -1244,6 +1245,7 @@ class _IconPickerSheet extends StatelessWidget {
                             fontSize: 11,
                             fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
                             color: isSelected ? CupertinoColors.systemPurple : subColor,
+                            decoration: TextDecoration.none,
                           ),
                         ),
                         if (isSelected) ...[
